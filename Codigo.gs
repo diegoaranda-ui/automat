@@ -174,6 +174,33 @@ function setupKavakSheet() {
     '=IFERROR(QUERY(Registros!A2:M, "select D, count(D) where D is not null group by D order by count(D) desc label D \'Herramienta\', count(D) \'Inspecciones\'"), "Sin datos")'
   );
 
+  // ── Tabla auxiliar para el gráfico de inspecciones por día ──
+  // Colocada a partir de B14 (debajo de las tablas QUERY)
+  db.getRange('B14').setValue('Inspecciones por día').setFontWeight('bold').setFontColor('#1c1c1e');
+  // Fórmula: genera la serie de fechas únicas con su conteo
+  db.getRange('B15').setFormula(
+    '=IFERROR(QUERY(Registros!A2:A,"select A, count(A) where A is not null group by A order by A label A \'Fecha\', count(A) \'Cantidad\'"),"Sin datos")'
+  );
+
+  // Gráfico de barras con la tabla anterior
+  var existingCharts = db.getCharts();
+  existingCharts.forEach(function(c){ db.removeChart(c); });
+
+  var chartBuilder = db.newChart()
+    .setChartType(Charts.ChartType.COLUMN)
+    .addRange(db.getRange('B15:C65'))
+    .setPosition(14, 5, 0, 0)
+    .setOption('title', 'Inspecciones por día')
+    .setOption('titleTextStyle', {color: '#1c1c1e', fontSize: 13, bold: true})
+    .setOption('colors', ['#00a060'])
+    .setOption('backgroundColor', {fill: '#ffffff'})
+    .setOption('legend', {position: 'none'})
+    .setOption('hAxis', {textStyle: {color: '#64748b', fontSize: 10}})
+    .setOption('vAxis', {textStyle: {color: '#64748b', fontSize: 10}, minValue: 0, format: '0'})
+    .setOption('width', 480)
+    .setOption('height', 260);
+  db.insertChart(chartBuilder.build());
+
   ss.setActiveSheet(db);
   return ss.getUrl();
 }

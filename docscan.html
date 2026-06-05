@@ -1103,12 +1103,12 @@ async function analyze(){
       parsed.forEach(doc => { cleanDoc(doc); if(doc.municipio){ const mu=findMuni(doc.municipio); if(mu){doc._muUrl=mu.u; doc._muName=mu.n;} } });
       renderMultiResults(parsed);
       parsed.forEach(doc => saveHist(doc));
-      showSheetsPopup();
+      autoSaveToSheets(parsed);
     } else {
       cleanDoc(parsed);
       if(parsed.municipio){ const mu=findMuni(parsed.municipio); if(mu){parsed._muUrl=mu.u; parsed._muName=mu.n;} }
       renderResults(parsed); saveHist(parsed);
-      showSheetsPopup();
+      autoSaveToSheets(parsed);
     playTinySound('success');
     }
   }catch(err){
@@ -2007,6 +2007,34 @@ window.addEventListener('load', ()=>{
 
 function showSheetsPopup(){
   document.getElementById('sheetsPopup').classList.add('show');
+}
+
+function autoSaveToSheets(parsed){
+  if(!(window.google && google.script && google.script.run)) return;
+  const docs = Array.isArray(parsed) ? parsed : [parsed];
+  docs.forEach(function(doc){
+    const now = new Date();
+    const sess = window._lastSession || {};
+    const payload = {
+      fecha:         now.toLocaleDateString('es-CL'),
+      hora:          now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),
+      analista:      getUser()||'Anónimo',
+      herramienta:   'DocScan',
+      tipo_doc:      doc.tipo||'',
+      patente:       doc.patentePlain||doc.patente||'',
+      rut:           doc.rut||'',
+      nombre:        doc.nombre||'',
+      municipio:     doc.municipio||doc._muName||'',
+      vigencia:      vigenciaDe(doc),
+      confianza:     doc.confianza||'',
+      tiempo_fmt:    kpiFmt(sess.segundos||0),
+      observaciones: doc.observaciones||''
+    };
+    google.script.run
+      .withSuccessHandler(function(){ toast('Guardado en Sheets ✓'); })
+      .withFailureHandler(function(){})
+      .appendToSheet(payload);
+  });
 }
 
 // ── ENVIAR A GOOGLE SHEETS (nativo vía google.script.run) ─────────────

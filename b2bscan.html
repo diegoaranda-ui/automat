@@ -614,7 +614,7 @@ async function analyze() {
     }
     setModuleBadge(type,'OK','badge-ok');
     saveHist(parsed);
-    if(activeTab===type) showSheetsPopup();
+    if(activeTab===type) sendToSheets();
     playSound();
 
   } catch(err) {
