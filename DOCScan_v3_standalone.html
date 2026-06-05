@@ -1,0 +1,3084 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocScan — Kavak Supply</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  height:100%;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
+  font-size:13px;line-height:1.5;overflow:hidden;
+  background:#f8fafc;color:#0f172a;-webkit-font-smoothing:antialiased;
+}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+:root{
+  /* Neutrals */
+  --n0:#ffffff;--n50:#f8fafc;--n100:#f1f5f9;--n200:#e2e8f0;
+  --n300:#cbd5e1;--n400:#94a3b8;--n500:#64748b;--n600:#475569;
+  --n700:#334155;--n800:#1e293b;--n900:#0f172a;
+  /* Blue — primary */
+  --b50:#eff6ff;--b100:#dbeafe;--b200:#bfdbfe;--b400:#60a5fa;
+  --b500:#3b82f6;--b600:#2563eb;--b700:#1d4ed8;
+  /* Green */
+  --g50:#f0fdf4;--g500:#22c55e;--g600:#16a34a;--g200:#bbf7d0;
+  /* Red */
+  --r50:#fef2f2;--r500:#ef4444;--r600:#dc2626;--r200:#fecaca;
+  /* Amber */
+  --a50:#fffbeb;--a500:#f59e0b;--a600:#d97706;--a200:#fde68a;
+  /* Shadows */
+  --s1:0 1px 2px rgba(0,0,0,.05);
+  --s2:0 1px 3px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.05);
+  --s3:0 4px 6px rgba(0,0,0,.07),0 10px 20px rgba(0,0,0,.07);
+  /* Radius */
+  --r4:4px;--r6:6px;--r8:8px;--r10:10px;--r12:12px;--r16:16px;--r20:20px;
+  --mono:'JetBrains Mono','Fira Code','SF Mono',monospace;
+  --t:.15s cubic-bezier(.4,0,.2,1);
+}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--n300);border-radius:4px}
+
+/* ── LAYOUT ── */
+.shell{display:grid;grid-template-columns:220px 1fr;height:100vh;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  background:var(--n0);border-right:1px solid var(--n200);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.brand{padding:16px 14px 12px;border-bottom:1px solid var(--n100);flex-shrink:0}
+.brand-lockup{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.brand-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,var(--b600),var(--b500));
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:800;color:#fff;letter-spacing:-1px;flex-shrink:0;
+  box-shadow:0 2px 6px rgba(37,99,235,.35);
+}
+.brand-wordmark{font-size:14px;font-weight:800;color:var(--n900);letter-spacing:-.4px;line-height:1.2}
+.brand-sub{font-size:10px;color:var(--n400);letter-spacing:.1px;margin-top:1px}
+.brand-mini{font-size:10px;color:var(--n400);line-height:1.5}
+.brand-line{width:100%;height:1px;background:var(--n100);margin:8px 0 6px}
+.api-section{padding:6px 14px;border-bottom:1px solid var(--n100);flex-shrink:0}
+.api-st{display:flex;align-items:center;gap:5px}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot.ok{background:var(--g500);animation:dp 2s ease-in-out infinite}
+@keyframes dp{0%,100%{opacity:1}50%{opacity:.4}}
+.user-banner{padding:8px 12px;border-bottom:1px solid var(--n100);flex-shrink:0;display:flex;align-items:center;gap:7px}
+.user-lbl{font-size:12px;color:var(--n400)}
+.user-inp{
+  flex:1;background:var(--n50);border:1px solid var(--n200);color:var(--n900);
+  font-size:11px;padding:5px 8px;border-radius:var(--r6);outline:none;
+  font-family:inherit;transition:var(--t);
+}
+.user-inp:focus{border-color:var(--b500);background:var(--b50);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.user-inp::placeholder{color:var(--n300)}
+.hist-head{padding:10px 14px 4px;flex-shrink:0;display:flex;align-items:center}
+.hist-lbl{font-size:10px;color:var(--n400);text-transform:uppercase;letter-spacing:1px;font-weight:600;flex:1}
+.hist-count{font-size:10px;color:var(--b500);font-weight:700}
+.hist-scroll{flex:1;overflow-y:auto;padding:3px 8px 8px}
+.hi{
+  padding:8px 9px;border-radius:var(--r8);cursor:pointer;
+  border:1px solid transparent;transition:var(--t);margin-bottom:2px;
+}
+.hi:hover{background:var(--n50);border-color:var(--n200)}
+.hi.active{background:var(--b50);border-color:var(--b200)}
+.hi-type{font-size:9px;font-weight:700;color:var(--b500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.hi-plate{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--n900);letter-spacing:.5px}
+.hi-rut{font-size:10px;color:var(--n500);margin-top:1px}
+.hi-user{font-size:9px;color:var(--n400);margin-top:1px}
+.hi-ts{font-size:9px;color:var(--n300);margin-top:1px}
+.hi-empty{padding:24px 10px;text-align:center;color:var(--n300);font-size:11px;line-height:1.8}
+.sb-btns{padding:8px;border-top:1px solid var(--n100);display:flex;gap:4px;flex-shrink:0}
+.btn-xs{
+  flex:1;padding:6px;border-radius:var(--r6);border:1px solid var(--n200);
+  background:var(--n50);color:var(--n500);font-size:10px;cursor:pointer;
+  transition:var(--t);font-family:inherit;font-weight:500;
+}
+.btn-xs:hover{background:var(--n100);color:var(--n700);border-color:var(--n300)}
+
+/* ── MAIN ── */
+.main{display:flex;flex-direction:column;overflow:hidden;background:var(--n50)}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:44px;padding:0 14px;border-bottom:1px solid var(--n200);
+  display:flex;align-items:center;gap:6px;flex-shrink:0;background:var(--n0);
+  box-shadow:var(--s1);overflow:hidden;
+}
+.topbar-icon{font-size:15px}
+.topbar-title{font-size:13px;font-weight:700;color:var(--n900);letter-spacing:-.2px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{
+  padding:3px 9px;border-radius:var(--r20);font-size:10px;
+  font-weight:600;letter-spacing:.1px;border:1px solid;
+}
+.b-blue{background:var(--b50);color:var(--b600);border-color:var(--b200)}
+.b-green{background:var(--g50);color:var(--g600);border-color:var(--g200)}
+.b-red{background:var(--r50);color:var(--r600);border-color:var(--r200)}
+.b-amber{background:var(--a50);color:var(--a600);border-color:var(--a200)}
+.stat-pill{font-size:10px;color:var(--n400);font-weight:500}
+
+/* ── PROGRESS ── */
+.prog{height:2px;background:var(--n100);flex-shrink:0;display:none;overflow:hidden}
+.prog-fill{
+  height:100%;background:linear-gradient(90deg,var(--b500),var(--b400));
+  animation:prog 1s ease-in-out infinite;width:35%;
+}
+@keyframes prog{0%{margin-left:-35%}100%{margin-left:100%}}
+
+/* ── BODY ── */
+.body{flex:1;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;min-height:0}
+
+/* ── LEFT ── */
+.left{border-right:1px solid var(--n200);display:flex;flex-direction:column;overflow:hidden;background:var(--n0)}
+.drop-area{flex:1;position:relative;overflow:hidden;min-height:0;background:var(--n50)}
+.drop-empty{
+  position:absolute;inset:10px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;cursor:pointer;
+  border:1.5px dashed var(--n300);border-radius:var(--r16);
+  transition:var(--t);text-align:center;padding:20px;background:var(--n0);
+}
+.drop-empty:hover,.drop-empty.over{border-color:var(--b500);background:var(--b50)}
+.drop-empty input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.di{font-size:32px;opacity:.25;line-height:1}
+.dt{font-size:13px;font-weight:700;color:var(--n800);letter-spacing:-.2px}
+.ds{font-size:11px;color:var(--n400);line-height:1.6}
+.dk{
+  display:inline-flex;padding:3px 9px;background:var(--n100);border-radius:var(--r6);
+  font-size:10px;color:var(--n500);font-weight:500;font-family:var(--mono);
+  border:1px solid var(--n200);letter-spacing:.2px;
+}
+.drop-preview{position:absolute;inset:0;display:none;background:var(--n50)}
+.drop-preview.show{display:flex;align-items:center;justify-content:center;flex-direction:column}
+.change-btn{
+  position:absolute;top:8px;right:8px;z-index:10;
+  background:rgba(255,255,255,.92);border:1px solid var(--n200);
+  border-radius:var(--r6);padding:4px 9px;font-size:10px;color:var(--n600);
+  cursor:pointer;display:flex;align-items:center;gap:4px;font-weight:600;
+  transition:var(--t);backdrop-filter:blur(8px);
+}
+.change-btn:hover{background:var(--n0);border-color:var(--b500);color:var(--b600)}
+.change-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.rotate-btn{
+  position:absolute;top:8px;left:8px;z-index:10;display:none;
+  background:rgba(255,255,255,.92);border:1px solid var(--n200);
+  border-radius:var(--r6);width:28px;height:28px;font-size:14px;
+  cursor:pointer;transition:var(--t);color:var(--n500);
+  backdrop-filter:blur(8px);
+}
+.rotate-btn.visible{display:flex;align-items:center;justify-content:center}
+.rotate-btn:hover{background:var(--n0);border-color:var(--b500);color:var(--b600)}
+
+.img-tabs{
+  display:flex;gap:3px;padding:4px 8px;border-top:1px solid var(--n100);
+  overflow-x:auto;background:var(--n50);flex-shrink:0;
+}
+.img-tabs:empty{display:none}
+.img-tab{
+  display:flex;align-items:center;gap:3px;padding:3px 8px;
+  border-radius:var(--r6);border:1px solid var(--n200);background:var(--n0);
+  font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;
+  transition:var(--t);color:var(--n500);
+}
+.img-tab.active{background:var(--b50);border-color:var(--b300);color:var(--b600);font-weight:600}
+.img-tab-x{opacity:.4;margin-left:2px;font-size:9px}
+.img-tab:hover .img-tab-x{opacity:1}
+.img-tab-add{
+  display:flex;align-items:center;padding:3px 8px;border-radius:var(--r6);
+  border:1px dashed var(--n200);background:transparent;font-size:10px;
+  color:var(--n400);cursor:pointer;position:relative;white-space:nowrap;transition:var(--t);
+}
+.img-tab-add:hover{border-color:var(--b400);color:var(--b500)}
+.img-tab-add input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+
+.left-tip{
+  padding:6px 12px;font-size:10px;color:var(--n400);
+  background:var(--n50);border-top:1px solid var(--n100);flex-shrink:0;
+  display:flex;align-items:center;gap:4px;
+}
+.left-foot{
+  padding:8px 10px;border-top:1px solid var(--n200);
+  display:flex;gap:6px;flex-shrink:0;background:var(--n0);
+}
+.btn-analyze{
+  flex:1;padding:9px 14px;border-radius:var(--r8);
+  background:var(--b600);color:#fff;font-size:12px;
+  font-weight:700;border:none;cursor:pointer;transition:var(--t);
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  letter-spacing:-.1px;box-shadow:0 1px 3px rgba(37,99,235,.4);
+}
+.btn-analyze:hover:not(:disabled){background:var(--b700);box-shadow:0 4px 12px rgba(37,99,235,.4);transform:translateY(-1px)}
+.btn-analyze:active:not(:disabled){transform:translateY(0)}
+.btn-analyze:not(:disabled){animation:apulse 3s ease-in-out infinite}
+@keyframes apulse{0%,100%{box-shadow:0 1px 3px rgba(37,99,235,.35)}60%{box-shadow:0 2px 12px rgba(37,99,235,.5)}}
+.btn-analyze:disabled{background:var(--n200);color:var(--n400);cursor:not-allowed;box-shadow:none;animation:none}
+.btn-clear{
+  padding:9px 10px;border-radius:var(--r8);border:1px solid var(--n200);
+  background:var(--n50);color:var(--n500);cursor:pointer;transition:var(--t);
+  font-size:11px;font-weight:600;
+}
+.btn-clear:hover{background:var(--n100);color:var(--n700);border-color:var(--n300)}
+
+/* ── RIGHT ── */
+.right{display:flex;flex-direction:column;overflow-y:auto;background:var(--n50)}
+.empty-st{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.empty-card{
+  max-width:220px;text-align:center;
+  padding:24px 18px;background:var(--n0);border-radius:var(--r12);
+  border:1px solid var(--n200);box-shadow:var(--s1);
+}
+.ei{font-size:36px;opacity:.4;margin-bottom:10px}
+.et{font-size:14px;font-weight:700;color:var(--n800);letter-spacing:-.2px;margin-bottom:5px}
+.es{font-size:11px;color:var(--n400);line-height:1.6;margin-bottom:12px}
+.quick-steps{display:flex;gap:4px;justify-content:center;flex-wrap:wrap}
+.quick-steps span{
+  padding:2px 8px;background:var(--b50);border:1px solid var(--b100);
+  border-radius:var(--r4);font-size:10px;font-weight:600;color:var(--b600);
+}
+.spin-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.spinner{
+  width:24px;height:24px;border:2px solid var(--n200);
+  border-top-color:var(--b500);border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin-msg{font-size:11px;color:var(--n500);text-align:center;max-width:180px;line-height:1.6;font-weight:500}
+.results{padding:10px;display:flex;flex-direction:column;gap:6px}
+.results > *{animation:fu .18s cubic-bezier(.4,0,.2,1) both}
+.results > *:nth-child(1){animation-delay:.02s}.results > *:nth-child(2){animation-delay:.05s}
+.results > *:nth-child(3){animation-delay:.08s}.results > *:nth-child(4){animation-delay:.11s}
+.results > *:nth-child(5){animation-delay:.14s}.results > *:nth-child(6){animation-delay:.17s}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── RESULT COMPONENTS ── */
+.doc-header{
+  padding:14px 16px;border-radius:var(--r12);
+  background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
+  display:flex;align-items:flex-start;gap:12px;
+  border:1px solid rgba(255,255,255,.06);
+  box-shadow:0 4px 16px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.06);
+}
+.doc-icon{
+  width:40px;height:40px;border-radius:var(--r10);
+  background:rgba(255,255,255,.08);display:flex;align-items:center;
+  justify-content:center;font-size:20px;flex-shrink:0;
+  border:1px solid rgba(255,255,255,.1);margin-top:1px;
+}
+.doc-tipo{font-size:15px;font-weight:700;color:#fff;letter-spacing:-.3px;line-height:1.3}
+.doc-sub{font-size:10px;color:rgba(255,255,255,.35);margin-top:2px;letter-spacing:.1px}
+.doc-detect-pill{
+  display:inline-flex;align-items:center;gap:4px;margin-top:5px;
+  padding:3px 9px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+  border-radius:var(--r20);font-size:10px;font-weight:600;color:rgba(255,255,255,.7);
+}
+.doc-conf{font-size:10px;font-weight:600;margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+.conf-alta{color:#4ade80}.conf-media{color:#fbbf24}.conf-baja{color:#f87171}
+.conf-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:var(--r20);font-size:10px;
+  font-weight:600;border:1px solid;letter-spacing:.1px;
+}
+.conf-high{background:var(--g50);color:var(--g600);border-color:var(--g200)}
+.conf-med{background:var(--a50);color:var(--a600);border-color:var(--a200)}
+.conf-low{background:var(--r50);color:var(--r600);border-color:var(--r200)}
+
+.sec{
+  font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;
+  letter-spacing:1px;padding:8px 0 6px;
+  display:flex;align-items:center;gap:8px;
+}
+.sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--n200),transparent)}
+
+.frow{
+  display:flex;align-items:center;gap:8px;padding:9px 12px;
+  background:var(--n0);border:1px solid var(--n200);
+  border-radius:var(--r8);transition:var(--t);
+}
+.frow:hover{border-color:var(--n300);background:var(--n50)}
+.frow.hi{
+  border-color:var(--b200);background:var(--b50);
+  box-shadow:0 1px 3px rgba(37,99,235,.08);
+}
+.frow.hi:hover{border-color:var(--b400);background:#eff6ff}
+.frow.hi .fval.plate,.frow.hi .fval.rut{color:var(--b700)}
+.frow.valid{border-left:3px solid var(--g500);padding-left:8px}
+.frow.bad{border-left:3px solid var(--r500);padding-left:8px}
+.frow.warn{border-left:3px solid var(--a500);padding-left:8px}
+.fkey{
+  font-size:10px;font-weight:600;color:var(--n400);
+  text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;
+  width:115px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default;
+}
+.fval{
+  font-size:12px;font-weight:600;color:var(--n800);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;
+  min-width:0;flex:1;
+}
+.fval.plate,.fval.rut{
+  font-family:var(--mono);font-size:14px;font-weight:700;
+  color:var(--n900);letter-spacing:.3px;
+}
+.fval.nombre{font-size:11px}
+.fval.expanded{white-space:normal;overflow:visible}
+.check-pill{
+  font-size:9px;font-weight:700;padding:2px 8px;border-radius:var(--r20);
+  border:1px solid;white-space:nowrap;letter-spacing:.2px;
+}
+.check-ok{background:var(--g50);color:var(--g600);border-color:var(--g200)}
+.check-bad{background:var(--r50);color:var(--r600);border-color:var(--r200)}
+.check-warn{background:var(--a50);color:var(--a600);border-color:var(--a200)}
+.cp{
+  width:24px;height:24px;border-radius:var(--r6);background:var(--n100);
+  border:1px solid var(--n200);color:var(--n400);cursor:pointer;font-size:11px;
+  display:flex;align-items:center;justify-content:center;transition:var(--t);flex-shrink:0;
+}
+.cp:hover{background:var(--b50);border-color:var(--b300);color:var(--b600)}
+.cp.ok{background:var(--g50);color:var(--g600);border-color:var(--g200)}
+
+/* VENCIMIENTO */
+.venc-card{
+  padding:11px 13px;border-radius:var(--r10);
+  border:1px solid;display:flex;align-items:center;gap:10px;
+}
+.venc-card.ok{background:var(--g50);border-color:var(--g200)}
+.venc-card.warn{background:var(--a50);border-color:var(--a200)}
+.venc-card.expired{
+  background:var(--r50);border-color:var(--r200);
+  animation:ep 3s ease-in-out infinite;
+}
+@keyframes ep{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px rgba(239,68,68,.07)}}
+.venc-card.unknown{background:var(--n100);border-color:var(--n200)}
+.venc-header{display:flex;align-items:center;gap:8px;flex:1}
+.venc-icon{font-size:20px;flex-shrink:0}
+.venc-title{font-size:13px;font-weight:700;color:var(--n900);letter-spacing:-.3px}
+.venc-sub{font-size:11px;color:var(--n500);margin-top:2px;line-height:1.4}
+.venc-days{font-size:22px;font-weight:800;letter-spacing:-1px;line-height:1;flex-shrink:0;font-variant-numeric:tabular-nums}
+
+/* LINK */
+.link-card{
+  display:flex;align-items:center;gap:9px;padding:9px 12px;
+  background:var(--n0);border:1px solid var(--n200);border-radius:var(--r10);
+  text-decoration:none;transition:var(--t);box-shadow:var(--s1);
+}
+.link-card:hover{border-color:var(--b300);transform:translateY(-1px);box-shadow:var(--s2)}
+.li{font-size:16px;flex-shrink:0}
+.lt{flex:1;min-width:0}
+.lt-title{font-size:12px;font-weight:600;color:var(--n800)}
+.lt-sub{font-size:10px;color:var(--n400);margin-top:1px}
+.link-arrow{font-size:12px;font-weight:700;color:var(--b500);flex-shrink:0}
+.qr-card{
+  display:flex;align-items:center;gap:9px;padding:9px 12px;
+  background:var(--n0);border:1px solid var(--n200);border-radius:var(--r10);
+  text-decoration:none;transition:var(--t);
+}
+.qr-card:hover{border-color:var(--n300);transform:translateY(-1px)}
+
+.raw-box{
+  padding:9px 11px;background:var(--n0);border:1px solid var(--n200);
+  border-radius:var(--r8);font-family:var(--mono);font-size:10px;color:var(--n500);
+  line-height:1.7;max-height:110px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;
+  transition:var(--t);
+}
+.raw-box:hover{border-color:var(--n300)}
+.ocr-hit{background:var(--b100);color:var(--b700);border-radius:2px;padding:0 2px}
+.summary-card{
+  background:var(--n0);border:1px solid var(--n200);
+  border-radius:var(--r12);padding:12px;
+  display:flex;flex-direction:column;gap:6px;
+  box-shadow:var(--s1);
+}
+.summary-title{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:8px;padding-bottom:8px;border-bottom:1px solid var(--n100);margin-bottom:2px;
+}
+.summary-title strong{
+  font-size:11px;font-weight:700;color:var(--n500);text-transform:uppercase;
+  letter-spacing:.8px;
+}
+.err-box{
+  padding:12px;background:var(--r50);border:1px solid var(--r200);
+  border-radius:var(--r10);font-size:11px;color:var(--r600);
+  display:flex;flex-direction:column;gap:5px;
+}
+.report-actions{display:flex;gap:6px;padding-top:2px}
+.action-btn{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px 16px;border-radius:var(--r8);font-size:11px;
+  font-weight:600;cursor:pointer;transition:var(--t);border:1px solid;flex:1;
+  font-family:inherit;letter-spacing:-.1px;
+}
+.action-btn.primary{
+  background:var(--b600);color:#fff;border-color:var(--b600);
+  box-shadow:0 1px 4px rgba(37,99,235,.3);
+}
+.action-btn.primary:hover{
+  background:var(--b700);box-shadow:0 3px 10px rgba(37,99,235,.4);
+  transform:translateY(-1px);
+}
+.action-btn.soft{
+  background:var(--n0);color:var(--n700);border-color:var(--n200);
+}
+.action-btn.soft:hover{
+  background:var(--n50);border-color:var(--n300);color:var(--n900);
+  transform:translateY(-1px);
+}
+.action-btn:active{transform:translateY(0)!important;box-shadow:none!important}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:16px;right:16px;background:var(--n900);border-radius:var(--r10);
+  padding:8px 14px;font-size:11px;color:#fff;font-weight:600;
+  opacity:0;transform:translateY(6px);transition:all .18s cubic-bezier(.4,0,.2,1);
+  pointer-events:none;z-index:9999;box-shadow:var(--s3);
+}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* SHEETS */
+#sheetsPopup{
+  position:fixed;bottom:14px;right:14px;width:300px;
+  background:var(--n0);border:1px solid var(--n200);border-radius:var(--r12);
+  padding:12px;z-index:9999;box-shadow:var(--s3);display:none;
+}
+#sheetsPopup.show{display:block}
+.sp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.sp-title{font-size:11px;font-weight:700;color:var(--n800)}
+.sp-close{
+  background:var(--n100);border:none;color:var(--n500);cursor:pointer;
+  font-size:11px;width:20px;height:20px;border-radius:var(--r4);
+  display:flex;align-items:center;justify-content:center;
+}
+.sp-row{display:flex;gap:5px;margin-bottom:5px}
+.sp-inp{
+  flex:1;background:var(--n50);border:1px solid var(--n200);color:var(--n800);
+  font-size:10px;padding:6px 8px;border-radius:var(--r6);outline:none;font-family:inherit;
+}
+.sp-inp:focus{border-color:var(--b500);box-shadow:0 0 0 2px rgba(59,130,246,.1)}
+.sp-inp::placeholder{color:var(--n300)}
+.sp-btn{
+  padding:6px 10px;border-radius:var(--r6);background:var(--b600);border:none;
+  color:#fff;font-size:10px;font-weight:700;cursor:pointer;transition:var(--t);
+}
+.sp-btn:hover{background:var(--b700)}
+.sp-status{font-size:10px;font-weight:600;padding:3px 7px;border-radius:var(--r4);display:none;margin-top:3px;border:1px solid}
+.sp-status.ok{display:block;background:var(--g50);color:var(--g600);border-color:var(--g200)}
+.sp-status.err{display:block;background:var(--r50);color:var(--r600);border-color:var(--r200)}
+.sp-status.sending{display:block;background:var(--b50);color:var(--b600);border-color:var(--b200)}
+
+/* KPI */
+#kpiWrap{
+  display:flex;align-items:center;gap:5px;background:var(--n50);
+  border:1px solid var(--n200);border-radius:var(--r8);padding:3px 8px;
+  cursor:pointer;user-select:none;flex-shrink:0;transition:var(--t);
+}
+#kpiWrap:hover{background:var(--b50);border-color:var(--b200)}
+.kpi-clock{
+  font-family:var(--mono);font-size:13px;font-weight:700;color:var(--b600);
+  letter-spacing:.5px;line-height:1;transition:color .3s;
+}
+.kpi-clock.warn{color:var(--a600)}.kpi-clock.danger{color:var(--r600);animation:kb .8s ease-in-out infinite}
+@keyframes kb{0%,100%{opacity:1}50%{opacity:.4}}
+#kpiBtnInner{
+  padding:3px 7px;border-radius:var(--r4);background:var(--b600);
+  border:none;color:#fff;font-size:9px;font-weight:700;cursor:pointer;transition:var(--t);
+}
+#kpiBtnInner:hover{background:var(--b700)}
+#kpiBtnInner.running{background:#7c3aed}
+
+.watermark{
+  position:fixed;bottom:6px;left:50%;transform:translateX(-50%);
+  font-size:9px;color:var(--n300);pointer-events:none;letter-spacing:.5px;font-weight:500;
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-lockup">
+        <div class="brand-mark">K</div>
+        <div>
+          <div class="brand-wordmark">KAVAK</div>
+          <div class="brand-sub">Supply · DocScan</div>
+        </div>
+      </div>
+      <div class="brand-line"></div>
+      <div class="brand-mini">Compra · venta · documentación vehicular</div>
+    </div>
+    <div class="api-section">
+      <div class="api-st">
+        <div class="dot ok" id="apiDot"></div>
+        <span id="apiTxt" style="font-size:10px;color:var(--g600);font-weight:500">Conectado · Kavak Supply</span>
+      </div>
+    </div>
+    <div class="user-banner">
+      <span class="user-lbl">👤</span>
+      <input class="user-inp" id="userInp" placeholder="Tu nombre (ej: Diego)" maxlength="30">
+    </div>
+    <div class="hist-head">
+      <span class="hist-lbl">Historial</span>
+      <span class="hist-count" id="histCount"></span>
+    </div>
+    <div style="padding:0 8px 5px;flex-shrink:0">
+      <input id="histSearch" type="text" placeholder="Buscar patente, RUT..."
+        style="width:100%;background:var(--n50);border:1px solid var(--n200);color:var(--n700);font-size:11px;padding:5px 8px;border-radius:var(--r6);outline:none;font-family:inherit"
+        oninput="filterHist(this.value)">
+    </div>
+    <div class="hist-scroll" id="histScroll">
+      <div class="hi-empty">Tus análisis<br>aparecerán aquí</div>
+    </div>
+    <div class="sb-btns">
+      <button class="btn-xs" onclick="clearHist()">Borrar</button>
+      <button class="btn-xs" onclick="exportCSV()">Exportar CSV</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="topbar-icon">🔍</span>
+      <div class="topbar-title">Analizador de documentos</div>
+      <span id="statToday" class="stat-pill"></span>
+      <div id="kpiWrap">
+        <span style="font-size:9px;color:var(--n400);font-weight:500">Insp.</span>
+        <div class="kpi-clock" id="kpiClock">00:00</div>
+        <div style="width:1px;height:14px;background:var(--n200)"></div>
+        <span style="font-size:9px;color:var(--n400)">Hoy <b id="kpiCountHoy" style="color:var(--b600)">0</b></span>
+        <span id="kpiAvgHoy" style="font-size:9px;color:var(--n300)"></span>
+        <button id="kpiBtnInner" onclick="toggleTimer()">▶</button>
+      </div>
+      <span class="badge b-blue" id="badge">Listo</span>
+    </div>
+    <div class="prog" id="prog"><div class="prog-fill"></div></div>
+
+    <div id="sheetsPopup">
+      <div class="sp-head">
+        <span class="sp-title">Guardar en Google Sheets</span>
+        <button class="sp-close" onclick="document.getElementById('sheetsPopup').classList.remove('show')">✕</button>
+      </div>
+      <div class="sp-row">
+        <input class="sp-inp" id="sheetsUrl" placeholder="URL del Web App..." oninput="localStorage.setItem('kpi_sheets_url',this.value)">
+        <button class="sp-btn" id="btnSheets" onclick="sendToSheets()">Enviar</button>
+      </div>
+      <div class="sp-status" id="sheetsStatus"></div>
+    </div>
+
+    <div class="body">
+      <div class="left">
+        <div class="drop-area" id="dropArea">
+          <div class="drop-empty" id="dropEmpty">
+            <input type="file" id="fileInp" accept="image/*,application/pdf" onchange="onFile(this.files[0])">
+            <div class="di">📄</div>
+            <div class="dt">Sube el documento</div>
+            <div class="ds">Permiso · Revisión técnica · SOAP<br>Padrón · Cédula de identidad</div>
+            <div class="dk">Ctrl+V — pegar screenshot</div>
+          </div>
+          <div class="drop-preview" id="dropPreview">
+            <img id="prevImg" alt="">
+            <div class="change-btn">
+              <input type="file" accept="image/*,application/pdf" onchange="onFile(this.files[0])">
+              Cambiar
+            </div>
+            <button class="rotate-btn" id="rotateBtn" onclick="rotateCurrentImage()" title="Rotar 90°">↻</button>
+          </div>
+        </div>
+        <div class="img-tabs" id="imgTabs"></div>
+        <div class="left-tip">
+          <strong style="color:var(--n600)">PrtSc</strong>&nbsp;captura &nbsp;·&nbsp;
+          <strong style="color:var(--n600)">Ctrl+V</strong>&nbsp;pega &nbsp;·&nbsp;
+          <strong style="color:var(--n600)">Ctrl+Enter</strong>&nbsp;analiza
+        </div>
+        <div class="left-foot">
+          <button class="btn-analyze" id="analyzeBtn" onclick="analyze()" disabled>⚡ Analizar documento</button>
+          <button class="btn-clear" onclick="clearAll()">↺ Nuevo</button>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="empty-st" id="emptyState">
+          <div class="empty-card">
+            <div class="ei">🚗</div>
+            <div class="et">Listo para revisar</div>
+            <div class="es">Pega un pantallazo o sube una imagen. El resumen mostrará patente, RUT y comuna.</div>
+            <div class="quick-steps">
+              <span>1. Ctrl+V</span><span>2. Analizar</span><span>3. Copiar</span>
+            </div>
+          </div>
+        </div>
+        <div class="spin-wrap" id="spinWrap" style="display:none">
+          <div class="spinner"></div>
+          <div class="spin-msg" id="spinMsg">Analizando con Claude Vision…</div>
+        </div>
+        <div class="results" id="resultsDiv" style="display:none"></div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<div class="watermark">Kavak Supply · DocScan</div>
+
+<script>
+
+const SHARED_KEY='REEMPLAZAR_CON_CLAVE_VIA_APPS_SCRIPT';
+
+// ── STATE ─────────────────────────────────────────
+let images = []; // [{b64, mime, name, src}]
+let activeIdx = 0;
+let hist = JSON.parse(localStorage.getItem('ds3_hist')||'[]');
+
+function getUser(){
+  return (document.getElementById('userInp')?.value||localStorage.getItem('ds_user')||'Anónimo').trim()||'Anónimo';
+}
+
+// ── BOOT ──────────────────────────────────────────
+window.addEventListener('load',()=>{
+  const saved = localStorage.getItem('ds_user');
+  if(saved && document.getElementById('userInp')) document.getElementById('userInp').value = saved;
+  if(document.getElementById('userInp'))
+    document.getElementById('userInp').addEventListener('input', e => localStorage.setItem('ds_user', e.target.value));
+
+  renderHist();
+  updateStats();
+  
+
+  // Ctrl+V paste
+  document.addEventListener('paste', e=>{
+    const items = [...(e.clipboardData?.items||[])];
+    const img = items.find(i=>i.type.startsWith('image/'));
+    if(img){ e.preventDefault(); addImageFile(img.getAsFile()); }
+  });
+
+  // Ctrl+Enter
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
+      e.preventDefault();
+      const b=document.getElementById('analyzeBtn');
+      if(b&&!b.disabled) analyze();
+    }
+  });
+
+  // Drag & drop
+  window.addEventListener('dragover', e=>{ e.preventDefault(); e.stopPropagation(); });
+  window.addEventListener('drop', e=>{
+    e.preventDefault(); e.stopPropagation();
+    const file = e.dataTransfer?.files?.[0];
+    if(file && (file.type.startsWith('image/') || file.type==='application/pdf')){ addImageFile(file); return; }
+    const url = e.dataTransfer?.getData('text/uri-list')||e.dataTransfer?.getData('text/plain');
+    if(url && /\.(jpe?g|png|gif|webp|bmp)/i.test(url)) fetchImgUrl(url);
+  });
+  const da = document.getElementById('dropArea');
+  if(da){
+    da.addEventListener('dragenter', e=>{ e.preventDefault(); da.style.outline='3px solid #000'; da.style.outlineOffset='-4px'; });
+    da.addEventListener('dragover',  e=>e.preventDefault());
+    da.addEventListener('dragleave', e=>{ if(!da.contains(e.relatedTarget)){ da.style.outline=''; da.style.outlineOffset=''; }});
+    da.addEventListener('drop',      ()=>{ da.style.outline=''; da.style.outlineOffset=''; });
+  }
+  const de = document.getElementById('dropEmpty');
+  if(de){
+    de.addEventListener('dragover',  e=>{ e.preventDefault(); de.classList.add('over'); });
+    de.addEventListener('dragleave', ()=>de.classList.remove('over'));
+    de.addEventListener('drop',      ()=>de.classList.remove('over'));
+  }
+});
+
+// ── MULTI-IMAGE ───────────────────────────────────
+function addImageFile(file){
+  if(!file) return;
+  const isPDF = file.type === 'application/pdf';
+  if(isPDF){
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const [,b64] = ev.target.result.split(',');
+      images.push({ b64, isPDF:true, mime:'application/pdf', name:file.name||('Archivo '+(images.length+1)), src:ev.target.result });
+      activeIdx = images.length-1;
+      showActiveImage(); renderTabs();
+      document.getElementById('analyzeBtn').disabled = false;
+      setBadge(images.length>1?(images.length+' archivos'):'Documento cargado','blue');
+      setView('empty');
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+  // Para imágenes: comprimir a max 1600px y calidad 0.88 antes de enviar
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1600;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if(w > MAX || h > MAX){
+        const ratio = Math.min(MAX/w, MAX/h);
+        w = Math.round(w*ratio); h = Math.round(h*ratio);
+      }
+      const cnv = document.createElement('canvas');
+      cnv.width = w; cnv.height = h;
+      cnv.getContext('2d').drawImage(img, 0, 0, w, h);
+      const compressed = cnv.toDataURL('image/jpeg', 0.88);
+      const [,b64] = compressed.split(',');
+      images.push({ b64, isPDF:false, mime:'image/jpeg', name:file.name||('Archivo '+(images.length+1)), src:compressed });
+      activeIdx = images.length-1;
+      showActiveImage(); renderTabs();
+      document.getElementById('analyzeBtn').disabled = false;
+      setBadge(images.length>1?(images.length+' archivos'):'Documento cargado','blue');
+      setView('empty');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function onFile(file){ addImageFile(file); }
+
+function showActiveImage(){
+  if(!images.length) return;
+  const cur = images[activeIdx];
+
+  const dropEmpty = document.getElementById('dropEmpty');
+  if(dropEmpty) dropEmpty.style.display = 'none';
+
+  let preview = document.getElementById('dropPreview');
+  if(!preview) return;
+
+  if(cur.isPDF){
+    renderPDFPreview(cur);
+    // Hide rotate btn for PDFs
+    const rb = document.getElementById('rotateBtn');
+    if(rb) rb.classList.remove('visible');
+  } else {
+    preview.style.cssText = 'position:absolute;inset:0;display:block;background:linear-gradient(135deg,#020d06,#061a0e);';
+    preview.classList.add('show');
+
+    let img = document.getElementById('prevImg');
+    if(!img){
+      img = document.createElement('img');
+      img.id = 'prevImg'; img.alt = '';
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
+      preview.innerHTML = '';
+      preview.appendChild(img);
+    } else {
+      img.style.display = 'block';
+    }
+    img.src = cur.src;
+
+    if(!preview.querySelector('.change-btn')){
+      const btn = document.createElement('div');
+      btn.className = 'change-btn';
+      btn.innerHTML = '<input type="file" accept="image/*,application/pdf" onchange="onFile(this.files[0])">📷 Cambiar';
+      preview.appendChild(btn);
+    }
+
+    // Show rotate button for images
+    const rb = document.getElementById('rotateBtn');
+    if(rb) rb.classList.add('visible');
+  }
+}
+
+// Rotate current image 90° clockwise
+function rotateCurrentImage(){
+  if(!images.length || images[activeIdx].isPDF) return;
+  const cur = images[activeIdx];
+  const img = new Image();
+  img.onload = () => {
+    const cnv = document.createElement('canvas');
+    cnv.width = img.naturalHeight;
+    cnv.height = img.naturalWidth;
+    const ctx = cnv.getContext('2d');
+    ctx.translate(cnv.width/2, cnv.height/2);
+    ctx.rotate(Math.PI/2);
+    ctx.drawImage(img, -img.naturalWidth/2, -img.naturalHeight/2);
+    const newSrc = cnv.toDataURL(cur.mime||'image/jpeg', 0.92);
+    cur.src = newSrc;
+    cur.b64 = newSrc.split(',')[1];
+    // Update preview
+    const previewImg = document.getElementById('prevImg');
+    if(previewImg) previewImg.src = newSrc;
+    // Visual feedback
+    const rb = document.getElementById('rotateBtn');
+    if(rb){ rb.style.transform='rotate(90deg)'; setTimeout(()=>rb.style.transform='',300); }
+    toast('Imagen rotada 90° — ya puedes analizar');
+  };
+  img.src = cur.src;
+}
+
+async function renderPDFPreview(cur){
+  const preview = document.getElementById('dropPreview');
+
+  // Clear previous content
+  preview.innerHTML = '';
+  preview.style.background = 'linear-gradient(135deg,#0a0f1e 0%,#0d1b3e 100%)';
+  preview.style.display = 'flex';
+  preview.style.flexDirection = 'column';
+  preview.style.alignItems = 'center';
+  preview.style.justifyContent = 'center';
+  preview.style.gap = '14px';
+  preview.style.padding = '20px';
+
+  // Loading state
+  preview.innerHTML = '<div style="font-size:28px;animation:spin .8s linear infinite;display:inline-block">⏳</div><div style="font-size:11px;color:#93c5fd;font-weight:600">Cargando portada…</div>';
+
+  try {
+    const bin = atob(cur.b64);
+    const buf = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    const page = await pdf.getPage(1);
+
+    // Render at a scale that fills the preview area nicely
+    const previewW = preview.offsetWidth - 40;
+    const previewH = preview.offsetHeight - 100;
+    const vpNatural = page.getViewport({scale:1});
+    const scaleW = previewW / vpNatural.width;
+    const scaleH = previewH / vpNatural.height;
+    const scale = Math.min(scaleW, scaleH, 2);
+    const vp = page.getViewport({scale});
+
+    // Create canvas
+    const cnv = document.createElement('canvas');
+    cnv.width = vp.width;
+    cnv.height = vp.height;
+    cnv.style.cssText = [
+      'border-radius:12px',
+      'box-shadow:0 8px 32px rgba(0,0,0,.6),0 0 0 1px rgba(59,130,246,.2)',
+      'max-width:100%',
+      'max-height:'+previewH+'px',
+      'object-fit:contain',
+      'display:block',
+    ].join(';');
+
+    await page.render({canvasContext:cnv.getContext('2d'), viewport:vp}).promise;
+
+    // Clear and show
+    preview.innerHTML = '';
+
+    // Top meta bar
+    const meta = document.createElement('div');
+    meta.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;max-width:'+vp.width+'px;';
+    meta.innerHTML =
+      '<span style="font-size:18px">📄</span>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escH(cur.name)+'</div>' +
+        '<div style="font-size:10px;color:#93c5fd;margin-top:1px">'+pdf.numPages+' '+(pdf.numPages===1?'página':'páginas')+' · PDF</div>' +
+      '</div>' +
+      '<div style="padding:3px 10px;background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.3);border-radius:20px;font-size:10px;font-weight:700;color:#93c5fd;white-space:nowrap">Vista previa</div>';
+    preview.appendChild(meta);
+
+    // Canvas with slight overlay at bottom (fade into dark)
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;border-radius:12px;overflow:hidden;flex-shrink:0;';
+    wrap.appendChild(cnv);
+
+    // Bottom fade overlay so it blends into the dark UI
+    const fade = document.createElement('div');
+    fade.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to bottom,transparent,rgba(10,15,30,.85));border-radius:0 0 12px 12px;pointer-events:none;';
+    wrap.appendChild(fade);
+    preview.appendChild(wrap);
+
+  } catch(err) {
+    preview.innerHTML =
+      '<div style="font-size:48px;filter:drop-shadow(0 0 12px rgba(59,130,246,.4))">📄</div>' +
+      '<div style="font-size:13px;font-weight:700;color:#fff;text-align:center;padding:0 16px">'+escH(cur.name)+'</div>' +
+      '<div style="font-size:11px;color:#93c5fd;font-weight:600">PDF listo para analizar</div>';
+  }
+}
+
+function renderTabs(){
+  const bar = document.getElementById('imgTabs');
+  if(!bar) return;
+  if(!images.length){ bar.innerHTML=''; return; }
+  // Always show tabs + "Agregar" button once at least 1 image is loaded
+  bar.innerHTML = images.map((im,i)=>`
+    <div class="img-tab ${i===activeIdx?'active':''}" onclick="switchTab(${i})">
+      📄 ${escH(im.name.length>12 ? im.name.slice(0,12)+'…' : im.name)}
+      <span class="img-tab-x" onclick="removeTab(event,${i})">✕</span>
+    </div>`).join('') +
+    `<div class="img-tab-add">+ Agregar archivo<input type="file" accept="image/*,application/pdf" onchange="addImageFile(this.files[0])"></div>`;
+}
+
+function switchTab(i){ activeIdx=i; showActiveImage(); renderTabs(); }
+
+function removeTab(e,i){
+  e.stopPropagation();
+  images.splice(i,1);
+  if(!images.length){ clearAll(); return; }
+  activeIdx = Math.min(activeIdx, images.length-1);
+  showActiveImage(); renderTabs();
+}
+
+function clearAll(){
+  images=[]; activeIdx=0;
+
+  // Reset preview — full reset including inline styles set by renderPDFPreview
+  const preview = document.getElementById('dropPreview');
+  if(preview){
+    preview.classList.remove('show');
+    preview.style.cssText = ''; // clear any inline styles added by PDF preview
+    preview.innerHTML = '';     // clear canvas/placeholder injected by PDF.js
+    // Re-add the original img and change-btn
+    const img = document.createElement('img');
+    img.id = 'prevImg'; img.alt = '';
+    preview.appendChild(img);
+    const btn = document.createElement('div');
+    btn.className = 'change-btn';
+    btn.innerHTML = '<input type="file" accept="image/*,application/pdf" onchange="onFile(this.files[0])">📷 Cambiar';
+    preview.appendChild(btn);
+  }
+
+  document.getElementById('dropEmpty').style.display = '';
+  const fi = document.getElementById('fileInp'); if(fi) fi.value='';
+  document.getElementById('analyzeBtn').disabled = true;
+  const bar = document.getElementById('imgTabs'); if(bar) bar.innerHTML='';
+  setBadge('Listo','blue');
+  setView('empty');
+  document.getElementById('prog').style.display='none';
+  updateDocCounter();
+}
+
+function fetchImgUrl(url){
+  fetch(url).then(r=>r.blob()).then(blob=>{
+    addImageFile(new File([blob],'img.jpg',{type:blob.type||'image/jpeg'}));
+  }).catch(()=>toast('No se pudo cargar la imagen'));
+}
+
+// ── ANALYZE ───────────────────────────────────────
+async function analyze(){
+  if(!images.length){ toast('Primero carga un documento'); return; }
+  document.getElementById('analyzeBtn').disabled=true;
+  setView('spin'); spinMsg('Enviando a Claude Vision…');
+  setBadge('Analizando…','blue');
+  document.getElementById('prog').style.display='block';
+
+  const multi = images.length > 1;
+
+  const PROMPT = (function(){
+    const ss = '{"tipo":"nombre exacto","icono":"emoji","rut":"17.xxx.xxx-x o null","nombre":"nombre/razon social","patente":"LLLL-NN o null","municipio":"solo si permiso circ.","qr_url":"URL o null","confianza":"alta/media/baja","observaciones":"max 2 frases o null","campos":[{"k":"campo","v":"valor"}],"texto":"todo el texto visible"}';
+    const ms = '[{"archivo":1,"tipo":"...","icono":"...","rut":"...","nombre":"...","patente":"...","municipio":"...","qr_url":"...","confianza":"...","observaciones":"...","campos":[],"texto":"..."},{"archivo":2,"tipo":"..."}]';
+    const n = images.length;
+    return 'Eres un sistema experto en documentos chilenos para Kavak (compra/venta autos usados).\n' +
+      (multi ? ('Se adjuntan '+n+' archivos. IMPORTANTE: pueden ser documentos DISTINTOS. Analiza CADA archivo por separado y clasificalo individualmente.\n') : 'Analiza este documento con maxima precision.\n') +
+      '\nORIENTACION CRITICA: La imagen puede estar rotada 90, 180 o 270 grados. ANTES de leer cualquier dato, determina la orientacion correcta del documento rotando mentalmente la imagen hasta que el texto quede horizontal y legible en alfabeto latino. Solo cuando el texto sea legible, extrae los datos. Si necesitas rotar mas de una vez, hazlo. NUNCA extraigas datos de una imagen que aun se ve rotada.\n' +
+      'PRECISION: Lee cada caracter con cuidado. Distingue O vs 0, I vs 1, S vs 5, B vs 8, Z vs 2.\n\n' +
+      'TIPOS DE DOCUMENTOS POSIBLES:\n' +
+      '- VEHICULARES: Permiso de Circulacion, Revision Tecnica, SOAP, Homologacion, Padron Vehicular, Certificado de Inscripcion\n' +
+      '- EMPRESA: Estatuto Social, Escritura Publica, E-RUT, Certificado de Vigencia, Poder Notarial, Acta de Directorio, Certificado de Constitucion, Certificado de Anotaciones Vigentes\n' +
+      '- IDENTIDAD: Cedula de Identidad, Licencia de Conducir, Pasaporte\n\n' +
+      'EXTRAE de cada documento:\n' +
+      '- tipo: nombre exacto del tipo\n' +
+      '- icono: emoji representativo\n' +
+      '- rut: Lee los digitos del RUT UNO POR UNO sin asumir ni interpolar. Entrega SIN puntos pero CON guion antes del digito verificador. Ej: si lees 14.204.552-4 entrega 14204552-4. Si lees 76.911.554-4 entrega 76911554-4. Busca etiqueta RUT, R.U.T., E-RUT\n' +
+      '- nombre: nombre completo de persona O razon social de empresa\n' +
+      '- patente: SOLO docs vehiculares. Formato ESTRICTO: LLLL-NN (4 letras + guion + 2 digitos EXACTAMENTE), o LL-NNNN (2+4), o LLL-NNN (3+3). NUNCA mas de 2 digitos para formato LLLL. Ej: FPFK-63, LZKF-44, SLTF-96, RPDD-76. Si lees mas digitos, toma solo los primeros 2.\n' +
+      '- municipio: SOLO en permisos de circulacion\n' +
+      '- qr_url: URL del QR si es legible, sino null\n' +
+      '- confianza: alta=documento claro, media=partes ilegibles, baja=muy ilegible\n' +
+      '- observaciones: max 2 frases sobre algo a revisar manualmente, o null\n' +
+      '- campos: TODOS los demas datos. MUY IMPORTANTE: extrae SIEMPRE como campos separados: Fecha de Vencimiento (la fecha hasta cuando es valido el permiso, NO la fecha de pago ni emision), Año Permiso, Marca, Modelo, Color, Año vehiculo, Folio, etc.\n' +
+      '- texto: primeros 800 caracteres del texto visible (para documentos extensos)\n' +
+      'Si un valor es ilegible: null. NUNCA inventes valores.\n\n' +
+      (multi ? ('Responde con array JSON, un objeto por archivo: '+ms) : ('Responde UNICAMENTE con JSON valido sin markdown: '+ss));
+  })();
+  let spinInterval = null;
+  try{
+    const contentArr = images.map(im => {
+      if(im.isPDF) return {type:'document', source:{type:'base64', media_type:'application/pdf', data:im.b64}};
+      return {type:'image', source:{type:'base64', media_type:im.mime, data:im.b64}};
+    });
+    contentArr.push({type:'text', text:PROMPT});
+
+    // ── RETRY LOOP — handles overload with backoff ──
+    const MAX_RETRIES = 3;
+    let res, attempt = 0;
+    const usingOpus = images.some(i=>!i.isPDF);
+    const msgs = usingOpus
+      ? ['Orientando documento…','Leyendo caracteres…','Extrayendo campos…','Verificando RUT y patente…','Casi listo…']
+      : ['Procesando PDF…','Extrayendo datos…','Verificando campos…'];
+    let mIdx = 0;
+    spinInterval = setInterval(()=>{ mIdx=(mIdx+1)%msgs.length; spinMsg(msgs[mIdx]); }, 1800);
+
+    while(attempt < MAX_RETRIES){
+      attempt++;
+      if(attempt > 1){
+        const waitSec = attempt * 4;
+        clearInterval(spinInterval);
+        for(let t = waitSec; t > 0; t--){
+          spinMsg('Servidor saturado — reintentando en '+t+'s (intento '+attempt+'/'+MAX_RETRIES+')');
+          await new Promise(r=>setTimeout(r,1000));
+        }
+        mIdx = 0;
+        spinInterval = setInterval(()=>{ mIdx=(mIdx+1)%msgs.length; spinMsg(msgs[mIdx]); }, 1800);
+        setBadge('Reintentando…','yellow');
+      }
+      res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':SHARED_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2048,messages:[{role:'user',content:contentArr}]})
+      });
+      if(res.ok) break;
+      const eBody = await res.json().catch(()=>({}));
+      const eMsg = eBody?.error?.message||'';
+      const isOverload = res.status===529||eMsg.toLowerCase().includes('overload');
+      if(isOverload && attempt < MAX_RETRIES) continue;
+      throw new Error(isOverload ? 'OVERLOADED' : (eMsg||'HTTP '+res.status));
+    }
+    clearInterval(spinInterval);
+    if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
+    const data=await res.json();
+    const raw=data.content?.[0]?.text||'';
+    let parsed;
+    try{
+      // Try 1: clean JSON object
+      const first=raw.indexOf('{'), last=raw.lastIndexOf('}');
+      if(first===-1) throw new Error('no json');
+      if(last > first){
+        try{ parsed=JSON.parse(raw.slice(first,last+1)); }
+        catch(e1){
+          // Try 2: JSON array
+          const fa=raw.indexOf('['), la=raw.lastIndexOf(']');
+          if(fa>-1 && la>fa){ try{ parsed=JSON.parse(raw.slice(fa,la+1)); } catch(e2){ throw e1; } }
+          else throw e1;
+        }
+      }
+      // Try 3: truncated JSON — salvage what Claude extracted even if response was cut
+      if(!parsed){
+        const partial = raw.slice(first);
+        // Extract key fields manually from partial JSON
+        const get = (key) => { const m=partial.match(new RegExp('"'+key+'"\\s*:\\s*"([^"]*)"')); return m?m[1]:null; };
+        const getArr = (key) => { try{ const s=partial.indexOf('"'+key+'"'); if(s<0)return[]; const as=partial.indexOf('[',s),ae=partial.lastIndexOf(']'); if(as<0||ae<0)return[]; return JSON.parse(partial.slice(as,ae+1)); }catch{return[];} };
+        parsed = {
+          tipo: get('tipo')||'Documento',
+          icono: get('icono')||'📄',
+          rut: get('rut'),
+          nombre: get('nombre'),
+          patente: get('patente'),
+          municipio: get('municipio'),
+          qr_url: get('qr_url'),
+          confianza: get('confianza')||'media',
+          observaciones: 'Documento extenso — algunos campos pueden estar incompletos. Verifica el texto extraído.',
+          campos: getArr('campos'),
+          texto: get('texto')||''
+        };
+      }
+      if(!parsed) throw new Error('No se pudo extraer datos del documento');
+    }catch(e){ throw new Error('Respuesta inesperada.\n\n'+raw.slice(0,300)); }
+    // Clean RUT and patente format (strip dots and dashes)
+    function cleanDoc(doc){
+      if(doc.rut){
+        // Remove dots only, keep dash before DV → 14204552-4
+        let r = doc.rut.replace(/\./g,'').trim();
+        if(!r.includes('-') && r.length >= 8) r = r.slice(0,-1)+'-'+r.slice(-1);
+        doc.rut = r.toUpperCase();
+      }
+      if(doc.patente){
+        let p = doc.patente.replace(/[.\s]/g,'').toUpperCase().trim();
+        const pNoDash = p.replace(/-/g,'');
+        // Strict formats:
+        // LLLL-NN  → 4 letters + exactly 2 digits  (FPFK-63, LZKF-44, SLTF-96)
+        // LL-NNNN  → 2 letters + exactly 4 digits  (AB-1234)
+        // LLL-NNN  → 3 letters + exactly 3 digits  (ABC-123)
+        const m4 = pNoDash.match(/^([A-Z]{4})(\d+)$/);
+        const m2 = pNoDash.match(/^([A-Z]{2})(\d+)$/);
+        const m3 = pNoDash.match(/^([A-Z]{3})(\d+)$/);
+        if(m4)      p = m4[1]+'-'+m4[2].slice(0,2); // LLLL-NN: take only first 2 digits
+        else if(m2) p = m2[1]+'-'+m2[2].slice(0,4); // LL-NNNN: take only first 4 digits
+        else if(m3) p = m3[1]+'-'+m3[2].slice(0,3); // LLL-NNN: take only first 3 digits
+        else        p = pNoDash;
+        doc.patente = p;
+        doc.patentePlain = p.replace(/-/g,'');
+      }
+      return doc;
+    }
+    if(Array.isArray(parsed)){
+      parsed.forEach(doc => { cleanDoc(doc); if(doc.municipio){ const mu=findMuni(doc.municipio); if(mu){doc._muUrl=mu.u; doc._muName=mu.n;} } });
+      renderMultiResults(parsed);
+      parsed.forEach(doc => saveHist(doc));
+      showSheetsPopup();
+    } else {
+      cleanDoc(parsed);
+      if(parsed.municipio){ const mu=findMuni(parsed.municipio); if(mu){parsed._muUrl=mu.u; parsed._muName=mu.n;} }
+      renderResults(parsed); saveHist(parsed);
+      showSheetsPopup();
+    playTinySound('success');
+    }
+  }catch(err){
+    if(spinInterval) clearInterval(spinInterval);
+    setView('results');
+    let msg=err.message||String(err);
+    if(msg.includes('401')||msg.includes('invalid x-api-key')) msg='API key inválida.';
+    else if(msg.includes('credit')||msg.includes('billing')) msg='Sin crédito. Recarga en console.anthropic.com';
+    else if(msg.includes('fetch')||msg.includes('NetworkError')) msg='Error de red. Verifica tu internet.';
+    document.getElementById('resultsDiv').innerHTML=`<div class="err-box"><strong>Error al analizar</strong>${escH(msg)}</div>`;
+    setBadge('Error','red');
+  }finally{
+    document.getElementById('analyzeBtn').disabled=false;
+    document.getElementById('prog').style.display='none';
+  }
+}
+
+// ── MUNICIPIOS — homepage genérica ────────────────
+const MUNIS=[
+  // URLs verificadas — portales municipales oficiales
+  {n:'Providencia',      k:['providencia'],           u:'https://www.providencia.cl'},
+  {n:'Vitacura',         k:['vitacura'],              u:'https://www.vitacura.cl'},
+  {n:'Las Condes',       k:['las condes'],            u:'https://www.lascondes.cl'},
+  {n:'Ñuñoa',            k:['nunoa','ñuñoa'],         u:'https://www.nunoa.cl'},
+  {n:'Maipú',            k:['maipu','maipú'],          u:'https://www.municipalidadmaipu.cl'},
+  {n:'Macul',            k:['macul'],                 u:'https://www.macul.cl'},
+  {n:'Peñalolén',        k:['penalolen','peñalolén'], u:'https://www.penalolen.cl'},
+  {n:'La Florida',       k:['la florida'],            u:'https://www.laflorida.cl'},
+  {n:'Puente Alto',      k:['puente alto'],           u:'https://www.municipalidadpuentealto.cl'},
+  {n:'San Bernardo',     k:['san bernardo'],          u:'https://www.munisanbernardo.cl'},
+  {n:'La Pintana',       k:['la pintana'],            u:'https://www.lapintana.cl'},
+  {n:'El Bosque',        k:['el bosque'],             u:'https://www.municipalidadelbosque.cl'},
+  {n:'Quilicura',        k:['quilicura'],             u:'https://www.quilicura.cl'},
+  {n:'Pudahuel',         k:['pudahuel'],              u:'https://www.pudahuel.cl'},
+  {n:'Lo Barnechea',     k:['lo barnechea'],          u:'https://www.lobarnechea.cl'},
+  {n:'Renca',            k:['renca'],                 u:'https://www.renca.cl'},
+  {n:'Recoleta',         k:['recoleta'],              u:'https://www.recoleta.cl'},
+  {n:'Conchalí',         k:['conchali'],              u:'https://www.conchali.cl'},
+  {n:'Huechuraba',       k:['huechuraba'],            u:'https://www.huechuraba.cl'},
+  {n:'Independencia',    k:['independencia'],         u:'https://www.independencia.cl'},
+  {n:'La Cisterna',      k:['la cisterna'],           u:'https://www.lacisterna.cl'},
+  {n:'La Reina',         k:['la reina'],              u:'https://www.municipalidadlareina.cl'},
+  {n:'Lo Prado',         k:['lo prado'],              u:'https://www.loprado.cl'},
+  {n:'Lo Espejo',        k:['lo espejo'],             u:'https://www.loespejo.cl'},
+  {n:'San Miguel',       k:['san miguel'],            u:'https://www.municipalidadsanmiguel.cl'},
+  {n:'San Ramón',        k:['san ramon'],             u:'https://www.municipalidadsanramon.cl'},
+  {n:'La Granja',        k:['la granja'],             u:'https://www.municipalidadlagranja.cl'},
+  {n:'Cerrillos',        k:['cerrillos'],             u:'https://www.cerrillos.cl'},
+  {n:'Cerro Navia',      k:['cerro navia'],           u:'https://www.cerronavia.cl'},
+  {n:'Estación Central', k:['estacion central'],      u:'https://www.estacioncentral.cl'},
+  {n:'Quinta Normal',    k:['quinta normal'],         u:'https://www.quintanormal.cl'},
+  {n:'San Joaquín',      k:['san joaquin'],           u:'https://www.municipalidadsanjoaquin.cl'},
+  {n:'Padre Hurtado',    k:['padre hurtado'],         u:'https://www.municipalidadpadrehurtado.cl'},
+  {n:'Talagante',        k:['talagante'],             u:'https://www.municipalidadtalagante.cl'},
+  {n:'Peñaflor',         k:['penaflor'],              u:'https://www.municipalidadpenaflor.cl'},
+  {n:'Buin',             k:['buin'],                  u:'https://www.municipalidadbuin.cl'},
+  {n:'Melipilla',        k:['melipilla'],             u:'https://www.municipalidadmelipilla.cl'},
+  {n:'Santiago',         k:['santiago'],              u:'https://www.municipalidaddesantiago.cl'},
+  {n:'Valparaíso',       k:['valparaiso'],            u:'https://www.municipalidadvalparaiso.cl'},
+  {n:'Viña del Mar',     k:['vina del mar'],          u:'https://www.municipalidadviña.cl'},
+  {n:'Concepción',       k:['concepcion'],            u:'https://www.municipalidadconcepcion.cl'},
+  {n:'Temuco',           k:['temuco'],                u:'https://www.temuco.cl'},
+  {n:'Rancagua',         k:['rancagua'],              u:'https://www.municipalidadrancagua.cl'},
+  {n:'Talca',            k:['talca'],                 u:'https://www.municipalidadtalca.cl'},
+  {n:'Puerto Montt',     k:['puerto montt'],          u:'https://www.municipalidadpuertomontt.cl'},
+  {n:'Antofagasta',      k:['antofagasta'],           u:'https://www.municipalidadantofagasta.cl'},
+  {n:'Iquique',          k:['iquique'],               u:'https://www.municipalidadiquique.cl'},
+  {n:'La Serena',        k:['la serena'],             u:'https://www.municipalidadlaserena.cl'},
+  {n:'Coquimbo',         k:['coquimbo'],              u:'https://www.municoquimbo.cl'},
+  {n:'Arica',            k:['arica'],                 u:'https://www.muniarica.cl'},
+  {n:'Osorno',           k:['osorno'],                u:'https://www.municipalidadosorno.cl'},
+  {n:'Punta Arenas',     k:['punta arenas'],          u:'https://www.municipalidadpuntaarenas.cl'},
+  {n:'Calama',           k:['calama'],                u:'https://www.municipalidadcalama.cl'},
+  {n:'Chillán',          k:['chillan'],               u:'https://www.municipalidadchillan.cl'},
+];
+function findMuni(name){
+  if(!name)return null;
+  const n=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  for(const m of MUNIS) for(const k of m.k) if(n.includes(k)) return m;
+  return null;
+}
+
+// ── RENDER ────────────────────────────────────────
+
+function renderMultiResults(docs){
+  setView('results');
+  setBadge(docs.length + ' docs analizados', 'blue');
+  let h = '';
+  h += '<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(59,130,246,.08);border:1.5px solid rgba(59,130,246,.18);border-radius:12px;margin-bottom:2px;">';
+  h += '<span style="font-size:20px;">&#x1F4C2;</span>';
+  h += '<div><div style="font-size:12px;font-weight:700;color:#1e3a5f;">' + docs.length + ' documentos analizados y clasificados</div>';
+  h += '<div style="font-size:10px;color:#64748b;margin-top:1px;">Cada documento identificado y extraido por separado</div></div></div>';
+  docs.forEach(function(doc, idx){
+    var confColor = doc.confianza==='alta'?'#16a34a':doc.confianza==='baja'?'#dc2626':'#059669';
+    h += '<div style="border:2px solid rgba(59,130,246,.1);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.5);">';
+    h += '<div style="padding:11px 15px;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);display:flex;align-items:center;gap:10px;">';
+    h += '<div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0;">'+(idx+1)+'</div>';
+    h += '<span style="font-size:22px;">'+(doc.icono||'&#x1F4C4;')+'</span>';
+    h += '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:-.3px;">'+escH(doc.tipo||'Documento')+'</div>';
+    if(doc.confianza) h += '<div style="font-size:9px;color:'+confColor+';font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">&#x25CF; Confianza '+doc.confianza+'</div>';
+    h += '</div></div>';
+    h += '<div style="padding:10px;display:flex;flex-direction:column;gap:7px;">';
+    if(doc.patente) h += frow('Patente / Placa', doc.patentePlain||doc.patente, true, 'plate');
+    if(doc.rut)     h += frow('RUT', doc.rut, true, 'rut');
+    if(doc.nombre)  h += frow('Nombre / Razon Social', doc.nombre, true, 'nombre');
+    var extras = (doc.campos||[]).filter(function(c){ return c.v && String(c.v).trim(); });
+    extras.slice(0,6).forEach(function(c){ h += frow(c.k, c.v, true, ''); });
+    if(doc.observaciones){
+      h += '<div style="padding:8px 11px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:11px;color:#92400e;display:flex;gap:7px;">';
+      h += '<span>&#x26A0;&#xFE0F;</span><div>'+escH(doc.observaciones)+'</div></div>';
+    }
+    if(doc._muUrl){
+      h += '<a class="link-card" href="'+escH(doc._muUrl)+'" target="_blank" rel="noopener">';
+      h += '<span class="li">&#x1F3DB;&#xFE0F;</span>';
+      h += '<div class="lt"><div class="lt-title">'+escH(doc._muName||doc.municipio||'')+'</div>';
+      h += '<div class="lt-sub">Portal de tramites municipales</div></div>';
+      h += '<span class="link-arrow">&#x2197;</span></a>';
+    }
+    if(doc.qr_url){
+      var safe = doc.qr_url.startsWith('http') ? doc.qr_url : 'https://'+doc.qr_url;
+      h += '<a class="qr-card" href="'+escH(safe)+'" target="_blank" rel="noopener">';
+      h += '<span style="font-size:18px;">&#x1F532;</span>';
+      h += '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:11px;">QR - Abrir enlace</div>';
+      h += '<div style="font-size:10px;color:#4ade80;word-break:break-all;">'+escH(safe)+'</div></div>';
+      h += '<span style="font-size:12px;font-weight:700;">&#x2197;</span></a>';
+    }
+    if(doc.texto){
+      h += '<details><summary style="font-size:10px;color:#94a3b8;cursor:pointer;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:4px 0;">Ver texto extraido</summary>';
+      h += '<div class="raw-box" style="margin-top:6px;">'+escH(doc.texto)+'</div></details>';
+    }
+    h += '</div></div>';
+  });
+  document.getElementById('resultsDiv').innerHTML = h;
+}
+
+// ── VENCIMIENTO Y DEUDA PERMISO CIRCULACION ──────────────
+function parseVencimiento(doc){
+  // SOLO retorna fecha si hay una mención EXPLÍCITA de vencimiento en el documento.
+  // Nunca inferir a partir del año del permiso — ese dato no indica si está vencido.
+
+  // ── PRIORIDAD 1: campo con clave explícita de vencimiento ──
+  for(const c of (doc.campos||[])){
+    const kl = (c.k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const isVenc = kl.includes('vencimiento') || kl === 'vence' || kl === 'venc' ||
+                   (kl.includes('valido') && kl.includes('hasta')) ||
+                   kl === 'fecha venc' || kl === 'valid until' || kl === 'expira';
+    const isExcluded = kl.includes('emision') || kl.includes('emitido') ||
+                       kl.includes('pago') || kl.includes('proceso') ||
+                       kl.includes('factura') || kl.includes('fecha proceso') ||
+                       kl.includes('fecha pago') || kl.includes('fecha emis');
+    if(isVenc && !isExcluded && c.v){
+      const m = (c.v||'').match(/(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/);
+      if(m){ const d=parseInt(m[1]),mo=parseInt(m[2]),y=parseInt(m[3]); if(y>2000&&y<2100) return new Date(y,mo-1,d); }
+      const m2 = (c.v||'').match(/(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})/);
+      if(m2){ const y=parseInt(m2[1]),mo=parseInt(m2[2]),d=parseInt(m2[3]); if(y>2000&&y<2100) return new Date(y,mo-1,d); }
+    }
+  }
+
+  // ── PRIORIDAD 2: texto con palabras clave EXPLÍCITAS de vencimiento + fecha ──
+  const texto = doc.texto||'';
+  const vencPatterns = [
+    /\bfecha\s+(?:de\s+)?vencimiento[:\s]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/i,
+    /\bvencimiento[:\s]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/i,
+    /\bfecha\s+venc[:\s]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/i,
+    /\bv[aá]lido\s+hasta[:\s]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/i,
+    /\bvence\s+el[:\s]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/i,
+    /\bexpira[:\s]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/i,
+  ];
+  for(const p of vencPatterns){
+    const m = texto.match(p);
+    if(m){ const d=parseInt(m[1]),mo=parseInt(m[2]),y=parseInt(m[3]); if(y>2000&&y<2100) return new Date(y,mo-1,d); }
+  }
+
+  // No encontramos vencimiento explícito — no asumir nada
+  return null;
+}
+
+
+function renderVencimiento(doc){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const venc = parseVencimiento(doc);
+
+  // Si no se detectó fecha de vencimiento — no mostrar nada
+  if(!venc) return '';
+
+  const diffDias = Math.round((venc - today) / 86400000);
+  const vencStr = venc.toLocaleDateString('es-CL',{day:'numeric',month:'long',year:'numeric'});
+
+  // VIGENTE — solo mostrar estado, sin cálculos
+  if(diffDias >= 0){
+    const diasText = diffDias === 0 ? 'Vence hoy' : `Vence en ${diffDias} días`;
+    const cls = diffDias <= 30 ? 'warn' : 'ok';
+    return `<div class="sec">Estado del permiso</div>
+    <div class="venc-card ${cls}">
+      <div class="venc-header">
+        <span class="venc-icon">${diffDias <= 30 ? '⚠️' : '✅'}</span>
+        <div>
+          <div class="venc-title">Permiso VIGENTE</div>
+          <div class="venc-sub">${diasText} · ${vencStr}</div>
+        </div>
+      </div>
+      ${diffDias > 0 ? `<div class="venc-days" style="color:${diffDias<=30?'var(--a600)':'var(--g600)'}">${diffDias}d</div>` : ''}
+    </div>`;
+  }
+
+  // VENCIDO — solo mostrar si tenemos el valor real del permiso
+  const camposDoc = doc.campos || [];
+  const camposPrioridad = ['pago total','total a pagar','valor permiso','tasacion','tasación','monto','valor','importe','permiso'];
+  let basePermiso = 0;
+  for(const campo of camposDoc){
+    const k = (campo.k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const v = String(campo.v||'').replace(/[^0-9]/g,'');
+    if(camposPrioridad.some(p => k.includes(p)) && v.length >= 4){
+      const num = parseInt(v);
+      if(num >= 10000 && num <= 5000000){ basePermiso = num; break; }
+    }
+  }
+
+  const añosVencidos = Math.max(1, Math.floor(Math.abs(diffDias) / 365));
+  const diasAbsolutos = Math.abs(diffDias);
+  const mesesText = diasAbsolutos >= 30
+    ? `${Math.floor(diasAbsolutos/30)} mes${Math.floor(diasAbsolutos/30)>1?'es':''}`
+    : `${diasAbsolutos} día${diasAbsolutos>1?'s':''}`;
+
+  if(basePermiso > 0){
+    const deuda = basePermiso + (35000 * añosVencidos);
+    const fmtCLP = n => new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(n);
+    return `<div class="sec">Estado del permiso</div>
+    <div class="venc-card expired">
+      <div class="venc-header">
+        <span class="venc-icon">🚨</span>
+        <div>
+          <div class="venc-title">Permiso VENCIDO</div>
+          <div class="venc-sub">Venció el ${vencStr} · hace ${mesesText}</div>
+        </div>
+      </div>
+      <div style="width:100%;margin-top:10px;padding-top:10px;border-top:1px solid rgba(239,68,68,.15)">
+        <div style="font-size:10px;font-weight:700;color:var(--r600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Deuda estimada</div>
+        <div style="font-size:22px;font-weight:800;color:var(--r600);letter-spacing:-1px;margin-bottom:4px">${fmtCLP(deuda)}</div>
+        <div style="font-size:11px;color:var(--n500);line-height:1.5">${fmtCLP(basePermiso)} base + $35.000 × ${añosVencidos} año${añosVencidos>1?'s':''} vencido${añosVencidos>1?'s':''}</div>
+      </div>
+    </div>`;
+  }
+
+  // Vencido pero sin valor del permiso — solo estado, sin deuda
+  return `<div class="sec">Estado del permiso</div>
+  <div class="venc-card expired">
+    <div class="venc-header">
+      <span class="venc-icon">🚨</span>
+      <div>
+        <div class="venc-title">Permiso VENCIDO</div>
+        <div class="venc-sub">Venció el ${vencStr} · hace ${mesesText}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+
+function renderResults(doc){
+  setView('results');
+  doc.tipo = detectDocType(doc);
+  setBadge(doc.tipo||'Documento','blue');
+  playTinySound('done');
+
+  const patenteState = validatePlate(doc.patente);
+  const rutState = validateRut(doc.rut);
+  const muni = doc.municipio || doc._muName || null;
+  const conf = normalizeConfidence(doc.confianza, patenteState, rutState);
+  window._lastDoc = doc;
+
+  let h='';
+  h+=`<div class="doc-card"><div class="doc-emo">${doc.icono||'📄'}</div><div>
+    <div class="doc-type">${escH(doc.tipo||'Documento vehicular')}</div>
+    <div class="doc-sub">${images.length>1?`Analizado con ${images.length} imágenes · `:''}Resumen Kavak Supply</div>
+    <div class="doc-detect-pill">🔎 ${escH(doc.tipo||'Detectado')}</div>
+  </div></div>`;
+
+  h+=`<div class="summary-card">
+    <div class="summary-title">
+      <strong>Resumen</strong>
+      <span class="conf-pill conf-${conf.cls}">${conf.txt==='alta'?'✓ Alta precisión':conf.txt==='baja'?'⚠ Baja precisión':'◎ Precisión media'}</span>
+    </div>
+    ${doc.patente?frowCheck('Patente',doc.patentePlain||doc.patente,patenteState,'plate'):frowCheck('Patente','— no visible',{ok:false,label:'Revisar',cls:'warn'},'')}
+    ${doc.rut?frowCheck('RUT',doc.rut,rutState,'rut'):frowCheck('RUT','— no detectado',{ok:false,label:'Revisar',cls:'warn'},'')}
+    ${muni?frowCheck('Municipio',muni,{ok:true,label:'Detectada',cls:'ok'},''):frowCheck('Municipio','— no detectada',{ok:false,label:'Revisar',cls:'warn'},'')}
+    <div class="report-actions">
+      <button class="action-btn primary" onclick="copyReport()">📋 Copiar reporte</button>
+      <button class="action-btn soft" onclick="copyMainData()">⎘ Copiar datos</button>
+    </div>
+  </div>`;
+
+  if(doc._muUrl){
+    const muSearch = (doc._muName||doc.municipio||'') + ' pagar permiso de circulacion';
+    const muId = 'mu_'+Math.random().toString(36).slice(2,7);
+    h+=`<div class="sec">Página de la comuna</div>
+    <div style="display:flex;gap:7px;align-items:center">
+      <a class="link-card" style="flex:1" href="${escH(doc._muUrl)}" target="_blank" rel="noopener">
+        <span class="li">🏛️</span>
+        <div class="lt">
+          <div class="lt-title">Municipalidad de ${escH(doc._muName||doc.municipio||'')}</div>
+          <div class="lt-sub">Ir al portal de trámites</div>
+        </div>
+        <span class="link-arrow">↗</span>
+      </a>
+      <button class="cp" id="${muId}" onclick="copyVal('${muId}',this)" title="Copiar texto búsqueda" data-full="${escH(muSearch)}" style="width:auto;padding:8px 12px;border-radius:11px;height:44px;font-size:10px;font-weight:700;flex-shrink:0;white-space:nowrap">
+        ⎘ Copiar
+      </button>
+    </div>
+    <div style="font-size:10px;color:rgba(255,255,255,.25);padding:3px 2px;margin-top:-4px">
+      Texto copiado: <span style="color:rgba(16,185,129,.6);font-family:'JetBrains Mono',monospace">${escH(muSearch)}</span>
+    </div>`;
+  }
+
+  // ── VENCIMIENTO PERMISO CIRCULACION ──
+  const tipoNorm = (doc.tipo||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const isPermiso = tipoNorm.includes('permiso') && tipoNorm.includes('circulacion');
+  if(isPermiso){
+    h += renderVencimiento(doc);
+  }
+
+  if(doc.observaciones){
+    h+=`<div class="sec">Observación</div><div class="raw-box" style="max-height:none;font-family:'Inter',sans-serif;font-size:12px;color:rgba(255,255,255,.6)">${escH(doc.observaciones)}</div>`;
+  }
+
+  const extras=(doc.campos||[]).filter(c=>c.v&&String(c.v).trim());
+  if(extras.length){
+    h+=`<div class="sec">Información adicional</div>`;
+    extras.forEach(c=>{h+=frow(c.k,c.v,true,'');});
+  }
+
+  if(doc.qr_url){
+    const safe=doc.qr_url.startsWith('http')?doc.qr_url:'https://'+doc.qr_url;
+    h+=`<div class="sec">QR del documento</div>
+    <a class="qr-card" href="${escH(safe)}" target="_blank" rel="noopener">
+      <span style="font-size:20px">🔗</span>
+      <div><div style="font-weight:800;font-size:12px">Abrir enlace del QR</div><div style="font-size:10px;color:#9a3412;margin-top:1px;word-break:break-all">${escH(safe)}</div></div>
+      <span style="margin-left:auto;font-size:13px;font-weight:900">↗</span>
+    </a>`;
+  }
+
+  if(doc.texto){ h+=`<div class="sec">Texto completo extraído</div><div class="raw-box">${highlightOCRText(doc.texto, doc)}</div>`; }
+  document.getElementById('resultsDiv').innerHTML=h;
+}
+
+function frowCheck(key,val,state,cls){
+  const id='f'+Math.random().toString(36).slice(2,7);
+  const hi=(cls==='plate'||cls==='rut')?'frow hi':'frow '+(state?.cls==='ok'?'valid':state?.cls==='bad'?'bad':'warn');
+  const vc='fval'+(cls?' '+cls:'');
+  const pill=`<span class="check-pill check-${state?.cls||'warn'}">${escH(state?.label||'Revisar')}</span>`;
+  return `<div class="${hi}"><span class="fkey">${escH(key)}</span><span class="${vc}" id="${id}">${escH(String(val))}</span>${pill}<button class="cp" onclick="copyVal('${id}',this)">⎘</button></div>`;
+}
+
+function frow(key,val,copyable,cls){
+  const id='f'+Math.random().toString(36).slice(2,7);
+  const hi=(cls==='plate'||cls==='rut'||cls==='nombre')?'frow hi':'frow';
+  const vc='fval'+(cls?' '+cls:'');
+  const strVal=String(val);
+  const isLong=strVal.length>40;
+  // Store full value in data-full for copy; display may be truncated by CSS
+  // Click to toggle expand/collapse
+  const clickExpand=isLong?`onclick="toggleExpand('${id}')" title="Clic para ver completo"`:''
+  const cb=copyable?`<button class="cp" onclick="copyVal('${id}',this)">⎘</button>`:'<span></span>';
+  return `<div class="${hi}"><span class="fkey">${escH(key)}</span><span class="${vc}" id="${id}" data-full="${escH(strVal)}" ${clickExpand}>${escH(strVal)}</span>${cb}</div>`;
+}
+
+function toggleExpand(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.toggle('expanded');
+}
+
+
+function detectDocType(doc){
+  const current=String(doc.tipo||'').trim();
+  const all=(current+' '+(doc.texto||'')+' '+(doc.campos||[]).map(c=>(c.k||'')+' '+(c.v||'')).join(' ')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(all.includes('permiso de circulacion')||all.includes('permiso circulacion')) return 'Permiso de circulación';
+  if(all.includes('seguro obligatorio')||all.includes('soap')) return 'SOAP';
+  if(all.includes('revision tecnica')||all.includes('certificado de revision')) return 'Revisión técnica';
+  if(all.includes('homologacion')||all.includes('certificado de homologacion')) return 'Homologación';
+  if(all.includes('padron')||all.includes('certificado de inscripcion')||all.includes('inscripcion y anotaciones')) return 'Padrón vehicular';
+  if(all.includes('cedula de identidad')||all.includes('republica de chile')&&all.includes('cedula')) return 'Cédula de identidad';
+  if(current && !/^nombre doc|documento$/i.test(current)) return current;
+  return 'Documento vehicular';
+}
+
+function highlightOCRText(text, doc){
+  let safe=escH(text||'');
+  const terms=[doc.patente, doc.rut, doc.nombre, doc.municipio, doc._muName].filter(Boolean).map(String);
+  const uniq=[...new Set(terms.filter(t=>t.trim().length>2))].sort((a,b)=>b.length-a.length);
+  uniq.forEach(t=>{
+    const escaped=escReg(escH(t.trim()));
+    safe=safe.replace(new RegExp(escaped,'gi'), m=>`<span class="ocr-hit">${m}</span>`);
+  });
+  return safe;
+}
+function escReg(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+
+function validatePlate(v){
+  if(!v || String(v).includes('—')) return {ok:false,label:'Revisar',cls:'warn'};
+  const s=String(v).toUpperCase().replace(/\s/g,'').replace(/[.]/g,'');
+  const ok=/^[A-Z]{4}-?\d{2}$/.test(s)||/^[A-Z]{2}-?\d{4}$/.test(s)||/^[A-Z]{3}-?\d{3}$/.test(s);
+  return ok?{ok:true,label:'Formato OK',cls:'ok'}:{ok:false,label:'Formato raro',cls:'warn'};
+}
+
+function cleanRut(v){return String(v||'').replace(/\./g,'').replace(/\s/g,'').toUpperCase();}
+function validateRut(v){
+  const s=cleanRut(v);
+  const m=s.match(/^(\d{7,8})-?([\dK])$/);
+  if(!m) return {ok:false,label:'Formato raro',cls:'warn'};
+  let sum=0,mul=2;
+  for(let i=m[1].length-1;i>=0;i--){
+    sum+=parseInt(m[1][i],10)*mul;
+    mul=mul===7?2:mul+1;
+  }
+  const res=11-(sum%11);
+  const dv=res===11?'0':res===10?'K':String(res);
+  return dv===m[2]?{ok:true,label:'RUT OK',cls:'ok'}:{ok:false,label:'DV revisar',cls:'bad'};
+}
+
+function normalizeConfidence(c, plate, rut){
+  const raw=String(c||'').toLowerCase();
+  if(raw.includes('alta')) return {txt:'alta',cls:'alta'};
+  if(raw.includes('baja')) return {txt:'baja',cls:'baja'};
+  if(plate?.cls==='bad'||rut?.cls==='bad') return {txt:'baja',cls:'baja'};
+  if(plate?.ok&&rut?.ok) return {txt:'alta',cls:'alta'};
+  return {txt:'media',cls:'media'};
+}
+
+function buildReport(){
+  const d=window._lastDoc||{};
+  const muni=d._muName||d.municipio||'No detectada';
+  const muniSearch=muni!=='No detectada'?`\nBuscar en Google: ${muni} pagar permiso de circulacion`:'';
+  const muniUrl=d._muUrl?`\nLink portal: ${d._muUrl}`:'';
+  return `Resumen DocScan Kavak
+Documento: ${d.tipo||'Documento vehicular'}
+Patente: ${d.patente||'No detectada'}
+RUT: ${d.rut||'No detectado'}
+Comuna/Municipalidad: ${muni}${muniUrl}
+Confianza: ${d.confianza||'Calculada por validación'}
+Observación: ${d.observaciones||'Sin observaciones'}`;
+}
+
+function copyReport(){copyText(buildReport(),'Reporte copiado');}
+function copyMainData(){
+  const d=window._lastDoc||{};
+  const muName=d._muName||d.municipio||'';
+  const muLine=muName?`\nMunicipio: ${muName}\nBuscar: ${muName} pagar permiso de circulacion${d._muUrl?'\nPortal: '+d._muUrl:''}`:'\nMunicipio: No detectado';
+  const txt=`Patente: ${d.patente||'No detectada'}\nRUT: ${d.rut||'No detectado'}${muLine}`;
+  copyText(txt,'Datos copiados');
+}
+function copyText(txt,msg){
+  const ok=()=>{toast(msg);playTinySound('copy');}
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(ok).catch(()=>fb(txt,ok)); else fb(txt,ok);
+}
+
+function copyVal(id,btn){
+  const el=document.getElementById(id);
+  // Use data-full for the complete value (textContent may be truncated by CSS)
+  const txt=(el?.dataset?.full||el?.textContent||'').trim();
+  if(!txt||txt.startsWith('—'))return;
+  const cb=()=>{btn.classList.add('ok');btn.textContent='✓';toast('Copiado: '+txt);playTinySound('copy');setTimeout(()=>{btn.classList.remove('ok');btn.textContent='⎘';},2000);};
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(cb).catch(()=>fb(txt,cb)); else fb(txt,cb);
+}
+function fb(txt,cb){const ta=Object.assign(document.createElement('textarea'),{value:txt,style:'position:fixed;opacity:0'});document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);cb();}
+
+// ── HISTORY ───────────────────────────────────────
+// Capture a compressed thumbnail from the current image/PDF preview
+// Returns a small JPEG data URL (~50-100kb) suitable for localStorage
+function captureThumb(){
+  try {
+    // Case 1: regular image — scale down from src
+    if(images.length && images[activeIdx] && !images[activeIdx].isPDF){
+      const src = images[activeIdx].src;
+      if(!src) return null;
+      const img = new Image();
+      img.src = src;
+      // Use a canvas to resize to max 600px wide
+      const MAX = 600;
+      const cnv = document.createElement('canvas');
+      const ratio = img.naturalHeight / Math.max(img.naturalWidth, 1);
+      cnv.width  = Math.min(img.naturalWidth  || MAX, MAX);
+      cnv.height = Math.round(cnv.width * (ratio || 1.4));
+      if(cnv.width < 1 || cnv.height < 1) return src.length < 300000 ? src : null;
+      cnv.getContext('2d').drawImage(img, 0, 0, cnv.width, cnv.height);
+      return cnv.toDataURL('image/jpeg', 0.7); // compressed JPEG
+    }
+    // Case 2: PDF — grab whatever is rendered in the pdfCanvas
+    const pdfCnv = document.getElementById('pdfCanvas');
+    if(pdfCnv && pdfCnv.width > 0){
+      const MAX = 600;
+      const cnv = document.createElement('canvas');
+      const ratio = pdfCnv.height / Math.max(pdfCnv.width, 1);
+      cnv.width  = Math.min(pdfCnv.width, MAX);
+      cnv.height = Math.round(cnv.width * ratio);
+      cnv.getContext('2d').drawImage(pdfCnv, 0, 0, cnv.width, cnv.height);
+      return cnv.toDataURL('image/jpeg', 0.7);
+    }
+    // Case 3: PDF not yet rendered — use raw src if small enough
+    if(images.length && images[activeIdx]){
+      const src = images[activeIdx].src;
+      if(src && src.length < 400000) return src;
+    }
+  } catch(e){}
+  return null;
+}
+
+function saveHist(doc){
+  window._lastDoc = doc;
+  // Capture compressed thumbnail of the current document visual
+  const thumb = captureThumb();
+
+  // Also save full src for images (needed to restore interactive state)
+  const imgSnap = images.slice(0,3).map(im=>({
+    src: im.src && im.src.length < 1200000 ? im.src : null,
+    mime: im.mime, name: im.name, isPDF: !!im.isPDF
+  }));
+
+  const e={
+    id:Date.now(), ts:new Date().toISOString(), user:getUser(),
+    tipo:doc.tipo, icono:doc.icono, patente:doc.patentePlain||doc.patente, rut:doc.rut,
+    nombre:doc.nombre, municipio:doc.municipio||doc._muName,
+    thumb,    // compressed preview thumbnail
+    imgSnap,  // full images for re-analysis
+    doc
+  };
+  hist.unshift(e); if(hist.length>50) hist=hist.slice(0,50);
+
+  // Save to localStorage — progressive fallback if quota exceeded
+  const tryStore = (data) => {
+    try{ localStorage.setItem('ds3_hist', JSON.stringify(data)); return true; }
+    catch(e){ return false; }
+  };
+  if(!tryStore(hist)){
+    // Try without full imgSnap (keep thumbs)
+    const slim = hist.map(h=>({...h, imgSnap:null}));
+    if(!tryStore(slim)){
+      // Last resort: no images at all
+      const bare = hist.map(h=>({...h, imgSnap:null, thumb:null}));
+      tryStore(bare);
+    }
+  }
+  renderHist();
+  updateStats();
+  updateDocCounter();
+}
+function renderHist(){
+  const el=document.getElementById('histScroll');
+  if(!hist.length){el.innerHTML='<div class="hi-empty">Tus análisis<br>aparecerán aquí</div>';return;}
+  // Apply search filter
+  const filtered = histFilter
+    ? hist.filter((h,i) => {
+        const hay = [h.patente,h.rut,h.nombre,h.tipo,h.municipio,h.user].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(histFilter);
+      })
+    : hist;
+  if(!filtered.length){
+    el.innerHTML='<div class="hi-empty">Sin resultados para<br>"'+escH(histFilter)+'"</div>';
+    return;
+  }
+  el.innerHTML=filtered.map((h,i)=>{
+    // Find real index in hist array for loadHist
+    const realIdx = hist.indexOf(h);
+    const dt=new Date(h.ts);
+    const ts=dt.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    const today = new Date().toLocaleDateString('es-CL');
+    const isToday = dt.toLocaleDateString('es-CL') === today;
+    return `<div class="hi" onclick="loadHist(${realIdx})">
+      <div class="hi-type">${h.icono||'📄'} ${escH(h.tipo||'Doc')}${isToday?' <span style="color:rgba(16,185,129,.6);font-size:9px">HOY</span>':''}</div>
+      <div class="hi-plate">${escH(h.patente||'—')}</div>
+      <div class="hi-rut">${escH(h.rut||'Sin RUT')}${h.nombre?' · '+escH(h.nombre.split(' ')[0]):''}</div>
+      <div class="hi-user">👤 ${escH(h.user||'Anónimo')}</div>
+      <div class="hi-ts">${ts} · ${dt.toLocaleDateString('es-CL')}</div>
+    </div>`;
+  }).join('');
+}
+function loadHist(i){
+  document.querySelectorAll('.hi').forEach((el,j)=>el.classList.toggle('active',j===i));
+  const entry = hist[i];
+
+  // Reset preview container completely
+  const preview = document.getElementById('dropPreview');
+  const dropEmpty = document.getElementById('dropEmpty');
+  if(dropEmpty) dropEmpty.style.display = 'none';
+
+  if(preview){
+    // Reset to base state
+    preview.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#020d06,#061a0e);overflow:hidden;';
+    preview.className = 'drop-preview show';
+    preview.innerHTML = '';
+
+    const snap = entry.imgSnap;
+    const hasFullImg = snap && snap.length && snap.some(im => im && im.src);
+    const hasThumb = entry.thumb && entry.thumb.length > 100;
+
+    if(hasFullImg){
+      // Best case: we have the full image — restore interactive state
+      images = snap.filter(im => im && im.src).map(im => ({
+        b64: im.src.includes(',') ? im.src.split(',')[1] : im.src,
+        mime: im.mime||'image/png', name: im.name||'Documento',
+        isPDF: !!im.isPDF, src: im.src
+      }));
+      activeIdx = 0;
+      renderTabs();
+      document.getElementById('analyzeBtn').disabled = false;
+      setBadge('Historial · ' + escH(entry.tipo||'Documento'), 'blue');
+
+      if(images[0].isPDF){
+        // PDF: show thumb as static preview (no re-render needed)
+        if(hasThumb){
+          showThumbPreview(preview, entry.thumb, entry);
+        } else {
+          renderPDFPreview(images[0]);
+        }
+      } else {
+        // Image: show directly
+        showThumbPreview(preview, entry.thumb || images[0].src, entry);
+      }
+
+    } else if(hasThumb){
+      // Good fallback: we have a thumbnail
+      images = []; activeIdx = 0;
+      renderTabs();
+      document.getElementById('analyzeBtn').disabled = true;
+      showThumbPreview(preview, entry.thumb, entry);
+      setBadge('Historial · ' + escH(entry.tipo||'Documento'), 'blue');
+
+    } else {
+      // No image data at all — minimal placeholder
+      images = []; activeIdx = 0;
+      renderTabs();
+      document.getElementById('analyzeBtn').disabled = true;
+      preview.innerHTML =
+        '<div style="font-size:48px;opacity:.15;filter:grayscale(1)">📄</div>' +
+        '<div style="text-align:center;margin-top:8px">' +
+          '<div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.35)">'+(entry.icono||'📄')+' '+escH(entry.tipo||'Documento')+'</div>' +
+          '<div style="font-size:11px;color:rgba(255,255,255,.2);margin-top:4px;font-family:monospace">'+escH(entry.patente||entry.rut||'')+'</div>' +
+          '<div style="font-size:10px;color:rgba(255,255,255,.15);margin-top:8px">Carga el archivo de nuevo para verlo</div>' +
+        '</div>';
+    }
+  }
+
+  renderResults(entry.doc);
+}
+
+// Show a thumbnail image in the preview container with overlay info
+function showThumbPreview(container, thumbSrc, entry){
+  container.style.cssText = 'position:absolute;inset:0;display:block;background:#000;overflow:hidden;';
+
+  const img = document.createElement('img');
+  img.src = thumbSrc;
+  img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;opacity:.95;';
+  container.appendChild(img);
+
+  // Top info bar overlay
+  const bar = document.createElement('div');
+  bar.style.cssText = [
+    'position:absolute;top:0;left:0;right:0',
+    'padding:8px 12px',
+    'background:linear-gradient(to bottom,rgba(10,15,30,.85),transparent)',
+    'display:flex;align-items:center;gap:8px',
+    'pointer-events:none',
+  ].join(';');
+  bar.innerHTML =
+    '<span style="font-size:16px">'+(entry.icono||'📄')+'</span>' +
+    '<div style="flex:1;min-width:0">' +
+      '<div style="font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escH(entry.tipo||'Documento')+'</div>' +
+      '<div style="font-size:10px;color:#93c5fd;margin-top:1px">'+escH(entry.patente||entry.rut||'Historial')+'</div>' +
+    '</div>' +
+    '<div style="padding:2px 8px;background:rgba(59,130,246,.25);border:1px solid rgba(59,130,246,.35);border-radius:20px;font-size:9px;font-weight:700;color:#93c5fd;white-space:nowrap">HISTORIAL</div>';
+  container.appendChild(bar);
+
+  // Bottom fade
+  const fade = document.createElement('div');
+  fade.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,rgba(10,15,30,.7));pointer-events:none;';
+  container.appendChild(fade);
+}
+function clearHist(){if(!confirm('¿Borrar todo el historial?'))return;hist=[];localStorage.removeItem('ds3_hist');renderHist();}
+function exportCSV(){
+  if(!hist.length){toast('Sin historial');return;}
+  const rows=[['Fecha','Hora','Analista','Tipo','Patente','RUT','Nombre','Municipio']];
+  hist.forEach(h=>{const dt=new Date(h.ts);rows.push([dt.toLocaleDateString('es-CL'),dt.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),h.user||'',h.tipo||'',h.patente||'',h.rut||'',h.nombre||'',h.municipio||'']);});
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='docscan_kavak_'+new Date().toLocaleDateString('es-CL').replace(/\//g,'-')+'.csv';a.click();toast('CSV exportado');
+}
+
+
+// ── SOUND ─────────────────────────────────────────
+function playTinySound(type){
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    if(!Ctx) return;
+    const ctx=new Ctx();
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.type='sine';
+    osc.frequency.value=type==='copy'?880:type==='success'?660:520;
+    gain.gain.setValueAtTime(0.0001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.035,ctx.currentTime+0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.11);
+    osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.12);
+  }catch(e){}
+}
+
+// ── UI ────────────────────────────────────────────
+function setView(s){
+  document.getElementById('emptyState').style.display=s==='empty'?'flex':'none';
+  document.getElementById('spinWrap').style.display=s==='spin'?'flex':'none';
+  document.getElementById('resultsDiv').style.display=s==='results'?'flex':'none';
+  if(s==='results') document.getElementById('resultsDiv').style.flexDirection='column';
+}
+function spinMsg(m){document.getElementById('spinMsg').textContent=m;}
+function setBadge(t,c){const b=document.getElementById('badge');b.textContent=t;b.className='badge b-'+c;}
+function toast(msg,duration){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),duration||2400);}
+function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── SEARCH HISTORY ─────────────────────────────
+let histFilter = '';
+function filterHist(q){
+  histFilter = q.toLowerCase().trim();
+  renderHist();
+}
+
+// ── STATS ──────────────────────────────────────
+function updateStats(){
+  const today = new Date().toLocaleDateString('es-CL');
+  const todayCount = hist.filter(h => new Date(h.ts).toLocaleDateString('es-CL') === today).length;
+  const totalCount = hist.length;
+  const stat = document.getElementById('statToday');
+  if(stat && totalCount > 0){
+    stat.className = 'stat-pill';
+    stat.innerHTML = `📊 ${todayCount} hoy · ${totalCount} total`;
+  }
+  const hc = document.getElementById('histCount');
+  if(hc) hc.textContent = totalCount > 0 ? totalCount : '';
+}
+
+// ── DOC COUNTER ────────────────────────────────
+function updateDocCounter(){
+  const el = document.getElementById('docCounter');
+  if(!el) return;
+  if(images.length > 0){
+    el.textContent = images.length === 1
+      ? `1 archivo cargado`
+      : `${images.length} archivos`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+// ── KPI TIMER ────────────────────────────────────
+const _kpi = {
+  running:false, startTs:null, elapsedMs:0, interval:null,
+  sessions: JSON.parse(localStorage.getItem('kpi_sessions')||'[]')
+};
+
+function kpiFmt(sec){
+  if(!sec||sec<=0) return '00:00';
+  return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+}
+function kpiSecsNow(){
+  return _kpi.running
+    ? Math.round((_kpi.elapsedMs + Date.now() - _kpi.startTs)/1000)
+    : Math.round(_kpi.elapsedMs/1000);
+}
+function toggleTimer(){
+  const btn = document.getElementById('kpiBtnInner');
+  if(!_kpi.running){
+    _kpi.running=true; _kpi.startTs=Date.now();
+    _kpi.interval=setInterval(kpiTick,1000);
+    btn.textContent='⏹ Parar'; btn.classList.add('running');
+    kpiTick();
+  } else {
+    _kpi.elapsedMs += Date.now()-_kpi.startTs;
+    _kpi.running=false; clearInterval(_kpi.interval);
+    btn.textContent='▶ Iniciar'; btn.classList.remove('running');
+  }
+}
+function kpiTick(){
+  const sec=kpiSecsNow();
+  const cl=document.getElementById('kpiClock');
+  if(!cl) return;
+  cl.textContent=kpiFmt(sec);
+  cl.className='kpi-clock'+(sec>300?' danger':sec>180?' warn':'');
+}
+function kpiSaveAndReset(patente){
+  const sec=kpiSecsNow();
+  if(sec<2) return null;
+  const s={ts:new Date().toISOString(),patente:patente||'—',segundos:sec,analista:getUser()};
+  _kpi.sessions.unshift(s);
+  if(_kpi.sessions.length>500) _kpi.sessions=_kpi.sessions.slice(0,500);
+  localStorage.setItem('kpi_sessions',JSON.stringify(_kpi.sessions));
+  _kpi.running=false; _kpi.elapsedMs=0; clearInterval(_kpi.interval);
+  const btn=document.getElementById('kpiBtnInner');
+  if(btn){btn.textContent='▶ Iniciar';btn.classList.remove('running');}
+  const cl=document.getElementById('kpiClock');
+  if(cl){cl.textContent='00:00';cl.className='kpi-clock';}
+  kpiUpdateStats();
+  return s;
+}
+function kpiUpdateStats(){
+  const today=new Date().toLocaleDateString('es-CL');
+  const hoy=_kpi.sessions.filter(s=>new Date(s.ts).toLocaleDateString('es-CL')===today);
+  const ce=document.getElementById('kpiCountHoy');
+  const ae=document.getElementById('kpiAvgHoy');
+  const be=document.getElementById('kpiBest');
+  if(ce) ce.textContent=hoy.length;
+  if(ae) ae.textContent=hoy.length>0?'· prom '+kpiFmt(Math.round(hoy.reduce((a,s)=>a+s.segundos,0)/hoy.length)):'';
+  if(be&&_kpi.sessions.length>0) be.textContent=kpiFmt(Math.min(..._kpi.sessions.map(s=>s.segundos)));
+}
+
+// Hook saveHist para capturar sesión KPI automáticamente
+const __origSaveHist = typeof saveHist==='function' ? saveHist : null;
+window.saveHist = function(doc){
+  if(__origSaveHist) __origSaveHist(doc);
+  window._lastSession = kpiSaveAndReset(doc.patentePlain||doc.patente);
+  window._lastDoc = doc;
+};
+
+window.addEventListener('load', ()=>{
+  kpiUpdateStats();
+  const saved=localStorage.getItem('kpi_sheets_url');
+  if(saved){ const inp=document.getElementById('sheetsUrl'); if(inp) inp.value=saved; }
+});
+
+function showSheetsPopup(){
+  document.getElementById('sheetsPopup').classList.add('show');
+}
+
+// ── ENVIAR A GOOGLE SHEETS (fetch a Apps Script Web App) ─────────────
+async function sendToSheets(){
+  const url=(document.getElementById('sheetsUrl')?.value||'').trim();
+  if(!url||!url.startsWith('https://')){
+    setSpStatus('err','⚠ Pega la URL del Web App de Apps Script');
+    return;
+  }
+  localStorage.setItem('kpi_sheets_url', url);
+
+  const doc  = window._lastDoc  || {};
+  const sess = window._lastSession || {};
+  const now  = new Date();
+
+  const payload={
+    fecha:         now.toLocaleDateString('es-CL'),
+    hora:          now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),
+    analista:      getUser()||'Anónimo',
+    patente:       doc.patentePlain||doc.patente||'—',
+    rut:           doc.rut||'—',
+    nombre:        doc.nombre||'—',
+    municipio:     doc.municipio||doc._muName||'—',
+    tipo_doc:      doc.tipo||'—',
+    confianza:     doc.confianza||'—',
+    segundos:      sess.segundos||0,
+    tiempo_fmt:    kpiFmt(sess.segundos||0),
+    observaciones: doc.observaciones||'',
+  };
+
+  const btn=document.getElementById('btnSheets');
+  if(btn) btn.disabled=true;
+  setSpStatus('sending','⏳ Guardando...');
+
+  try{
+    const qs=new URLSearchParams(payload).toString();
+    await fetch(url+'?'+qs,{method:'GET',mode:'no-cors'});
+    setSpStatus('ok','✅ Guardado en Sheets');
+    toast('Guardado en Sheets ✓');
+  } catch(e){
+    setSpStatus('err','✗ Error de red — revisa la URL');
+  } finally{
+    if(btn) btn.disabled=false;
+  }
+}
+
+function setSpStatus(type,msg){
+  const el=document.getElementById('sheetsStatus');
+  if(!el) return;
+  el.className='sp-status '+type;
+  el.textContent=msg;
+}
+
+// ── KEYBOARD SHORTCUT R = ROTATE ───────────────
+// Already: Ctrl+Enter = analyze, Ctrl+V = paste
+// Add: R key = rotate when image loaded
+document.addEventListener('keydown', e => {
+  if(e.key === 'r' || e.key === 'R'){
+    // Only if not typing in an input
+    if(document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+    if(images.length && !images[activeIdx]?.isPDF){
+      rotateCurrentImage();
+    }
+  }
+});
+
+</script>
+</body>
+</html    const PROMPT = (function(){
+    const multi = images.length > 1;
+    const ss = '{"tipo":"nombre exacto","icono":"emoji","rut":"17xxx-x sin puntos con guion","nombre":"nombre o razon social","patente":"LLLL-NN o null","municipio":"solo si permiso circ.","qr_url":"URL o null","confianza":"alta/media/baja","observaciones":"max 2 frases o null","campos":[{"k":"campo","v":"valor"}],"texto":"primeros 800 chars del texto visible"}';
+    const ms = '[{"archivo":1,"tipo":"...","icono":"...","rut":"...","nombre":"...","patente":"...","municipio":"...","qr_url":"...","confianza":"...","observaciones":"...","campos":[],"texto":"..."},{"archivo":2,"tipo":"..."}]';
+    const n = images.length;
+    return 'Eres un sistema experto en documentos chilenos para Kavak (compra/venta autos usados).\n' +
+      (multi ? ('Se adjuntan '+n+' archivos. IMPORTANTE: pueden ser documentos DISTINTOS. Analiza CADA archivo por separado y clasificalo individualmente.\n') : 'Analiza este documento con maxima precision.\n') +
+      '\nORIENTACION CRITICA: La imagen puede estar rotada 90, 180 o 270 grados. ANTES de leer cualquier dato, determina la orientacion correcta del documento rotando mentalmente la imagen hasta que el texto quede horizontal y legible en alfabeto latino. Solo cuando el texto sea legible, extrae los datos. Si necesitas rotar mas de una vez, hazlo. NUNCA extraigas datos de una imagen que aun se ve rotada.\n' +
+      'PRECISION: Lee cada caracter con cuidado. Distingue O vs 0, I vs 1, S vs 5, B vs 8, Z vs 2.\n\n' +
+      'TIPOS DE DOCUMENTOS POSIBLES:\n' +
+      '- VEHICULARES: Permiso de Circulacion, Revision Tecnica, SOAP, Homologacion, Padron Vehicular, Certificado de Inscripcion\n' +
+      '- EMPRESA: Estatuto Social, Escritura Publica, E-RUT, Certificado de Vigencia, Poder Notarial\n' +
+      '- IDENTIDAD: Cedula de Identidad, Licencia de Conducir, Pasaporte\n\n' +
+      'EXTRAE de cada documento:\n' +
+      '- tipo: nombre exacto del tipo\n' +
+      '- icono: emoji representativo\n' +
+      '- rut: Lee los digitos del RUT UNO POR UNO sin asumir ni interpolar. Entrega SIN puntos pero CON guion antes del digito verificador. Ej: 14204552-4, 76911554-4. Busca etiqueta RUT, R.U.T., E-RUT\n' +
+      '- nombre: nombre completo de persona O razon social de empresa\n' +
+      '- patente: SOLO docs vehiculares. Formato ESTRICTO: LLLL-NN (4 letras + guion + 2 digitos EXACTAMENTE), o LL-NNNN (2+4), o LLL-NNN (3+3). NUNCA mas de 2 digitos para formato LLLL. Ej: FPFK-63, LZKF-44, JYKJ-92. Si lees mas digitos, toma solo los primeros 2.\n' +
+      '- municipio: SOLO en permisos de circulacion\n' +
+      '- qr_url: URL del QR si es legible, sino null\n' +
+      '- confianza: alta=documento claro, media=partes ilegibles, baja=muy ilegible\n' +
+      '- observaciones: max 2 frases sobre algo a revisar manualmente, o null\n' +
+      '- campos: TODOS los demas datos visibles como array. SIEMPRE extrae como campos separados: Fecha de Vencimiento (fecha hasta cuando es valido, NO la fecha de pago ni emision), Pago Total, Total a Pagar, Valor Total, Marca, Modelo, Color, Año vehiculo, Folio, etc.\n' +
+      '- texto: primeros 800 caracteres del texto visible\n' +
+      'Si un valor es ilegible: null. NUNCA inventes valores.\n\n' +
+      (multi ? ('Responde con array JSON, un objeto por archivo: '+ms) : ('Responde UNICAMENTE con JSON valido sin markdown: '+ss));
+  })();
+  let spinInterval = null;
+  try{
+    const contentArr = images.map(im => {
+      if(im.isPDF) return {type:'document', source:{type:'base64', media_type:'application/pdf', data:im.b64}};
+      return {type:'image', source:{type:'base64', media_type:im.mime, data:im.b64}};
+    });
+    contentArr.push({type:'text', text:PROMPT});
+
+    // ── RETRY LOOP — handles overload with backoff ──
+    const MAX_RETRIES = 3;
+    let res, attempt = 0;
+    const usingOpus = images.some(i=>!i.isPDF);
+    const msgs = usingOpus
+      ? ['Orientando documento…','Leyendo caracteres…','Extrayendo campos…','Verificando RUT y patente…','Casi listo…']
+      : ['Procesando PDF…','Extrayendo datos…','Verificando campos…'];
+    let mIdx = 0;
+    spinInterval = setInterval(()=>{ mIdx=(mIdx+1)%msgs.length; spinMsg(msgs[mIdx]); }, 1800);
+
+    while(attempt < MAX_RETRIES){
+      attempt++;
+      if(attempt > 1){
+        const waitSec = attempt * 4;
+        clearInterval(spinInterval);
+        for(let t = waitSec; t > 0; t--){
+          spinMsg('Servidor saturado — reintentando en '+t+'s (intento '+attempt+'/'+MAX_RETRIES+')');
+          await new Promise(r=>setTimeout(r,1000));
+        }
+        mIdx = 0;
+        spinInterval = setInterval(()=>{ mIdx=(mIdx+1)%msgs.length; spinMsg(msgs[mIdx]); }, 1800);
+        setBadge('Reintentando…','yellow');
+      }
+      res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':SHARED_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2048,messages:[{role:'user',content:contentArr}]})
+      });
+      if(res.ok) break;
+      const eBody = await res.json().catch(()=>({}));
+      const eMsg = eBody?.error?.message||'';
+      const isOverload = res.status===529||eMsg.toLowerCase().includes('overload');
+      if(isOverload && attempt < MAX_RETRIES) continue;
+      throw new Error(isOverload ? 'OVERLOADED' : (eMsg||'HTTP '+res.status));
+    }
+    clearInterval(spinInterval);
+    if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
+    const data=await res.json();
+    const raw=data.content?.[0]?.text||'';
+    let parsed;
+    try{
+      // Try 1: clean JSON object
+      const first=raw.indexOf('{'), last=raw.lastIndexOf('}');
+      if(first===-1) throw new Error('no json');
+      if(last > first){
+        try{ parsed=JSON.parse(raw.slice(first,last+1)); }
+        catch(e1){
+          // Try 2: JSON array
+          const fa=raw.indexOf('['), la=raw.lastIndexOf(']');
+          if(fa>-1 && la>fa){ try{ parsed=JSON.parse(raw.slice(fa,la+1)); } catch(e2){ throw e1; } }
+          else throw e1;
+        }
+      }
+      // Try 3: truncated JSON — salvage what Claude extracted even if response was cut
+      if(!parsed){
+        const partial = raw.slice(first);
+        // Extract key fields manually from partial JSON
+        const get = (key) => { const m=partial.match(new RegExp('"'+key+'"\\s*:\\s*"([^"]*)"')); return m?m[1]:null; };
+        const getArr = (key) => { try{ const s=partial.indexOf('"'+key+'"'); if(s<0)return[]; const as=partial.indexOf('[',s),ae=partial.lastIndexOf(']'); if(as<0||ae<0)return[]; return JSON.parse(partial.slice(as,ae+1)); }catch{return[];} };
+        parsed = {
+          tipo: get('tipo')||'Documento',
+          icono: get('icono')||'📄',
+          rut: get('rut'),
+          nombre: get('nombre'),
+          patente: get('patente'),
+          municipio: get('municipio'),
+          qr_url: get('qr_url'),
+          confianza: get('confianza')||'media',
+          observaciones: 'Documento extenso — algunos campos pueden estar incompletos. Verifica el texto extraído.',
+          campos: getArr('campos'),
+          texto: get('texto')||''
+        };
+      }
+      if(!parsed) throw new Error('No se pudo extraer datos del documento');
+    }catch(e){ throw new Error('Respuesta inesperada.\n\n'+raw.slice(0,300)); }
+    // Clean RUT and patente format (strip dots and dashes)
+    function cleanDoc(doc){
+      if(doc.rut){
+        // Remove dots only, keep dash before DV → 14204552-4
+        let r = doc.rut.replace(/\./g,'').trim();
+        if(!r.includes('-') && r.length >= 8) r = r.slice(0,-1)+'-'+r.slice(-1);
+        doc.rut = r.toUpperCase();
+      }
+      if(doc.patente){
+        let p = doc.patente.replace(/[.\s]/g,'').toUpperCase().trim();
+        const pNoDash = p.replace(/-/g,'');
+        // Strict formats:
+        // LLLL-NN  → 4 letters + exactly 2 digits  (FPFK-63, LZKF-44, SLTF-96)
+        // LL-NNNN  → 2 letters + exactly 4 digits  (AB-1234)
+        // LLL-NNN  → 3 letters + exactly 3 digits  (ABC-123)
+        const m4 = pNoDash.match(/^([A-Z]{4})(\d+)$/);
+        const m2 = pNoDash.match(/^([A-Z]{2})(\d+)$/);
+        const m3 = pNoDash.match(/^([A-Z]{3})(\d+)$/);
+        if(m4)      p = m4[1]+'-'+m4[2].slice(0,2); // LLLL-NN: take only first 2 digits
+        else if(m2) p = m2[1]+'-'+m2[2].slice(0,4); // LL-NNNN: take only first 4 digits
+        else if(m3) p = m3[1]+'-'+m3[2].slice(0,3); // LLL-NNN: take only first 3 digits
+        else        p = pNoDash;
+        doc.patente = p;
+        doc.patentePlain = p.replace(/-/g,'');
+      }
+      return doc;
+    }
+    if(Array.isArray(parsed)){
+      parsed.forEach(doc => { cleanDoc(doc); if(doc.municipio){ const mu=findMuni(doc.municipio); if(mu){doc._muUrl=mu.u; doc._muName=mu.n;} } });
+      renderMultiResults(parsed);
+      parsed.forEach(doc => saveHist(doc));
+      showSheetsPopup();
+    } else {
+      cleanDoc(parsed);
+      if(parsed.municipio){ const mu=findMuni(parsed.municipio); if(mu){parsed._muUrl=mu.u; parsed._muName=mu.n;} }
+      renderResults(parsed); saveHist(parsed);
+      showSheetsPopup();
+    playTinySound('success');
+    }
+  }catch(err){
+    if(spinInterval) clearInterval(spinInterval);
+    setView('results');
+    let msg=err.message||String(err);
+    if(msg.includes('401')||msg.includes('invalid x-api-key')) msg='API key inválida.';
+    else if(msg.includes('credit')||msg.includes('billing')) msg='Sin crédito. Recarga en console.anthropic.com';
+    else if(msg.includes('fetch')||msg.includes('NetworkError')) msg='Error de red. Verifica tu internet.';
+    document.getElementById('resultsDiv').innerHTML=`<div class="err-box"><strong>Error al analizar</strong>${escH(msg)}</div>`;
+    setBadge('Error','red');
+  }finally{
+    document.getElementById('analyzeBtn').disabled=false;
+    document.getElementById('prog').style.display='none';
+  }
+}
+
+// ── MUNICIPIOS — homepage genérica ────────────────
+const MUNIS=[
+  // URLs verificadas — portales municipales oficiales
+  {n:'Providencia',      k:['providencia'],           u:'https://www.providencia.cl'},
+  {n:'Vitacura',         k:['vitacura'],              u:'https://www.vitacura.cl'},
+  {n:'Las Condes',       k:['las condes'],            u:'https://www.lascondes.cl'},
+  {n:'Ñuñoa',            k:['nunoa','ñuñoa'],         u:'https://www.nunoa.cl'},
+  {n:'Maipú',            k:['maipu','maipú'],          u:'https://www.municipalidadmaipu.cl'},
+  {n:'Macul',            k:['macul'],                 u:'https://www.macul.cl'},
+  {n:'Peñalolén',        k:['penalolen','peñalolén'], u:'https://www.penalolen.cl'},
+  {n:'La Florida',       k:['la florida'],            u:'https://www.laflorida.cl'},
+  {n:'Puente Alto',      k:['puente alto'],           u:'https://www.municipalidadpuentealto.cl'},
+  {n:'San Bernardo',     k:['san bernardo'],          u:'https://www.munisanbernardo.cl'},
+  {n:'La Pintana',       k:['la pintana'],            u:'https://www.lapintana.cl'},
+  {n:'El Bosque',        k:['el bosque'],             u:'https://www.municipalidadelbosque.cl'},
+  {n:'Quilicura',        k:['quilicura'],             u:'https://www.quilicura.cl'},
+  {n:'Pudahuel',         k:['pudahuel'],              u:'https://www.pudahuel.cl'},
+  {n:'Lo Barnechea',     k:['lo barnechea'],          u:'https://www.lobarnechea.cl'},
+  {n:'Renca',            k:['renca'],                 u:'https://www.renca.cl'},
+  {n:'Recoleta',         k:['recoleta'],              u:'https://www.recoleta.cl'},
+  {n:'Conchalí',         k:['conchali'],              u:'https://www.conchali.cl'},
+  {n:'Huechuraba',       k:['huechuraba'],            u:'https://www.huechuraba.cl'},
+  {n:'Independencia',    k:['independencia'],         u:'https://www.independencia.cl'},
+  {n:'La Cisterna',      k:['la cisterna'],           u:'https://www.lacisterna.cl'},
+  {n:'La Reina',         k:['la reina'],              u:'https://www.municipalidadlareina.cl'},
+  {n:'Lo Prado',         k:['lo prado'],              u:'https://www.loprado.cl'},
+  {n:'Lo Espejo',        k:['lo espejo'],             u:'https://www.loespejo.cl'},
+  {n:'San Miguel',       k:['san miguel'],            u:'https://www.municipalidadsanmiguel.cl'},
+  {n:'San Ramón',        k:['san ramon'],             u:'https://www.municipalidadsanramon.cl'},
+  {n:'La Granja',        k:['la granja'],             u:'https://www.municipalidadlagranja.cl'},
+  {n:'Cerrillos',        k:['cerrillos'],             u:'https://www.cerrillos.cl'},
+  {n:'Cerro Navia',      k:['cerro navia'],           u:'https://www.cerronavia.cl'},
+  {n:'Estación Central', k:['estacion central'],      u:'https://www.estacioncentral.cl'},
+  {n:'Quinta Normal',    k:['quinta normal'],         u:'https://www.quintanormal.cl'},
+  {n:'San Joaquín',      k:['san joaquin'],           u:'https://www.municipalidadsanjoaquin.cl'},
+  {n:'Padre Hurtado',    k:['padre hurtado'],         u:'https://www.municipalidadpadrehurtado.cl'},
+  {n:'Talagante',        k:['talagante'],             u:'https://www.municipalidadtalagante.cl'},
+  {n:'Peñaflor',         k:['penaflor'],              u:'https://www.municipalidadpenaflor.cl'},
+  {n:'Buin',             k:['buin'],                  u:'https://www.municipalidadbuin.cl'},
+  {n:'Melipilla',        k:['melipilla'],             u:'https://www.municipalidadmelipilla.cl'},
+  {n:'Santiago',         k:['santiago'],              u:'https://www.municipalidaddesantiago.cl'},
+  {n:'Valparaíso',       k:['valparaiso'],            u:'https://www.municipalidadvalparaiso.cl'},
+  {n:'Viña del Mar',     k:['vina del mar'],          u:'https://www.municipalidadviña.cl'},
+  {n:'Concepción',       k:['concepcion'],            u:'https://www.municipalidadconcepcion.cl'},
+  {n:'Temuco',           k:['temuco'],                u:'https://www.temuco.cl'},
+  {n:'Rancagua',         k:['rancagua'],              u:'https://www.municipalidadrancagua.cl'},
+  {n:'Talca',            k:['talca'],                 u:'https://www.municipalidadtalca.cl'},
+  {n:'Puerto Montt',     k:['puerto montt'],          u:'https://www.municipalidadpuertomontt.cl'},
+  {n:'Antofagasta',      k:['antofagasta'],           u:'https://www.municipalidadantofagasta.cl'},
+  {n:'Iquique',          k:['iquique'],               u:'https://www.municipalidadiquique.cl'},
+  {n:'La Serena',        k:['la serena'],             u:'https://www.municipalidadlaserena.cl'},
+  {n:'Coquimbo',         k:['coquimbo'],              u:'https://www.municoquimbo.cl'},
+  {n:'Arica',            k:['arica'],                 u:'https://www.muniarica.cl'},
+  {n:'Osorno',           k:['osorno'],                u:'https://www.municipalidadosorno.cl'},
+  {n:'Punta Arenas',     k:['punta arenas'],          u:'https://www.municipalidadpuntaarenas.cl'},
+  {n:'Calama',           k:['calama'],                u:'https://www.municipalidadcalama.cl'},
+  {n:'Chillán',          k:['chillan'],               u:'https://www.municipalidadchillan.cl'},
+];
+function findMuni(name){
+  if(!name)return null;
+  const n=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  for(const m of MUNIS) for(const k of m.k) if(n.includes(k)) return m;
+  return null;
+}
+
+// ── RENDER ────────────────────────────────────────
+
+function renderMultiResults(docs){
+  setView('results');
+  setBadge(docs.length + ' docs analizados', 'blue');
+  let h = '';
+  h += '<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(59,130,246,.08);border:1.5px solid rgba(59,130,246,.18);border-radius:12px;margin-bottom:2px;">';
+  h += '<span style="font-size:20px;">&#x1F4C2;</span>';
+  h += '<div><div style="font-size:12px;font-weight:700;color:#1e3a5f;">' + docs.length + ' documentos analizados y clasificados</div>';
+  h += '<div style="font-size:10px;color:#64748b;margin-top:1px;">Cada documento identificado y extraido por separado</div></div></div>';
+  docs.forEach(function(doc, idx){
+    var confColor = doc.confianza==='alta'?'#16a34a':doc.confianza==='baja'?'#dc2626':'#059669';
+    h += '<div style="border:2px solid rgba(59,130,246,.1);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.5);">';
+    h += '<div style="padding:11px 15px;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);display:flex;align-items:center;gap:10px;">';
+    h += '<div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0;">'+(idx+1)+'</div>';
+    h += '<span style="font-size:22px;">'+(doc.icono||'&#x1F4C4;')+'</span>';
+    h += '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:-.3px;">'+escH(doc.tipo||'Documento')+'</div>';
+    if(doc.confianza) h += '<div style="font-size:9px;color:'+confColor+';font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">&#x25CF; Confianza '+doc.confianza+'</div>';
+    h += '</div></div>';
+    h += '<div style="padding:10px;display:flex;flex-direction:column;gap:7px;">';
+    if(doc.patente) h += frow('Patente / Placa', doc.patentePlain||doc.patente, true, 'plate');
+    if(doc.rut)     h += frow('RUT', doc.rut, true, 'rut');
+    if(doc.nombre)  h += frow('Nombre / Razon Social', doc.nombre, true, 'nombre');
+    var extras = (doc.campos||[]).filter(function(c){ return c.v && String(c.v).trim(); });
+    extras.slice(0,6).forEach(function(c){ h += frow(c.k, c.v, true, ''); });
+    if(doc.observaciones){
+      h += '<div style="padding:8px 11px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:11px;color:#92400e;display:flex;gap:7px;">';
+      h += '<span>&#x26A0;&#xFE0F;</span><div>'+escH(doc.observaciones)+'</div></div>';
+    }
+    if(doc._muUrl){
+      h += '<a class="link-card" href="'+escH(doc._muUrl)+'" target="_blank" rel="noopener">';
+      h += '<span class="li">&#x1F3DB;&#xFE0F;</span>';
+      h += '<div class="lt"><div class="lt-title">'+escH(doc._muName||doc.municipio||'')+'</div>';
+      h += '<div class="lt-sub">Portal de tramites municipales</div></div>';
+      h += '<span class="link-arrow">&#x2197;</span></a>';
+    }
+    if(doc.qr_url){
+      var safe = doc.qr_url.startsWith('http') ? doc.qr_url : 'https://'+doc.qr_url;
+      h += '<a class="qr-card" href="'+escH(safe)+'" target="_blank" rel="noopener">';
+      h += '<span style="font-size:18px;">&#x1F532;</span>';
+      h += '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:11px;">QR - Abrir enlace</div>';
+      h += '<div style="font-size:10px;color:#4ade80;word-break:break-all;">'+escH(safe)+'</div></div>';
+      h += '<span style="font-size:12px;font-weight:700;">&#x2197;</span></a>';
+    }
+    if(doc.texto){
+      h += '<details><summary style="font-size:10px;color:#94a3b8;cursor:pointer;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:4px 0;">Ver texto extraido</summary>';
+      h += '<div class="raw-box" style="margin-top:6px;">'+escH(doc.texto)+'</div></details>';
+    }
+    h += '</div></div>';
+  });
+  document.getElementById('resultsDiv').innerHTML = h;
+}
+
+// ── VENCIMIENTO Y DEUDA PERMISO CIRCULACION ──────────────
+function parseVencimiento(doc){
+  // PRIORIDAD 1: campo explícito "Fecha de Vencimiento" o "Vencimiento" en campos[]
+  // IGNORAR: fecha emisión, fecha pago, fecha proceso — solo queremos la fecha de VENCIMIENTO
+  for(const c of (doc.campos||[])){
+    const kl = (c.k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const isVenc = kl.includes('vencimiento') || kl === 'vence' || kl === 'venc' ||
+                   (kl.includes('valido') && kl.includes('hasta')) ||
+                   kl === 'fecha venc';
+    // Explicitly exclude payment and emission dates
+    const isExcluded = kl.includes('emision') || kl.includes('emitido') ||
+                       kl.includes('pago') || kl.includes('proceso') ||
+                       kl.includes('factura');
+    if(isVenc && !isExcluded && c.v){
+      const m = (c.v||'').match(/(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/);
+      if(m){
+        const d=parseInt(m[1]),mo=parseInt(m[2]),y=parseInt(m[3]);
+        if(y>2000&&y<2100) return new Date(y,mo-1,d);
+      }
+      // Try YYYY-MM-DD
+      const m2 = (c.v||'').match(/(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})/);
+      if(m2){
+        const y=parseInt(m2[1]),mo=parseInt(m2[2]),d=parseInt(m2[3]);
+        if(y>2000&&y<2100) return new Date(y,mo-1,d);
+      }
+    }
+  }
+
+  // PRIORIDAD 2: buscar "VENCIMIENTO: DD/MM/YYYY" en el texto extraído
+  // But ONLY match lines that say "vencimiento" — not "fecha emisión" etc.
+  const texto = doc.texto||'';
+  const vencPatterns = [
+    /fecha\s+(?:de\s+)?vencimiento[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
+    /vencimiento[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
+    /fecha\s+venc[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
+    /valido\s+hasta[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
+    /vence[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
+  ];
+  for(const p of vencPatterns){
+    const m = texto.match(p);
+    if(m){
+      const d=parseInt(m[1]),mo=parseInt(m[2]),y=parseInt(m[3]);
+      if(y>2000&&y<2100) return new Date(y,mo-1,d);
+    }
+  }
+
+  // PRIORIDAD 3: año del permiso → los permisos chilenos vencen 31/03 del año indicado
+  // Only use "Año Permiso" or "Proceso" fields — NOT emission year
+  for(const c of (doc.campos||[])){
+    const kl = (c.k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const isYear = kl === 'año permiso' || kl === 'ano permiso' ||
+                   kl === 'proceso' || kl === 'año' ||
+                   (kl.includes('permiso') && !kl.includes('emis'));
+    if(isYear && c.v){
+      const m = (c.v||'').match(/(202[3-9]|203\d)/);
+      if(m) return new Date(parseInt(m[1]),2,31); // 31 Marzo = vencimiento permiso CL
+    }
+  }
+
+  // PRIORIDAD 4: "AÑO PERMISO YYYY" en texto
+  const añoM = texto.match(/(?:año permiso|ano permiso|proceso)\s*[:\s]*(202[3-9]|203\d)/i);
+  if(añoM) return new Date(parseInt(añoM[1]),2,31);
+
+  return null; // No se pudo determinar — no mostrar alerta falsa
+}
+
+function renderVencimiento(doc){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const venc = parseVencimiento(doc);
+
+  if(!venc){
+    return `<div class="sec">Estado del permiso</div>
+    <div class="venc-card unknown">
+      <div class="venc-header">
+        <span class="venc-icon">❓</span>
+        <div><div class="venc-title">Fecha no detectada</div>
+        <div class="venc-sub">No se pudo determinar la vigencia. Verifica manualmente en la municipalidad.</div></div>
+      </div>
+    </div>`;
+  }
+
+  const diffMs  = venc.getTime() - today.getTime();
+  const diffDias = Math.round(diffMs / 86400000);
+  const vencStr  = venc.toLocaleDateString('es-CL',{day:'2-digit',month:'long',year:'numeric'});
+
+  if(diffDias >= 0){
+    // Vigente
+    const color = diffDias < 30 ? 'fbbf24' : '4ade80';
+    return `<div class="sec">Estado del permiso</div>
+    <div class="venc-card ok">
+      <div class="venc-header">
+        <span class="venc-icon">${diffDias < 30 ? '⚠️' : '✅'}</span>
+        <div>
+          <div class="venc-title">Permiso VIGENTE</div>
+          <div class="venc-sub">Vence el ${vencStr}${diffDias < 30 ? ' — <strong>próximo a vencer</strong>' : ''} · ${diffDias} días restantes</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // VENCIDO — calcular deuda estimada
+  const añosVencidos = Math.ceil(Math.abs(diffDias) / 365);
+  const añoVenc = venc.getFullYear();
+  const añoActual = today.getFullYear();
+
+  // Fórmula Kavak Supply:
+  // Deuda = Valor base del permiso + $35.000 × años vencidos completos (desde vencimiento a hoy)
+  // Valor base: extraer de campos del doc (Tasación, Pago Total, Total a Pagar)
+  // Años vencidos: años completos transcurridos desde la fecha de vencimiento
+
+  // Extraer valor real del permiso desde los campos extraídos por Claude
+  let basePermiso = 0;
+  const camposDoc = doc.campos || [];
+  const camposPrioridad = [
+    'pago total','total a pagar','valor permiso','tasacion','tasación',
+    'monto','valor','importe','permiso'
+  ];
+  for(const campo of camposDoc){
+    const k = (campo.k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const v = String(campo.v||'').replace(/[^0-9]/g,'');
+    if(camposPrioridad.some(p => k.includes(p)) && v.length >= 4){
+      const num = parseInt(v);
+      // Filtrar valores razonables: entre $10.000 y $5.000.000
+      if(num >= 10000 && num <= 5000000){
+        basePermiso = num;
+        break;
+      }
+    }
+  }
+  // Si no encontramos el valor, dejar en 0 para mostrar solo la multa
+  const tieneValorReal = basePermiso > 0;
+
+  // Años vencidos completos (floor)
+  const añosVencidos = Math.max(1, Math.floor(Math.abs(diffDias) / 365));
+
+  // Deuda = base + $35.000 × años vencidos
+  const multaPorAño = 35000;
+  const deudaEstimada = basePermiso + (multaPorAño * añosVencidos);
+  const deudaFormateada = new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(deudaEstimada);
+  const baseFormateada = tieneValorReal
+    ? new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(basePermiso)
+    : null;
+
+  const muUrl = doc._muUrl || 'https://www.sem2.gob.cl/';
+  const muName = doc._muName || doc.municipio || 'la municipalidad';
+
+  return `<div class="sec">Estado del permiso</div>
+  <div class="venc-card expired">
+    <div class="venc-header">
+      <span class="venc-icon">🚨</span>
+      <div>
+        <div class="venc-title">Permiso VENCIDO</div>
+        <div class="venc-sub">Venció el ${vencStr} · hace ${Math.abs(diffDias)} días (${mesesVencidos} meses)</div>
+      </div>
+    </div>
+    <div class="deuda-row">
+      <div class="deuda-title">💰 Deuda estimada para regularizar</div>
+      <div class="deuda-amount">${deudaFormateada}</div>
+      <div class="deuda-detail">
+        Base permiso ~$80.000 + multa ~1.5% mensual × ${mesesVencidos} meses vencidos<br>
+        <strong style="color:rgba(255,255,255,.5);">⚠️ Monto referencial — el valor exacto lo entrega ${escH(muName)}</strong>
+      </div>
+    </div>
+    <a class="deuda-cta" href="${escH(muUrl)}" target="_blank" rel="noopener">
+      🏛️ Ir a ${escH(muName)} para pagar y regularizar &nbsp;↗
+    </a>
+  </div>`;
+}
+
+function renderResults(doc){
+  setView('results');
+  doc.tipo = detectDocType(doc);
+  setBadge(doc.tipo||'Documento','blue');
+  playTinySound('done');
+
+  const patenteState = validatePlate(doc.patente);
+  const rutState = validateRut(doc.rut);
+  const muni = doc.municipio || doc._muName || null;
+  const conf = normalizeConfidence(doc.confianza, patenteState, rutState);
+  window._lastDoc = doc;
+
+  let h='';
+  h+=`<div class="doc-card"><div class="doc-emo">${doc.icono||'📄'}</div><div>
+    <div class="doc-type">${escH(doc.tipo||'Documento vehicular')}</div>
+    <div class="doc-sub">${images.length>1?`Analizado con ${images.length} imágenes · `:''}Resumen Kavak Supply</div>
+    <div class="doc-detect-pill">🔎 ${escH(doc.tipo||'Detectado')}</div>
+  </div></div>`;
+
+  h+=`<div class="summary-card">
+    <div class="summary-title">
+      <strong>Resumen</strong>
+      <span class="conf-pill conf-${conf.cls}">${conf.txt==='alta'?'✓ Alta precisión':conf.txt==='baja'?'⚠ Baja precisión':'◎ Precisión media'}</span>
+    </div>
+    ${doc.patente?frowCheck('Patente',doc.patentePlain||doc.patente,patenteState,'plate'):frowCheck('Patente','— no visible',{ok:false,label:'Revisar',cls:'warn'},'')}
+    ${doc.rut?frowCheck('RUT',doc.rut,rutState,'rut'):frowCheck('RUT','— no detectado',{ok:false,label:'Revisar',cls:'warn'},'')}
+    ${muni?frowCheck('Municipio',muni,{ok:true,label:'Detectada',cls:'ok'},''):frowCheck('Municipio','— no detectada',{ok:false,label:'Revisar',cls:'warn'},'')}
+    <div class="report-actions">
+      <button class="action-btn primary" onclick="copyReport()">📋 Copiar reporte</button>
+      <button class="action-btn soft" onclick="copyMainData()">⎘ Copiar datos</button>
+    </div>
+  </div>`;
+
+  if(doc._muUrl){
+    const muSearch = (doc._muName||doc.municipio||'') + ' pagar permiso de circulacion';
+    const muId = 'mu_'+Math.random().toString(36).slice(2,7);
+    h+=`<div class="sec">Página de la comuna</div>
+    <div style="display:flex;gap:7px;align-items:center">
+      <a class="link-card" style="flex:1" href="${escH(doc._muUrl)}" target="_blank" rel="noopener">
+        <span class="li">🏛️</span>
+        <div class="lt">
+          <div class="lt-title">Municipalidad de ${escH(doc._muName||doc.municipio||'')}</div>
+          <div class="lt-sub">Ir al portal de trámites</div>
+        </div>
+        <span class="link-arrow">↗</span>
+      </a>
+      <button class="cp" id="${muId}" onclick="copyVal('${muId}',this)" title="Copiar texto búsqueda" data-full="${escH(muSearch)}" style="width:auto;padding:8px 12px;border-radius:11px;height:44px;font-size:10px;font-weight:700;flex-shrink:0;white-space:nowrap">
+        ⎘ Copiar
+      </button>
+    </div>
+    <div style="font-size:10px;color:rgba(255,255,255,.25);padding:3px 2px;margin-top:-4px">
+      Texto copiado: <span style="color:rgba(16,185,129,.6);font-family:'JetBrains Mono',monospace">${escH(muSearch)}</span>
+    </div>`;
+  }
+
+  // ── VENCIMIENTO PERMISO CIRCULACION ──
+  const tipoNorm = (doc.tipo||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const isPermiso = tipoNorm.includes('permiso') && tipoNorm.includes('circulacion');
+  if(isPermiso){
+    h += renderVencimiento(doc);
+  }
+
+  if(doc.observaciones){
+    h+=`<div class="sec">Observación</div><div class="raw-box" style="max-height:none;font-family:'Inter',sans-serif;font-size:12px;color:rgba(255,255,255,.6)">${escH(doc.observaciones)}</div>`;
+  }
+
+  const extras=(doc.campos||[]).filter(c=>c.v&&String(c.v).trim());
+  if(extras.length){
+    h+=`<div class="sec">Información adicional</div>`;
+    extras.forEach(c=>{h+=frow(c.k,c.v,true,'');});
+  }
+
+  if(doc.qr_url){
+    const safe=doc.qr_url.startsWith('http')?doc.qr_url:'https://'+doc.qr_url;
+    h+=`<div class="sec">QR del documento</div>
+    <a class="qr-card" href="${escH(safe)}" target="_blank" rel="noopener">
+      <span style="font-size:20px">🔗</span>
+      <div><div style="font-weight:800;font-size:12px">Abrir enlace del QR</div><div style="font-size:10px;color:#9a3412;margin-top:1px;word-break:break-all">${escH(safe)}</div></div>
+      <span style="margin-left:auto;font-size:13px;font-weight:900">↗</span>
+    </a>`;
+  }
+
+  if(doc.texto){ h+=`<div class="sec">Texto completo extraído</div><div class="raw-box">${highlightOCRText(doc.texto, doc)}</div>`; }
+  document.getElementById('resultsDiv').innerHTML=h;
+}
+
+function frowCheck(key,val,state,cls){
+  const id='f'+Math.random().toString(36).slice(2,7);
+  const hi=(cls==='plate'||cls==='rut')?'frow hi':'frow '+(state?.cls==='ok'?'valid':state?.cls==='bad'?'bad':'warn');
+  const vc='fval'+(cls?' '+cls:'');
+  const pill=`<span class="check-pill check-${state?.cls||'warn'}">${escH(state?.label||'Revisar')}</span>`;
+  return `<div class="${hi}"><span class="fkey">${escH(key)}</span><span class="${vc}" id="${id}">${escH(String(val))}</span>${pill}<button class="cp" onclick="copyVal('${id}',this)">⎘</button></div>`;
+}
+
+function frow(key,val,copyable,cls){
+  const id='f'+Math.random().toString(36).slice(2,7);
+  const hi=(cls==='plate'||cls==='rut'||cls==='nombre')?'frow hi':'frow';
+  const vc='fval'+(cls?' '+cls:'');
+  const strVal=String(val);
+  const isLong=strVal.length>40;
+  // Store full value in data-full for copy; display may be truncated by CSS
+  // Click to toggle expand/collapse
+  const clickExpand=isLong?`onclick="toggleExpand('${id}')" title="Clic para ver completo"`:''
+  const cb=copyable?`<button class="cp" onclick="copyVal('${id}',this)">⎘</button>`:'<span></span>';
+  return `<div class="${hi}"><span class="fkey">${escH(key)}</span><span class="${vc}" id="${id}" data-full="${escH(strVal)}" ${clickExpand}>${escH(strVal)}</span>${cb}</div>`;
+}
+
+function toggleExpand(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.toggle('expanded');
+}
+
+
+function detectDocType(doc){
+  const current=String(doc.tipo||'').trim();
+  const all=(current+' '+(doc.texto||'')+' '+(doc.campos||[]).map(c=>(c.k||'')+' '+(c.v||'')).join(' ')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(all.includes('permiso de circulacion')||all.includes('permiso circulacion')) return 'Permiso de circulación';
+  if(all.includes('seguro obligatorio')||all.includes('soap')) return 'SOAP';
+  if(all.includes('revision tecnica')||all.includes('certificado de revision')) return 'Revisión técnica';
+  if(all.includes('homologacion')||all.includes('certificado de homologacion')) return 'Homologación';
+  if(all.includes('padron')||all.includes('certificado de inscripcion')||all.includes('inscripcion y anotaciones')) return 'Padrón vehicular';
+  if(all.includes('cedula de identidad')||all.includes('republica de chile')&&all.includes('cedula')) return 'Cédula de identidad';
+  if(current && !/^nombre doc|documento$/i.test(current)) return current;
+  return 'Documento vehicular';
+}
+
+function highlightOCRText(text, doc){
+  let safe=escH(text||'');
+  const terms=[doc.patente, doc.rut, doc.nombre, doc.municipio, doc._muName].filter(Boolean).map(String);
+  const uniq=[...new Set(terms.filter(t=>t.trim().length>2))].sort((a,b)=>b.length-a.length);
+  uniq.forEach(t=>{
+    const escaped=escReg(escH(t.trim()));
+    safe=safe.replace(new RegExp(escaped,'gi'), m=>`<span class="ocr-hit">${m}</span>`);
+  });
+  return safe;
+}
+function escReg(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+
+function validatePlate(v){
+  if(!v || String(v).includes('—')) return {ok:false,label:'Revisar',cls:'warn'};
+  const s=String(v).toUpperCase().replace(/\s/g,'').replace(/[.]/g,'');
+  const ok=/^[A-Z]{4}-?\d{2}$/.test(s)||/^[A-Z]{2}-?\d{4}$/.test(s)||/^[A-Z]{3}-?\d{3}$/.test(s);
+  return ok?{ok:true,label:'Formato OK',cls:'ok'}:{ok:false,label:'Formato raro',cls:'warn'};
+}
+
+function cleanRut(v){return String(v||'').replace(/\./g,'').replace(/\s/g,'').toUpperCase();}
+function validateRut(v){
+  const s=cleanRut(v);
+  const m=s.match(/^(\d{7,8})-?([\dK])$/);
+  if(!m) return {ok:false,label:'Formato raro',cls:'warn'};
+  let sum=0,mul=2;
+  for(let i=m[1].length-1;i>=0;i--){
+    sum+=parseInt(m[1][i],10)*mul;
+    mul=mul===7?2:mul+1;
+  }
+  const res=11-(sum%11);
+  const dv=res===11?'0':res===10?'K':String(res);
+  return dv===m[2]?{ok:true,label:'RUT OK',cls:'ok'}:{ok:false,label:'DV revisar',cls:'bad'};
+}
+
+function normalizeConfidence(c, plate, rut){
+  const raw=String(c||'').toLowerCase();
+  if(raw.includes('alta')) return {txt:'alta',cls:'alta'};
+  if(raw.includes('baja')) return {txt:'baja',cls:'baja'};
+  if(plate?.cls==='bad'||rut?.cls==='bad') return {txt:'baja',cls:'baja'};
+  if(plate?.ok&&rut?.ok) return {txt:'alta',cls:'alta'};
+  return {txt:'media',cls:'media'};
+}
+
+function buildReport(){
+  const d=window._lastDoc||{};
+  const muni=d._muName||d.municipio||'No detectada';
+  const muniSearch=muni!=='No detectada'?`\nBuscar en Google: ${muni} pagar permiso de circulacion`:'';
+  const muniUrl=d._muUrl?`\nLink portal: ${d._muUrl}`:'';
+  return `Resumen DocScan Kavak
+Documento: ${d.tipo||'Documento vehicular'}
+Patente: ${d.patente||'No detectada'}
+RUT: ${d.rut||'No detectado'}
+Comuna/Municipalidad: ${muni}${muniUrl}
+Confianza: ${d.confianza||'Calculada por validación'}
+Observación: ${d.observaciones||'Sin observaciones'}`;
+}
+
+function copyReport(){copyText(buildReport(),'Reporte copiado');}
+function copyMainData(){
+  const d=window._lastDoc||{};
+  const muName=d._muName||d.municipio||'';
+  const muLine=muName?`\nMunicipio: ${muName}\nBuscar: ${muName} pagar permiso de circulacion${d._muUrl?'\nPortal: '+d._muUrl:''}`:'\nMunicipio: No detectado';
+  const txt=`Patente: ${d.patente||'No detectada'}\nRUT: ${d.rut||'No detectado'}${muLine}`;
+  copyText(txt,'Datos copiados');
+}
+function copyText(txt,msg){
+  const ok=()=>{toast(msg);playTinySound('copy');}
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(ok).catch(()=>fb(txt,ok)); else fb(txt,ok);
+}
+
+function copyVal(id,btn){
+  const el=document.getElementById(id);
+  // Use data-full for the complete value (textContent may be truncated by CSS)
+  const txt=(el?.dataset?.full||el?.textContent||'').trim();
+  if(!txt||txt.startsWith('—'))return;
+  const cb=()=>{btn.classList.add('ok');btn.textContent='✓';toast('Copiado: '+txt);playTinySound('copy');setTimeout(()=>{btn.classList.remove('ok');btn.textContent='⎘';},2000);};
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(cb).catch(()=>fb(txt,cb)); else fb(txt,cb);
+}
+function fb(txt,cb){const ta=Object.assign(document.createElement('textarea'),{value:txt,style:'position:fixed;opacity:0'});document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);cb();}
+
+// ── HISTORY ───────────────────────────────────────
+// Capture a compressed thumbnail from the current image/PDF preview
+// Returns a small JPEG data URL (~50-100kb) suitable for localStorage
+function captureThumb(){
+  try {
+    // Case 1: regular image — scale down from src
+    if(images.length && images[activeIdx] && !images[activeIdx].isPDF){
+      const src = images[activeIdx].src;
+      if(!src) return null;
+      const img = new Image();
+      img.src = src;
+      // Use a canvas to resize to max 600px wide
+      const MAX = 600;
+      const cnv = document.createElement('canvas');
+      const ratio = img.naturalHeight / Math.max(img.naturalWidth, 1);
+      cnv.width  = Math.min(img.naturalWidth  || MAX, MAX);
+      cnv.height = Math.round(cnv.width * (ratio || 1.4));
+      if(cnv.width < 1 || cnv.height < 1) return src.length < 300000 ? src : null;
+      cnv.getContext('2d').drawImage(img, 0, 0, cnv.width, cnv.height);
+      return cnv.toDataURL('image/jpeg', 0.7); // compressed JPEG
+    }
+    // Case 2: PDF — grab whatever is rendered in the pdfCanvas
+    const pdfCnv = document.getElementById('pdfCanvas');
+    if(pdfCnv && pdfCnv.width > 0){
+      const MAX = 600;
+      const cnv = document.createElement('canvas');
+      const ratio = pdfCnv.height / Math.max(pdfCnv.width, 1);
+      cnv.width  = Math.min(pdfCnv.width, MAX);
+      cnv.height = Math.round(cnv.width * ratio);
+      cnv.getContext('2d').drawImage(pdfCnv, 0, 0, cnv.width, cnv.height);
+      return cnv.toDataURL('image/jpeg', 0.7);
+    }
+    // Case 3: PDF not yet rendered — use raw src if small enough
+    if(images.length && images[activeIdx]){
+      const src = images[activeIdx].src;
+      if(src && src.length < 400000) return src;
+    }
+  } catch(e){}
+  return null;
+}
+
+function saveHist(doc){
+  window._lastDoc = doc;
+  // Capture compressed thumbnail of the current document visual
+  const thumb = captureThumb();
+
+  // Also save full src for images (needed to restore interactive state)
+  const imgSnap = images.slice(0,3).map(im=>({
+    src: im.src && im.src.length < 1200000 ? im.src : null,
+    mime: im.mime, name: im.name, isPDF: !!im.isPDF
+  }));
+
+  const e={
+    id:Date.now(), ts:new Date().toISOString(), user:getUser(),
+    tipo:doc.tipo, icono:doc.icono, patente:doc.patentePlain||doc.patente, rut:doc.rut,
+    nombre:doc.nombre, municipio:doc.municipio||doc._muName,
+    thumb,    // compressed preview thumbnail
+    imgSnap,  // full images for re-analysis
+    doc
+  };
+  hist.unshift(e); if(hist.length>50) hist=hist.slice(0,50);
+
+  // Save to localStorage — progressive fallback if quota exceeded
+  const tryStore = (data) => {
+    try{ localStorage.setItem('ds3_hist', JSON.stringify(data)); return true; }
+    catch(e){ return false; }
+  };
+  if(!tryStore(hist)){
+    // Try without full imgSnap (keep thumbs)
+    const slim = hist.map(h=>({...h, imgSnap:null}));
+    if(!tryStore(slim)){
+      // Last resort: no images at all
+      const bare = hist.map(h=>({...h, imgSnap:null, thumb:null}));
+      tryStore(bare);
+    }
+  }
+  renderHist();
+  updateStats();
+  updateDocCounter();
+}
+function renderHist(){
+  const el=document.getElementById('histScroll');
+  if(!hist.length){el.innerHTML='<div class="hi-empty">Tus análisis<br>aparecerán aquí</div>';return;}
+  // Apply search filter
+  const filtered = histFilter
+    ? hist.filter((h,i) => {
+        const hay = [h.patente,h.rut,h.nombre,h.tipo,h.municipio,h.user].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(histFilter);
+      })
+    : hist;
+  if(!filtered.length){
+    el.innerHTML='<div class="hi-empty">Sin resultados para<br>"'+escH(histFilter)+'"</div>';
+    return;
+  }
+  el.innerHTML=filtered.map((h,i)=>{
+    // Find real index in hist array for loadHist
+    const realIdx = hist.indexOf(h);
+    const dt=new Date(h.ts);
+    const ts=dt.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    const today = new Date().toLocaleDateString('es-CL');
+    const isToday = dt.toLocaleDateString('es-CL') === today;
+    return `<div class="hi" onclick="loadHist(${realIdx})">
+      <div class="hi-type">${h.icono||'📄'} ${escH(h.tipo||'Doc')}${isToday?' <span style="color:rgba(16,185,129,.6);font-size:9px">HOY</span>':''}</div>
+      <div class="hi-plate">${escH(h.patente||'—')}</div>
+      <div class="hi-rut">${escH(h.rut||'Sin RUT')}${h.nombre?' · '+escH(h.nombre.split(' ')[0]):''}</div>
+      <div class="hi-user">👤 ${escH(h.user||'Anónimo')}</div>
+      <div class="hi-ts">${ts} · ${dt.toLocaleDateString('es-CL')}</div>
+    </div>`;
+  }).join('');
+}
+function loadHist(i){
+  document.querySelectorAll('.hi').forEach((el,j)=>el.classList.toggle('active',j===i));
+  const entry = hist[i];
+
+  // Reset preview container completely
+  const preview = document.getElementById('dropPreview');
+  const dropEmpty = document.getElementById('dropEmpty');
+  if(dropEmpty) dropEmpty.style.display = 'none';
+
+  if(preview){
+    // Reset to base state
+    preview.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#020d06,#061a0e);overflow:hidden;';
+    preview.className = 'drop-preview show';
+    preview.innerHTML = '';
+
+    const snap = entry.imgSnap;
+    const hasFullImg = snap && snap.length && snap.some(im => im && im.src);
+    const hasThumb = entry.thumb && entry.thumb.length > 100;
+
+    if(hasFullImg){
+      // Best case: we have the full image — restore interactive state
+      images = snap.filter(im => im && im.src).map(im => ({
+        b64: im.src.includes(',') ? im.src.split(',')[1] : im.src,
+        mime: im.mime||'image/png', name: im.name||'Documento',
+        isPDF: !!im.isPDF, src: im.src
+      }));
+      activeIdx = 0;
+      renderTabs();
+      document.getElementById('analyzeBtn').disabled = false;
+      setBadge('Historial · ' + escH(entry.tipo||'Documento'), 'blue');
+
+      if(images[0].isPDF){
+        // PDF: show thumb as static preview (no re-render needed)
+        if(hasThumb){
+          showThumbPreview(preview, entry.thumb, entry);
+        } else {
+          renderPDFPreview(images[0]);
+        }
+      } else {
+        // Image: show directly
+        showThumbPreview(preview, entry.thumb || images[0].src, entry);
+      }
+
+    } else if(hasThumb){
+      // Good fallback: we have a thumbnail
+      images = []; activeIdx = 0;
+      renderTabs();
+      document.getElementById('analyzeBtn').disabled = true;
+      showThumbPreview(preview, entry.thumb, entry);
+      setBadge('Historial · ' + escH(entry.tipo||'Documento'), 'blue');
+
+    } else {
+      // No image data at all — minimal placeholder
+      images = []; activeIdx = 0;
+      renderTabs();
+      document.getElementById('analyzeBtn').disabled = true;
+      preview.innerHTML =
+        '<div style="font-size:48px;opacity:.15;filter:grayscale(1)">📄</div>' +
+        '<div style="text-align:center;margin-top:8px">' +
+          '<div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.35)">'+(entry.icono||'📄')+' '+escH(entry.tipo||'Documento')+'</div>' +
+          '<div style="font-size:11px;color:rgba(255,255,255,.2);margin-top:4px;font-family:monospace">'+escH(entry.patente||entry.rut||'')+'</div>' +
+          '<div style="font-size:10px;color:rgba(255,255,255,.15);margin-top:8px">Carga el archivo de nuevo para verlo</div>' +
+        '</div>';
+    }
+  }
+
+  renderResults(entry.doc);
+}
+
+// Show a thumbnail image in the preview container with overlay info
+function showThumbPreview(container, thumbSrc, entry){
+  container.style.cssText = 'position:absolute;inset:0;display:block;background:#000;overflow:hidden;';
+
+  const img = document.createElement('img');
+  img.src = thumbSrc;
+  img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;opacity:.95;';
+  container.appendChild(img);
+
+  // Top info bar overlay
+  const bar = document.createElement('div');
+  bar.style.cssText = [
+    'position:absolute;top:0;left:0;right:0',
+    'padding:8px 12px',
+    'background:linear-gradient(to bottom,rgba(10,15,30,.85),transparent)',
+    'display:flex;align-items:center;gap:8px',
+    'pointer-events:none',
+  ].join(';');
+  bar.innerHTML =
+    '<span style="font-size:16px">'+(entry.icono||'📄')+'</span>' +
+    '<div style="flex:1;min-width:0">' +
+      '<div style="font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escH(entry.tipo||'Documento')+'</div>' +
+      '<div style="font-size:10px;color:#93c5fd;margin-top:1px">'+escH(entry.patente||entry.rut||'Historial')+'</div>' +
+    '</div>' +
+    '<div style="padding:2px 8px;background:rgba(59,130,246,.25);border:1px solid rgba(59,130,246,.35);border-radius:20px;font-size:9px;font-weight:700;color:#93c5fd;white-space:nowrap">HISTORIAL</div>';
+  container.appendChild(bar);
+
+  // Bottom fade
+  const fade = document.createElement('div');
+  fade.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,rgba(10,15,30,.7));pointer-events:none;';
+  container.appendChild(fade);
+}
+function clearHist(){if(!confirm('¿Borrar todo el historial?'))return;hist=[];localStorage.removeItem('ds3_hist');renderHist();}
+function exportCSV(){
+  if(!hist.length){toast('Sin historial');return;}
+  const rows=[['Fecha','Hora','Analista','Tipo','Patente','RUT','Nombre','Municipio']];
+  hist.forEach(h=>{const dt=new Date(h.ts);rows.push([dt.toLocaleDateString('es-CL'),dt.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),h.user||'',h.tipo||'',h.patente||'',h.rut||'',h.nombre||'',h.municipio||'']);});
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='docscan_kavak_'+new Date().toLocaleDateString('es-CL').replace(/\//g,'-')+'.csv';a.click();toast('CSV exportado');
+}
+
+
+// ── SOUND ─────────────────────────────────────────
+function playTinySound(type){
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    if(!Ctx) return;
+    const ctx=new Ctx();
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.type='sine';
+    osc.frequency.value=type==='copy'?880:type==='success'?660:520;
+    gain.gain.setValueAtTime(0.0001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.035,ctx.currentTime+0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.11);
+    osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.12);
+  }catch(e){}
+}
+
+// ── UI ────────────────────────────────────────────
+function setView(s){
+  document.getElementById('emptyState').style.display=s==='empty'?'flex':'none';
+  document.getElementById('spinWrap').style.display=s==='spin'?'flex':'none';
+  document.getElementById('resultsDiv').style.display=s==='results'?'flex':'none';
+  if(s==='results') document.getElementById('resultsDiv').style.flexDirection='column';
+}
+function spinMsg(m){document.getElementById('spinMsg').textContent=m;}
+function setBadge(t,c){const b=document.getElementById('badge');b.textContent=t;b.className='badge b-'+c;}
+function toast(msg,duration){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),duration||2400);}
+function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── SEARCH HISTORY ─────────────────────────────
+let histFilter = '';
+function filterHist(q){
+  histFilter = q.toLowerCase().trim();
+  renderHist();
+}
+
+// ── STATS ──────────────────────────────────────
+function updateStats(){
+  const today = new Date().toLocaleDateString('es-CL');
+  const todayCount = hist.filter(h => new Date(h.ts).toLocaleDateString('es-CL') === today).length;
+  const totalCount = hist.length;
+  const stat = document.getElementById('statToday');
+  if(stat && totalCount > 0){
+    stat.className = 'stat-pill';
+    stat.innerHTML = `📊 ${todayCount} hoy · ${totalCount} total`;
+  }
+  const hc = document.getElementById('histCount');
+  if(hc) hc.textContent = totalCount > 0 ? totalCount : '';
+}
+
+// ── DOC COUNTER ────────────────────────────────
+function updateDocCounter(){
+  const el = document.getElementById('docCounter');
+  if(!el) return;
+  if(images.length > 0){
+    el.textContent = images.length === 1
+      ? `1 archivo cargado`
+      : `${images.length} archivos`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+// ── KPI TIMER ────────────────────────────────────
+const _kpi = {
+  running:false, startTs:null, elapsedMs:0, interval:null,
+  sessions: JSON.parse(localStorage.getItem('kpi_sessions')||'[]')
+};
+
+function kpiFmt(sec){
+  if(!sec||sec<=0) return '00:00';
+  return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+}
+function kpiSecsNow(){
+  return _kpi.running
+    ? Math.round((_kpi.elapsedMs + Date.now() - _kpi.startTs)/1000)
+    : Math.round(_kpi.elapsedMs/1000);
+}
+function toggleTimer(){
+  const btn = document.getElementById('kpiBtnInner');
+  if(!_kpi.running){
+    _kpi.running=true; _kpi.startTs=Date.now();
+    _kpi.interval=setInterval(kpiTick,1000);
+    btn.textContent='⏹ Parar'; btn.classList.add('running');
+    kpiTick();
+  } else {
+    _kpi.elapsedMs += Date.now()-_kpi.startTs;
+    _kpi.running=false; clearInterval(_kpi.interval);
+    btn.textContent='▶ Iniciar'; btn.classList.remove('running');
+  }
+}
+function kpiTick(){
+  const sec=kpiSecsNow();
+  const cl=document.getElementById('kpiClock');
+  if(!cl) return;
+  cl.textContent=kpiFmt(sec);
+  cl.className='kpi-clock'+(sec>300?' danger':sec>180?' warn':'');
+}
+function kpiSaveAndReset(patente){
+  const sec=kpiSecsNow();
+  if(sec<2) return null;
+  const s={ts:new Date().toISOString(),patente:patente||'—',segundos:sec,analista:getUser()};
+  _kpi.sessions.unshift(s);
+  if(_kpi.sessions.length>500) _kpi.sessions=_kpi.sessions.slice(0,500);
+  localStorage.setItem('kpi_sessions',JSON.stringify(_kpi.sessions));
+  _kpi.running=false; _kpi.elapsedMs=0; clearInterval(_kpi.interval);
+  const btn=document.getElementById('kpiBtnInner');
+  if(btn){btn.textContent='▶ Iniciar';btn.classList.remove('running');}
+  const cl=document.getElementById('kpiClock');
+  if(cl){cl.textContent='00:00';cl.className='kpi-clock';}
+  kpiUpdateStats();
+  return s;
+}
+function kpiUpdateStats(){
+  const today=new Date().toLocaleDateString('es-CL');
+  const hoy=_kpi.sessions.filter(s=>new Date(s.ts).toLocaleDateString('es-CL')===today);
+  const ce=document.getElementById('kpiCountHoy');
+  const ae=document.getElementById('kpiAvgHoy');
+  const be=document.getElementById('kpiBest');
+  if(ce) ce.textContent=hoy.length;
+  if(ae) ae.textContent=hoy.length>0?'· prom '+kpiFmt(Math.round(hoy.reduce((a,s)=>a+s.segundos,0)/hoy.length)):'';
+  if(be&&_kpi.sessions.length>0) be.textContent=kpiFmt(Math.min(..._kpi.sessions.map(s=>s.segundos)));
+}
+
+// Hook saveHist para capturar sesión KPI automáticamente
+const __origSaveHist = typeof saveHist==='function' ? saveHist : null;
+window.saveHist = function(doc){
+  if(__origSaveHist) __origSaveHist(doc);
+  window._lastSession = kpiSaveAndReset(doc.patentePlain||doc.patente);
+  window._lastDoc = doc;
+};
+
+window.addEventListener('load', ()=>{
+  kpiUpdateStats();
+  const saved=localStorage.getItem('kpi_sheets_url');
+  if(saved){ const inp=document.getElementById('sheetsUrl'); if(inp) inp.value=saved; }
+});
+
+function showSheetsPopup(){
+  document.getElementById('sheetsPopup').classList.add('show');
+}
+
+// ── ENVIAR A GOOGLE SHEETS (fetch a Apps Script Web App) ─────────────
+async function sendToSheets(){
+  const url=(document.getElementById('sheetsUrl')?.value||'').trim();
+  if(!url||!url.startsWith('https://')){
+    setSpStatus('err','⚠ Pega la URL del Web App de Apps Script');
+    return;
+  }
+  localStorage.setItem('kpi_sheets_url', url);
+
+  const doc  = window._lastDoc  || {};
+  const sess = window._lastSession || {};
+  const now  = new Date();
+
+  const payload={
+    fecha:         now.toLocaleDateString('es-CL'),
+    hora:          now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),
+    analista:      getUser()||'Anónimo',
+    patente:       doc.patentePlain||doc.patente||'—',
+    rut:           doc.rut||'—',
+    nombre:        doc.nombre||'—',
+    municipio:     doc.municipio||doc._muName||'—',
+    tipo_doc:      doc.tipo||'—',
+    confianza:     doc.confianza||'—',
+    segundos:      sess.segundos||0,
+    tiempo_fmt:    kpiFmt(sess.segundos||0),
+    observaciones: doc.observaciones||'',
+  };
+
+  const btn=document.getElementById('btnSheets');
+  if(btn) btn.disabled=true;
+  setSpStatus('sending','⏳ Guardando...');
+
+  try{
+    const qs=new URLSearchParams(payload).toString();
+    await fetch(url+'?'+qs,{method:'GET',mode:'no-cors'});
+    setSpStatus('ok','✅ Guardado en Sheets');
+    toast('Guardado en Sheets ✓');
+  } catch(e){
+    setSpStatus('err','✗ Error de red — revisa la URL');
+  } finally{
+    if(btn) btn.disabled=false;
+  }
+}
+
+function setSpStatus(type,msg){
+  const el=document.getElementById('sheetsStatus');
+  if(!el) return;
+  el.className='sp-status '+type;
+  el.textContent=msg;
+}
+
+// ── KEYBOARD SHORTCUT R = ROTATE ───────────────
+// Already: Ctrl+Enter = analyze, Ctrl+V = paste
+// Add: R key = rotate when image loaded
+document.addEventListener('keydown', e => {
+  if(e.key === 'r' || e.key === 'R'){
+    // Only if not typing in an input
+    if(document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+    if(images.length && !images[activeIdx]?.isPDF){
+      rotateCurrentImage();
+    }
+  }
+});
+
+</script>
+</body>
+</html>
