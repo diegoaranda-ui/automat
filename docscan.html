@@ -620,7 +620,21 @@ html,body{
 
 <script>
 
-const SHARED_KEY='REEMPLAZAR_CON_CLAVE_VIA_APPS_SCRIPT';
+// ── BACKEND PROXY ─────────────────────────────────
+// La API key vive en Apps Script (Propiedades del script → ANTHROPIC_KEY).
+// Nunca en el cliente. callClaudeServer envuelve google.script.run en una Promise.
+function callClaudeServer(payload){
+  return new Promise((resolve,reject)=>{
+    if(!(window.google && google.script && google.script.run)){
+      reject(new Error('Esta herramienta debe ejecutarse dentro del Web App de Apps Script.'));
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(s=>{ try{ resolve(JSON.parse(s)); }catch(e){ reject(new Error('Respuesta inválida del servidor')); } })
+      .withFailureHandler(err=>reject(err instanceof Error ? err : new Error(String(err && err.message || err))))
+      .callClaude(payload);
+  });
+}
 
 // ── STATE ─────────────────────────────────────────
 let images = []; // [{b64, mime, name, src}]
@@ -1008,21 +1022,17 @@ async function analyze(){
         spinInterval = setInterval(()=>{ mIdx=(mIdx+1)%msgs.length; spinMsg(msgs[mIdx]); }, 1800);
         setBadge('Reintentando…','yellow');
       }
-      res = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':SHARED_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2048,messages:[{role:'user',content:contentArr}]})
-      });
-      if(res.ok) break;
-      const eBody = await res.json().catch(()=>({}));
-      const eMsg = eBody?.error?.message||'';
-      const isOverload = res.status===529||eMsg.toLowerCase().includes('overload');
-      if(isOverload && attempt < MAX_RETRIES) continue;
-      throw new Error(isOverload ? 'OVERLOADED' : (eMsg||'HTTP '+res.status));
+      const r = await callClaudeServer({model:'claude-sonnet-4-6',max_tokens:2048,messages:[{role:'user',content:contentArr}]});
+      let rBody; try{ rBody = JSON.parse(r.body); }catch(_){ rBody = {}; }
+      if(r.status===200){ res = {ok:true, status:200, _data:rBody}; break; }
+      const eMsg = rBody?.error?.message||'';
+      const isOverload = r.status===529||eMsg.toLowerCase().includes('overload');
+      if(isOverload && attempt < MAX_RETRIES){ res = {ok:false, status:r.status}; continue; }
+      throw new Error(isOverload ? 'OVERLOADED' : (eMsg||'HTTP '+r.status));
     }
     clearInterval(spinInterval);
-    if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
-    const data=await res.json();
+    if(!res || !res.ok){ throw new Error('OVERLOADED'); }
+    const data=res._data;
     const raw=data.content?.[0]?.text||'';
     let parsed;
     try{
@@ -1181,6 +1191,71 @@ function findMuni(name){
 
 // ── RENDER ────────────────────────────────────────
 
+// ── DICTAMEN CONSOLIDADO — validación cruzada entre documentos ──
+// Cruza RUT / patente / nombre entre todos los documentos analizados juntos,
+// valida dígito verificador y vigencias, y entrega un veredicto copiable.
+function buildConsolidado(docs){
+  const ruts={}, plates={}, alerts=[], checks=[];
+  let critical=false, warn=false;
+  const today=new Date(); today.setHours(0,0,0,0);
+
+  docs.forEach(function(d){
+    if(d.rut){ const c=cleanRut(d.rut).replace(/-/g,''); ruts[c]=(ruts[c]||0)+1; }
+    const p=d.patentePlain||d.patente;
+    if(p){ const pc=String(p).toUpperCase().replace(/[^A-Z0-9]/g,''); if(pc) plates[pc]=(plates[pc]||0)+1; }
+  });
+  // Validez de dígito verificador por documento
+  docs.forEach(function(d){
+    if(d.rut){ const v=validateRut(d.rut); if(v.cls==='bad'){ warn=true; alerts.push('RUT '+escH(d.rut)+' ('+escH(d.tipo||'doc')+'): '+escH(v.label)); } }
+  });
+  const rutKeys=Object.keys(ruts), plateKeys=Object.keys(plates);
+  if(rutKeys.length>1){ critical=true; alerts.push('RUT distinto entre documentos: '+rutKeys.map(escH).join(' vs ')); }
+  if(plateKeys.length>1){ critical=true; alerts.push('Patente distinta entre documentos: '+plateKeys.map(escH).join(' vs ')); }
+  // Vigencias
+  const vencidos=[];
+  docs.forEach(function(d){ const f=parseVencimiento(d); if(f && f<today){ vencidos.push((d.tipo||'doc')+' venció el '+f.toLocaleDateString('es-CL')); } });
+  if(vencidos.length){ warn=true; vencidos.forEach(function(t){ alerts.push(escH(t)); }); }
+
+  checks.push({ok: rutKeys.length<=1, txt: rutKeys.length<=1?'RUT consistente en todos los documentos':'RUT inconsistente entre documentos'});
+  if(plateKeys.length) checks.push({ok: plateKeys.length<=1, txt: plateKeys.length<=1?'Patente consistente':'Patente inconsistente entre documentos'});
+  checks.push({ok: vencidos.length===0, txt: vencidos.length===0?'Sin vencimientos detectados':vencidos.length+' documento(s) vencido(s)'});
+
+  const status = critical?'critico':warn?'revisar':'ok';
+  const cfg = {ok:{bg:'rgba(34,197,94,.08)',bd:'rgba(34,197,94,.3)',cl:'#16a34a',ic:'&#x2705;',t:'Sin inconsistencias detectadas'},
+               revisar:{bg:'rgba(245,158,11,.08)',bd:'rgba(245,158,11,.3)',cl:'#d97706',ic:'&#x26A0;&#xFE0F;',t:'Revisar manualmente'},
+               critico:{bg:'rgba(239,68,68,.08)',bd:'rgba(239,68,68,.3)',cl:'#dc2626',ic:'&#x1F6D1;',t:'Inconsistencia crítica entre documentos'}}[status];
+
+  // Texto copiable del dictamen
+  let txt='DICTAMEN CONSOLIDADO — DocScan Kavak\n';
+  txt+='Documentos analizados: '+docs.length+' ('+docs.map(function(d){return d.tipo||'doc';}).join(', ')+')\n';
+  txt+='RUT: '+(rutKeys.length?Object.keys(ruts).join(' / '):'No detectado')+'\n';
+  txt+='Patente: '+(plateKeys.length?plateKeys.join(' / '):'No detectada')+'\n';
+  txt+='Veredicto: '+cfg.t+'\n';
+  txt+=checks.map(function(c){return (c.ok?'[OK] ':'[!] ')+c.txt;}).join('\n');
+  if(alerts.length) txt+='\nAlertas:\n- '+alerts.join('\n- ');
+  window._dictamenText=txt;
+
+  let h='<div style="border:1.5px solid '+cfg.bd+';background:'+cfg.bg+';border-radius:14px;padding:13px 15px;margin-bottom:4px;">';
+  h+='<div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;">';
+  h+='<span style="font-size:20px;">'+cfg.ic+'</span>';
+  h+='<div style="flex:1;"><div style="font-size:13px;font-weight:800;color:'+cfg.cl+';letter-spacing:-.3px;">Dictamen consolidado</div>';
+  h+='<div style="font-size:11px;color:'+cfg.cl+';font-weight:600;">'+cfg.t+'</div></div>';
+  h+='<button onclick="copyDictamen()" style="padding:7px 12px;border-radius:8px;border:1px solid '+cfg.bd+';background:rgba(255,255,255,.6);color:'+cfg.cl+';font-size:11px;font-weight:700;cursor:pointer;">&#x1F4CB; Copiar</button></div>';
+  h+='<div style="display:flex;flex-direction:column;gap:5px;">';
+  checks.forEach(function(c){
+    h+='<div style="display:flex;align-items:center;gap:7px;font-size:11px;color:#334155;">';
+    h+='<span style="font-size:12px;">'+(c.ok?'&#x2705;':'&#x26A0;&#xFE0F;')+'</span>'+escH(c.txt)+'</div>';
+  });
+  h+='</div>';
+  if(alerts.length){
+    h+='<div style="margin-top:9px;padding-top:9px;border-top:1px solid '+cfg.bd+';font-size:10px;color:'+cfg.cl+';line-height:1.7;">';
+    h+='<strong>Alertas:</strong><br>'+alerts.map(function(a){return '&bull; '+a;}).join('<br>')+'</div>';
+  }
+  h+='</div>';
+  return h;
+}
+function copyDictamen(){ copyText(window._dictamenText||'', 'Dictamen copiado'); }
+
 function renderMultiResults(docs){
   setView('results');
   setBadge(docs.length + ' docs analizados', 'blue');
@@ -1189,6 +1264,8 @@ function renderMultiResults(docs){
   h += '<span style="font-size:20px;">&#x1F4C2;</span>';
   h += '<div><div style="font-size:12px;font-weight:700;color:#1e3a5f;">' + docs.length + ' documentos analizados y clasificados</div>';
   h += '<div style="font-size:10px;color:#64748b;margin-top:1px;">Cada documento identificado y extraido por separado</div></div></div>';
+  // Dictamen consolidado arriba cuando hay 2+ documentos
+  if(docs.length>1) h += buildConsolidado(docs);
   docs.forEach(function(doc, idx){
     var confColor = doc.confianza==='alta'?'#16a34a':doc.confianza==='baja'?'#dc2626':'#059669';
     h += '<div style="border:2px solid rgba(59,130,246,.1);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.5);">';
@@ -1503,1107 +1580,24 @@ function validatePlate(v){
 }
 
 function cleanRut(v){return String(v||'').replace(/\./g,'').replace(/\s/g,'').toUpperCase();}
+// Calcula el dígito verificador (módulo 11) de un cuerpo numérico de RUT.
+function rutDV(body){
+  let sum=0,mul=2;
+  for(let i=String(body).length-1;i>=0;i--){
+    sum+=parseInt(String(body)[i],10)*mul;
+    mul=mul===7?2:mul+1;
+  }
+  const res=11-(sum%11);
+  return res===11?'0':res===10?'K':String(res);
+}
 function validateRut(v){
   const s=cleanRut(v);
   const m=s.match(/^(\d{7,8})-?([\dK])$/);
   if(!m) return {ok:false,label:'Formato raro',cls:'warn'};
-  let sum=0,mul=2;
-  for(let i=m[1].length-1;i>=0;i--){
-    sum+=parseInt(m[1][i],10)*mul;
-    mul=mul===7?2:mul+1;
-  }
-  const res=11-(sum%11);
-  const dv=res===11?'0':res===10?'K':String(res);
-  return dv===m[2]?{ok:true,label:'RUT OK',cls:'ok'}:{ok:false,label:'DV revisar',cls:'bad'};
-}
-
-function normalizeConfidence(c, plate, rut){
-  const raw=String(c||'').toLowerCase();
-  if(raw.includes('alta')) return {txt:'alta',cls:'alta'};
-  if(raw.includes('baja')) return {txt:'baja',cls:'baja'};
-  if(plate?.cls==='bad'||rut?.cls==='bad') return {txt:'baja',cls:'baja'};
-  if(plate?.ok&&rut?.ok) return {txt:'alta',cls:'alta'};
-  return {txt:'media',cls:'media'};
-}
-
-function buildReport(){
-  const d=window._lastDoc||{};
-  const muni=d._muName||d.municipio||'No detectada';
-  const muniSearch=muni!=='No detectada'?`\nBuscar en Google: ${muni} pagar permiso de circulacion`:'';
-  const muniUrl=d._muUrl?`\nLink portal: ${d._muUrl}`:'';
-  return `Resumen DocScan Kavak
-Documento: ${d.tipo||'Documento vehicular'}
-Patente: ${d.patente||'No detectada'}
-RUT: ${d.rut||'No detectado'}
-Comuna/Municipalidad: ${muni}${muniUrl}
-Confianza: ${d.confianza||'Calculada por validación'}
-Observación: ${d.observaciones||'Sin observaciones'}`;
-}
-
-function copyReport(){copyText(buildReport(),'Reporte copiado');}
-function copyMainData(){
-  const d=window._lastDoc||{};
-  const muName=d._muName||d.municipio||'';
-  const muLine=muName?`\nMunicipio: ${muName}\nBuscar: ${muName} pagar permiso de circulacion${d._muUrl?'\nPortal: '+d._muUrl:''}`:'\nMunicipio: No detectado';
-  const txt=`Patente: ${d.patente||'No detectada'}\nRUT: ${d.rut||'No detectado'}${muLine}`;
-  copyText(txt,'Datos copiados');
-}
-function copyText(txt,msg){
-  const ok=()=>{toast(msg);playTinySound('copy');}
-  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(ok).catch(()=>fb(txt,ok)); else fb(txt,ok);
-}
-
-function copyVal(id,btn){
-  const el=document.getElementById(id);
-  // Use data-full for the complete value (textContent may be truncated by CSS)
-  const txt=(el?.dataset?.full||el?.textContent||'').trim();
-  if(!txt||txt.startsWith('—'))return;
-  const cb=()=>{btn.classList.add('ok');btn.textContent='✓';toast('Copiado: '+txt);playTinySound('copy');setTimeout(()=>{btn.classList.remove('ok');btn.textContent='⎘';},2000);};
-  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(cb).catch(()=>fb(txt,cb)); else fb(txt,cb);
-}
-function fb(txt,cb){const ta=Object.assign(document.createElement('textarea'),{value:txt,style:'position:fixed;opacity:0'});document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);cb();}
-
-// ── HISTORY ───────────────────────────────────────
-// Capture a compressed thumbnail from the current image/PDF preview
-// Returns a small JPEG data URL (~50-100kb) suitable for localStorage
-function captureThumb(){
-  try {
-    // Case 1: regular image — scale down from src
-    if(images.length && images[activeIdx] && !images[activeIdx].isPDF){
-      const src = images[activeIdx].src;
-      if(!src) return null;
-      const img = new Image();
-      img.src = src;
-      // Use a canvas to resize to max 600px wide
-      const MAX = 600;
-      const cnv = document.createElement('canvas');
-      const ratio = img.naturalHeight / Math.max(img.naturalWidth, 1);
-      cnv.width  = Math.min(img.naturalWidth  || MAX, MAX);
-      cnv.height = Math.round(cnv.width * (ratio || 1.4));
-      if(cnv.width < 1 || cnv.height < 1) return src.length < 300000 ? src : null;
-      cnv.getContext('2d').drawImage(img, 0, 0, cnv.width, cnv.height);
-      return cnv.toDataURL('image/jpeg', 0.7); // compressed JPEG
-    }
-    // Case 2: PDF — grab whatever is rendered in the pdfCanvas
-    const pdfCnv = document.getElementById('pdfCanvas');
-    if(pdfCnv && pdfCnv.width > 0){
-      const MAX = 600;
-      const cnv = document.createElement('canvas');
-      const ratio = pdfCnv.height / Math.max(pdfCnv.width, 1);
-      cnv.width  = Math.min(pdfCnv.width, MAX);
-      cnv.height = Math.round(cnv.width * ratio);
-      cnv.getContext('2d').drawImage(pdfCnv, 0, 0, cnv.width, cnv.height);
-      return cnv.toDataURL('image/jpeg', 0.7);
-    }
-    // Case 3: PDF not yet rendered — use raw src if small enough
-    if(images.length && images[activeIdx]){
-      const src = images[activeIdx].src;
-      if(src && src.length < 400000) return src;
-    }
-  } catch(e){}
-  return null;
-}
-
-function saveHist(doc){
-  window._lastDoc = doc;
-  // Capture compressed thumbnail of the current document visual
-  const thumb = captureThumb();
-
-  // Also save full src for images (needed to restore interactive state)
-  const imgSnap = images.slice(0,3).map(im=>({
-    src: im.src && im.src.length < 1200000 ? im.src : null,
-    mime: im.mime, name: im.name, isPDF: !!im.isPDF
-  }));
-
-  const e={
-    id:Date.now(), ts:new Date().toISOString(), user:getUser(),
-    tipo:doc.tipo, icono:doc.icono, patente:doc.patentePlain||doc.patente, rut:doc.rut,
-    nombre:doc.nombre, municipio:doc.municipio||doc._muName,
-    thumb,    // compressed preview thumbnail
-    imgSnap,  // full images for re-analysis
-    doc
-  };
-  hist.unshift(e); if(hist.length>50) hist=hist.slice(0,50);
-
-  // Save to localStorage — progressive fallback if quota exceeded
-  const tryStore = (data) => {
-    try{ localStorage.setItem('ds3_hist', JSON.stringify(data)); return true; }
-    catch(e){ return false; }
-  };
-  if(!tryStore(hist)){
-    // Try without full imgSnap (keep thumbs)
-    const slim = hist.map(h=>({...h, imgSnap:null}));
-    if(!tryStore(slim)){
-      // Last resort: no images at all
-      const bare = hist.map(h=>({...h, imgSnap:null, thumb:null}));
-      tryStore(bare);
-    }
-  }
-  renderHist();
-  updateStats();
-  updateDocCounter();
-}
-function renderHist(){
-  const el=document.getElementById('histScroll');
-  if(!hist.length){el.innerHTML='<div class="hi-empty">Tus análisis<br>aparecerán aquí</div>';return;}
-  // Apply search filter
-  const filtered = histFilter
-    ? hist.filter((h,i) => {
-        const hay = [h.patente,h.rut,h.nombre,h.tipo,h.municipio,h.user].filter(Boolean).join(' ').toLowerCase();
-        return hay.includes(histFilter);
-      })
-    : hist;
-  if(!filtered.length){
-    el.innerHTML='<div class="hi-empty">Sin resultados para<br>"'+escH(histFilter)+'"</div>';
-    return;
-  }
-  el.innerHTML=filtered.map((h,i)=>{
-    // Find real index in hist array for loadHist
-    const realIdx = hist.indexOf(h);
-    const dt=new Date(h.ts);
-    const ts=dt.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-    const today = new Date().toLocaleDateString('es-CL');
-    const isToday = dt.toLocaleDateString('es-CL') === today;
-    return `<div class="hi" onclick="loadHist(${realIdx})">
-      <div class="hi-type">${h.icono||'📄'} ${escH(h.tipo||'Doc')}${isToday?' <span style="color:rgba(16,185,129,.6);font-size:9px">HOY</span>':''}</div>
-      <div class="hi-plate">${escH(h.patente||'—')}</div>
-      <div class="hi-rut">${escH(h.rut||'Sin RUT')}${h.nombre?' · '+escH(h.nombre.split(' ')[0]):''}</div>
-      <div class="hi-user">👤 ${escH(h.user||'Anónimo')}</div>
-      <div class="hi-ts">${ts} · ${dt.toLocaleDateString('es-CL')}</div>
-    </div>`;
-  }).join('');
-}
-function loadHist(i){
-  document.querySelectorAll('.hi').forEach((el,j)=>el.classList.toggle('active',j===i));
-  const entry = hist[i];
-
-  // Reset preview container completely
-  const preview = document.getElementById('dropPreview');
-  const dropEmpty = document.getElementById('dropEmpty');
-  if(dropEmpty) dropEmpty.style.display = 'none';
-
-  if(preview){
-    // Reset to base state
-    preview.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#020d06,#061a0e);overflow:hidden;';
-    preview.className = 'drop-preview show';
-    preview.innerHTML = '';
-
-    const snap = entry.imgSnap;
-    const hasFullImg = snap && snap.length && snap.some(im => im && im.src);
-    const hasThumb = entry.thumb && entry.thumb.length > 100;
-
-    if(hasFullImg){
-      // Best case: we have the full image — restore interactive state
-      images = snap.filter(im => im && im.src).map(im => ({
-        b64: im.src.includes(',') ? im.src.split(',')[1] : im.src,
-        mime: im.mime||'image/png', name: im.name||'Documento',
-        isPDF: !!im.isPDF, src: im.src
-      }));
-      activeIdx = 0;
-      renderTabs();
-      document.getElementById('analyzeBtn').disabled = false;
-      setBadge('Historial · ' + escH(entry.tipo||'Documento'), 'blue');
-
-      if(images[0].isPDF){
-        // PDF: show thumb as static preview (no re-render needed)
-        if(hasThumb){
-          showThumbPreview(preview, entry.thumb, entry);
-        } else {
-          renderPDFPreview(images[0]);
-        }
-      } else {
-        // Image: show directly
-        showThumbPreview(preview, entry.thumb || images[0].src, entry);
-      }
-
-    } else if(hasThumb){
-      // Good fallback: we have a thumbnail
-      images = []; activeIdx = 0;
-      renderTabs();
-      document.getElementById('analyzeBtn').disabled = true;
-      showThumbPreview(preview, entry.thumb, entry);
-      setBadge('Historial · ' + escH(entry.tipo||'Documento'), 'blue');
-
-    } else {
-      // No image data at all — minimal placeholder
-      images = []; activeIdx = 0;
-      renderTabs();
-      document.getElementById('analyzeBtn').disabled = true;
-      preview.innerHTML =
-        '<div style="font-size:48px;opacity:.15;filter:grayscale(1)">📄</div>' +
-        '<div style="text-align:center;margin-top:8px">' +
-          '<div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.35)">'+(entry.icono||'📄')+' '+escH(entry.tipo||'Documento')+'</div>' +
-          '<div style="font-size:11px;color:rgba(255,255,255,.2);margin-top:4px;font-family:monospace">'+escH(entry.patente||entry.rut||'')+'</div>' +
-          '<div style="font-size:10px;color:rgba(255,255,255,.15);margin-top:8px">Carga el archivo de nuevo para verlo</div>' +
-        '</div>';
-    }
-  }
-
-  renderResults(entry.doc);
-}
-
-// Show a thumbnail image in the preview container with overlay info
-function showThumbPreview(container, thumbSrc, entry){
-  container.style.cssText = 'position:absolute;inset:0;display:block;background:#000;overflow:hidden;';
-
-  const img = document.createElement('img');
-  img.src = thumbSrc;
-  img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;opacity:.95;';
-  container.appendChild(img);
-
-  // Top info bar overlay
-  const bar = document.createElement('div');
-  bar.style.cssText = [
-    'position:absolute;top:0;left:0;right:0',
-    'padding:8px 12px',
-    'background:linear-gradient(to bottom,rgba(10,15,30,.85),transparent)',
-    'display:flex;align-items:center;gap:8px',
-    'pointer-events:none',
-  ].join(';');
-  bar.innerHTML =
-    '<span style="font-size:16px">'+(entry.icono||'📄')+'</span>' +
-    '<div style="flex:1;min-width:0">' +
-      '<div style="font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escH(entry.tipo||'Documento')+'</div>' +
-      '<div style="font-size:10px;color:#93c5fd;margin-top:1px">'+escH(entry.patente||entry.rut||'Historial')+'</div>' +
-    '</div>' +
-    '<div style="padding:2px 8px;background:rgba(59,130,246,.25);border:1px solid rgba(59,130,246,.35);border-radius:20px;font-size:9px;font-weight:700;color:#93c5fd;white-space:nowrap">HISTORIAL</div>';
-  container.appendChild(bar);
-
-  // Bottom fade
-  const fade = document.createElement('div');
-  fade.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,rgba(10,15,30,.7));pointer-events:none;';
-  container.appendChild(fade);
-}
-function clearHist(){if(!confirm('¿Borrar todo el historial?'))return;hist=[];localStorage.removeItem('ds3_hist');renderHist();}
-function exportCSV(){
-  if(!hist.length){toast('Sin historial');return;}
-  const rows=[['Fecha','Hora','Analista','Tipo','Patente','RUT','Nombre','Municipio']];
-  hist.forEach(h=>{const dt=new Date(h.ts);rows.push([dt.toLocaleDateString('es-CL'),dt.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),h.user||'',h.tipo||'',h.patente||'',h.rut||'',h.nombre||'',h.municipio||'']);});
-  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
-  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='docscan_kavak_'+new Date().toLocaleDateString('es-CL').replace(/\//g,'-')+'.csv';a.click();toast('CSV exportado');
-}
-
-
-// ── SOUND ─────────────────────────────────────────
-function playTinySound(type){
-  try{
-    const Ctx=window.AudioContext||window.webkitAudioContext;
-    if(!Ctx) return;
-    const ctx=new Ctx();
-    const osc=ctx.createOscillator();
-    const gain=ctx.createGain();
-    osc.type='sine';
-    osc.frequency.value=type==='copy'?880:type==='success'?660:520;
-    gain.gain.setValueAtTime(0.0001,ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.035,ctx.currentTime+0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.11);
-    osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.12);
-  }catch(e){}
-}
-
-// ── UI ────────────────────────────────────────────
-function setView(s){
-  document.getElementById('emptyState').style.display=s==='empty'?'flex':'none';
-  document.getElementById('spinWrap').style.display=s==='spin'?'flex':'none';
-  document.getElementById('resultsDiv').style.display=s==='results'?'flex':'none';
-  if(s==='results') document.getElementById('resultsDiv').style.flexDirection='column';
-}
-function spinMsg(m){document.getElementById('spinMsg').textContent=m;}
-function setBadge(t,c){const b=document.getElementById('badge');b.textContent=t;b.className='badge b-'+c;}
-function toast(msg,duration){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),duration||2400);}
-function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-
-// ── SEARCH HISTORY ─────────────────────────────
-let histFilter = '';
-function filterHist(q){
-  histFilter = q.toLowerCase().trim();
-  renderHist();
-}
-
-// ── STATS ──────────────────────────────────────
-function updateStats(){
-  const today = new Date().toLocaleDateString('es-CL');
-  const todayCount = hist.filter(h => new Date(h.ts).toLocaleDateString('es-CL') === today).length;
-  const totalCount = hist.length;
-  const stat = document.getElementById('statToday');
-  if(stat && totalCount > 0){
-    stat.className = 'stat-pill';
-    stat.innerHTML = `📊 ${todayCount} hoy · ${totalCount} total`;
-  }
-  const hc = document.getElementById('histCount');
-  if(hc) hc.textContent = totalCount > 0 ? totalCount : '';
-}
-
-// ── DOC COUNTER ────────────────────────────────
-function updateDocCounter(){
-  const el = document.getElementById('docCounter');
-  if(!el) return;
-  if(images.length > 0){
-    el.textContent = images.length === 1
-      ? `1 archivo cargado`
-      : `${images.length} archivos`;
-  } else {
-    el.textContent = '';
-  }
-}
-
-// ── KPI TIMER ────────────────────────────────────
-const _kpi = {
-  running:false, startTs:null, elapsedMs:0, interval:null,
-  sessions: JSON.parse(localStorage.getItem('kpi_sessions')||'[]')
-};
-
-function kpiFmt(sec){
-  if(!sec||sec<=0) return '00:00';
-  return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
-}
-function kpiSecsNow(){
-  return _kpi.running
-    ? Math.round((_kpi.elapsedMs + Date.now() - _kpi.startTs)/1000)
-    : Math.round(_kpi.elapsedMs/1000);
-}
-function toggleTimer(){
-  const btn = document.getElementById('kpiBtnInner');
-  if(!_kpi.running){
-    _kpi.running=true; _kpi.startTs=Date.now();
-    _kpi.interval=setInterval(kpiTick,1000);
-    btn.textContent='⏹ Parar'; btn.classList.add('running');
-    kpiTick();
-  } else {
-    _kpi.elapsedMs += Date.now()-_kpi.startTs;
-    _kpi.running=false; clearInterval(_kpi.interval);
-    btn.textContent='▶ Iniciar'; btn.classList.remove('running');
-  }
-}
-function kpiTick(){
-  const sec=kpiSecsNow();
-  const cl=document.getElementById('kpiClock');
-  if(!cl) return;
-  cl.textContent=kpiFmt(sec);
-  cl.className='kpi-clock'+(sec>300?' danger':sec>180?' warn':'');
-}
-function kpiSaveAndReset(patente){
-  const sec=kpiSecsNow();
-  if(sec<2) return null;
-  const s={ts:new Date().toISOString(),patente:patente||'—',segundos:sec,analista:getUser()};
-  _kpi.sessions.unshift(s);
-  if(_kpi.sessions.length>500) _kpi.sessions=_kpi.sessions.slice(0,500);
-  localStorage.setItem('kpi_sessions',JSON.stringify(_kpi.sessions));
-  _kpi.running=false; _kpi.elapsedMs=0; clearInterval(_kpi.interval);
-  const btn=document.getElementById('kpiBtnInner');
-  if(btn){btn.textContent='▶ Iniciar';btn.classList.remove('running');}
-  const cl=document.getElementById('kpiClock');
-  if(cl){cl.textContent='00:00';cl.className='kpi-clock';}
-  kpiUpdateStats();
-  return s;
-}
-function kpiUpdateStats(){
-  const today=new Date().toLocaleDateString('es-CL');
-  const hoy=_kpi.sessions.filter(s=>new Date(s.ts).toLocaleDateString('es-CL')===today);
-  const ce=document.getElementById('kpiCountHoy');
-  const ae=document.getElementById('kpiAvgHoy');
-  const be=document.getElementById('kpiBest');
-  if(ce) ce.textContent=hoy.length;
-  if(ae) ae.textContent=hoy.length>0?'· prom '+kpiFmt(Math.round(hoy.reduce((a,s)=>a+s.segundos,0)/hoy.length)):'';
-  if(be&&_kpi.sessions.length>0) be.textContent=kpiFmt(Math.min(..._kpi.sessions.map(s=>s.segundos)));
-}
-
-// Hook saveHist para capturar sesión KPI automáticamente
-const __origSaveHist = typeof saveHist==='function' ? saveHist : null;
-window.saveHist = function(doc){
-  if(__origSaveHist) __origSaveHist(doc);
-  window._lastSession = kpiSaveAndReset(doc.patentePlain||doc.patente);
-  window._lastDoc = doc;
-};
-
-window.addEventListener('load', ()=>{
-  kpiUpdateStats();
-  const saved=localStorage.getItem('kpi_sheets_url');
-  if(saved){ const inp=document.getElementById('sheetsUrl'); if(inp) inp.value=saved; }
-});
-
-function showSheetsPopup(){
-  document.getElementById('sheetsPopup').classList.add('show');
-}
-
-// ── ENVIAR A GOOGLE SHEETS (fetch a Apps Script Web App) ─────────────
-async function sendToSheets(){
-  const url=(document.getElementById('sheetsUrl')?.value||'').trim();
-  if(!url||!url.startsWith('https://')){
-    setSpStatus('err','⚠ Pega la URL del Web App de Apps Script');
-    return;
-  }
-  localStorage.setItem('kpi_sheets_url', url);
-
-  const doc  = window._lastDoc  || {};
-  const sess = window._lastSession || {};
-  const now  = new Date();
-
-  const payload={
-    fecha:         now.toLocaleDateString('es-CL'),
-    hora:          now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),
-    analista:      getUser()||'Anónimo',
-    patente:       doc.patentePlain||doc.patente||'—',
-    rut:           doc.rut||'—',
-    nombre:        doc.nombre||'—',
-    municipio:     doc.municipio||doc._muName||'—',
-    tipo_doc:      doc.tipo||'—',
-    confianza:     doc.confianza||'—',
-    segundos:      sess.segundos||0,
-    tiempo_fmt:    kpiFmt(sess.segundos||0),
-    observaciones: doc.observaciones||'',
-  };
-
-  const btn=document.getElementById('btnSheets');
-  if(btn) btn.disabled=true;
-  setSpStatus('sending','⏳ Guardando...');
-
-  try{
-    const qs=new URLSearchParams(payload).toString();
-    await fetch(url+'?'+qs,{method:'GET',mode:'no-cors'});
-    setSpStatus('ok','✅ Guardado en Sheets');
-    toast('Guardado en Sheets ✓');
-  } catch(e){
-    setSpStatus('err','✗ Error de red — revisa la URL');
-  } finally{
-    if(btn) btn.disabled=false;
-  }
-}
-
-function setSpStatus(type,msg){
-  const el=document.getElementById('sheetsStatus');
-  if(!el) return;
-  el.className='sp-status '+type;
-  el.textContent=msg;
-}
-
-// ── KEYBOARD SHORTCUT R = ROTATE ───────────────
-// Already: Ctrl+Enter = analyze, Ctrl+V = paste
-// Add: R key = rotate when image loaded
-document.addEventListener('keydown', e => {
-  if(e.key === 'r' || e.key === 'R'){
-    // Only if not typing in an input
-    if(document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-    if(images.length && !images[activeIdx]?.isPDF){
-      rotateCurrentImage();
-    }
-  }
-});
-
-</script>
-</body>
-</html    const PROMPT = (function(){
-    const multi = images.length > 1;
-    const ss = '{"tipo":"nombre exacto","icono":"emoji","rut":"17xxx-x sin puntos con guion","nombre":"nombre o razon social","patente":"LLLL-NN o null","municipio":"solo si permiso circ.","qr_url":"URL o null","confianza":"alta/media/baja","observaciones":"max 2 frases o null","campos":[{"k":"campo","v":"valor"}],"texto":"primeros 800 chars del texto visible"}';
-    const ms = '[{"archivo":1,"tipo":"...","icono":"...","rut":"...","nombre":"...","patente":"...","municipio":"...","qr_url":"...","confianza":"...","observaciones":"...","campos":[],"texto":"..."},{"archivo":2,"tipo":"..."}]';
-    const n = images.length;
-    return 'Eres un sistema experto en documentos chilenos para Kavak (compra/venta autos usados).\n' +
-      (multi ? ('Se adjuntan '+n+' archivos. IMPORTANTE: pueden ser documentos DISTINTOS. Analiza CADA archivo por separado y clasificalo individualmente.\n') : 'Analiza este documento con maxima precision.\n') +
-      '\nORIENTACION CRITICA: La imagen puede estar rotada 90, 180 o 270 grados. ANTES de leer cualquier dato, determina la orientacion correcta del documento rotando mentalmente la imagen hasta que el texto quede horizontal y legible en alfabeto latino. Solo cuando el texto sea legible, extrae los datos. Si necesitas rotar mas de una vez, hazlo. NUNCA extraigas datos de una imagen que aun se ve rotada.\n' +
-      'PRECISION: Lee cada caracter con cuidado. Distingue O vs 0, I vs 1, S vs 5, B vs 8, Z vs 2.\n\n' +
-      'TIPOS DE DOCUMENTOS POSIBLES:\n' +
-      '- VEHICULARES: Permiso de Circulacion, Revision Tecnica, SOAP, Homologacion, Padron Vehicular, Certificado de Inscripcion\n' +
-      '- EMPRESA: Estatuto Social, Escritura Publica, E-RUT, Certificado de Vigencia, Poder Notarial\n' +
-      '- IDENTIDAD: Cedula de Identidad, Licencia de Conducir, Pasaporte\n\n' +
-      'EXTRAE de cada documento:\n' +
-      '- tipo: nombre exacto del tipo\n' +
-      '- icono: emoji representativo\n' +
-      '- rut: Lee los digitos del RUT UNO POR UNO sin asumir ni interpolar. Entrega SIN puntos pero CON guion antes del digito verificador. Ej: 14204552-4, 76911554-4. Busca etiqueta RUT, R.U.T., E-RUT\n' +
-      '- nombre: nombre completo de persona O razon social de empresa\n' +
-      '- patente: SOLO docs vehiculares. Formato ESTRICTO: LLLL-NN (4 letras + guion + 2 digitos EXACTAMENTE), o LL-NNNN (2+4), o LLL-NNN (3+3). NUNCA mas de 2 digitos para formato LLLL. Ej: FPFK-63, LZKF-44, JYKJ-92. Si lees mas digitos, toma solo los primeros 2.\n' +
-      '- municipio: SOLO en permisos de circulacion\n' +
-      '- qr_url: URL del QR si es legible, sino null\n' +
-      '- confianza: alta=documento claro, media=partes ilegibles, baja=muy ilegible\n' +
-      '- observaciones: max 2 frases sobre algo a revisar manualmente, o null\n' +
-      '- campos: TODOS los demas datos visibles como array. SIEMPRE extrae como campos separados: Fecha de Vencimiento (fecha hasta cuando es valido, NO la fecha de pago ni emision), Pago Total, Total a Pagar, Valor Total, Marca, Modelo, Color, Año vehiculo, Folio, etc.\n' +
-      '- texto: primeros 800 caracteres del texto visible\n' +
-      'Si un valor es ilegible: null. NUNCA inventes valores.\n\n' +
-      (multi ? ('Responde con array JSON, un objeto por archivo: '+ms) : ('Responde UNICAMENTE con JSON valido sin markdown: '+ss));
-  })();
-  let spinInterval = null;
-  try{
-    const contentArr = images.map(im => {
-      if(im.isPDF) return {type:'document', source:{type:'base64', media_type:'application/pdf', data:im.b64}};
-      return {type:'image', source:{type:'base64', media_type:im.mime, data:im.b64}};
-    });
-    contentArr.push({type:'text', text:PROMPT});
-
-    // ── RETRY LOOP — handles overload with backoff ──
-    const MAX_RETRIES = 3;
-    let res, attempt = 0;
-    const usingOpus = images.some(i=>!i.isPDF);
-    const msgs = usingOpus
-      ? ['Orientando documento…','Leyendo caracteres…','Extrayendo campos…','Verificando RUT y patente…','Casi listo…']
-      : ['Procesando PDF…','Extrayendo datos…','Verificando campos…'];
-    let mIdx = 0;
-    spinInterval = setInterval(()=>{ mIdx=(mIdx+1)%msgs.length; spinMsg(msgs[mIdx]); }, 1800);
-
-    while(attempt < MAX_RETRIES){
-      attempt++;
-      if(attempt > 1){
-        const waitSec = attempt * 4;
-        clearInterval(spinInterval);
-        for(let t = waitSec; t > 0; t--){
-          spinMsg('Servidor saturado — reintentando en '+t+'s (intento '+attempt+'/'+MAX_RETRIES+')');
-          await new Promise(r=>setTimeout(r,1000));
-        }
-        mIdx = 0;
-        spinInterval = setInterval(()=>{ mIdx=(mIdx+1)%msgs.length; spinMsg(msgs[mIdx]); }, 1800);
-        setBadge('Reintentando…','yellow');
-      }
-      res = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':SHARED_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2048,messages:[{role:'user',content:contentArr}]})
-      });
-      if(res.ok) break;
-      const eBody = await res.json().catch(()=>({}));
-      const eMsg = eBody?.error?.message||'';
-      const isOverload = res.status===529||eMsg.toLowerCase().includes('overload');
-      if(isOverload && attempt < MAX_RETRIES) continue;
-      throw new Error(isOverload ? 'OVERLOADED' : (eMsg||'HTTP '+res.status));
-    }
-    clearInterval(spinInterval);
-    if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
-    const data=await res.json();
-    const raw=data.content?.[0]?.text||'';
-    let parsed;
-    try{
-      // Try 1: clean JSON object
-      const first=raw.indexOf('{'), last=raw.lastIndexOf('}');
-      if(first===-1) throw new Error('no json');
-      if(last > first){
-        try{ parsed=JSON.parse(raw.slice(first,last+1)); }
-        catch(e1){
-          // Try 2: JSON array
-          const fa=raw.indexOf('['), la=raw.lastIndexOf(']');
-          if(fa>-1 && la>fa){ try{ parsed=JSON.parse(raw.slice(fa,la+1)); } catch(e2){ throw e1; } }
-          else throw e1;
-        }
-      }
-      // Try 3: truncated JSON — salvage what Claude extracted even if response was cut
-      if(!parsed){
-        const partial = raw.slice(first);
-        // Extract key fields manually from partial JSON
-        const get = (key) => { const m=partial.match(new RegExp('"'+key+'"\\s*:\\s*"([^"]*)"')); return m?m[1]:null; };
-        const getArr = (key) => { try{ const s=partial.indexOf('"'+key+'"'); if(s<0)return[]; const as=partial.indexOf('[',s),ae=partial.lastIndexOf(']'); if(as<0||ae<0)return[]; return JSON.parse(partial.slice(as,ae+1)); }catch{return[];} };
-        parsed = {
-          tipo: get('tipo')||'Documento',
-          icono: get('icono')||'📄',
-          rut: get('rut'),
-          nombre: get('nombre'),
-          patente: get('patente'),
-          municipio: get('municipio'),
-          qr_url: get('qr_url'),
-          confianza: get('confianza')||'media',
-          observaciones: 'Documento extenso — algunos campos pueden estar incompletos. Verifica el texto extraído.',
-          campos: getArr('campos'),
-          texto: get('texto')||''
-        };
-      }
-      if(!parsed) throw new Error('No se pudo extraer datos del documento');
-    }catch(e){ throw new Error('Respuesta inesperada.\n\n'+raw.slice(0,300)); }
-    // Clean RUT and patente format (strip dots and dashes)
-    function cleanDoc(doc){
-      if(doc.rut){
-        // Remove dots only, keep dash before DV → 14204552-4
-        let r = doc.rut.replace(/\./g,'').trim();
-        if(!r.includes('-') && r.length >= 8) r = r.slice(0,-1)+'-'+r.slice(-1);
-        doc.rut = r.toUpperCase();
-      }
-      if(doc.patente){
-        let p = doc.patente.replace(/[.\s]/g,'').toUpperCase().trim();
-        const pNoDash = p.replace(/-/g,'');
-        // Strict formats:
-        // LLLL-NN  → 4 letters + exactly 2 digits  (FPFK-63, LZKF-44, SLTF-96)
-        // LL-NNNN  → 2 letters + exactly 4 digits  (AB-1234)
-        // LLL-NNN  → 3 letters + exactly 3 digits  (ABC-123)
-        const m4 = pNoDash.match(/^([A-Z]{4})(\d+)$/);
-        const m2 = pNoDash.match(/^([A-Z]{2})(\d+)$/);
-        const m3 = pNoDash.match(/^([A-Z]{3})(\d+)$/);
-        if(m4)      p = m4[1]+'-'+m4[2].slice(0,2); // LLLL-NN: take only first 2 digits
-        else if(m2) p = m2[1]+'-'+m2[2].slice(0,4); // LL-NNNN: take only first 4 digits
-        else if(m3) p = m3[1]+'-'+m3[2].slice(0,3); // LLL-NNN: take only first 3 digits
-        else        p = pNoDash;
-        doc.patente = p;
-        doc.patentePlain = p.replace(/-/g,'');
-      }
-      return doc;
-    }
-    if(Array.isArray(parsed)){
-      parsed.forEach(doc => { cleanDoc(doc); if(doc.municipio){ const mu=findMuni(doc.municipio); if(mu){doc._muUrl=mu.u; doc._muName=mu.n;} } });
-      renderMultiResults(parsed);
-      parsed.forEach(doc => saveHist(doc));
-      showSheetsPopup();
-    } else {
-      cleanDoc(parsed);
-      if(parsed.municipio){ const mu=findMuni(parsed.municipio); if(mu){parsed._muUrl=mu.u; parsed._muName=mu.n;} }
-      renderResults(parsed); saveHist(parsed);
-      showSheetsPopup();
-    playTinySound('success');
-    }
-  }catch(err){
-    if(spinInterval) clearInterval(spinInterval);
-    setView('results');
-    let msg=err.message||String(err);
-    if(msg.includes('401')||msg.includes('invalid x-api-key')) msg='API key inválida.';
-    else if(msg.includes('credit')||msg.includes('billing')) msg='Sin crédito. Recarga en console.anthropic.com';
-    else if(msg.includes('fetch')||msg.includes('NetworkError')) msg='Error de red. Verifica tu internet.';
-    document.getElementById('resultsDiv').innerHTML=`<div class="err-box"><strong>Error al analizar</strong>${escH(msg)}</div>`;
-    setBadge('Error','red');
-  }finally{
-    document.getElementById('analyzeBtn').disabled=false;
-    document.getElementById('prog').style.display='none';
-  }
-}
-
-// ── MUNICIPIOS — homepage genérica ────────────────
-const MUNIS=[
-  // URLs verificadas — portales municipales oficiales
-  {n:'Providencia',      k:['providencia'],           u:'https://www.providencia.cl'},
-  {n:'Vitacura',         k:['vitacura'],              u:'https://www.vitacura.cl'},
-  {n:'Las Condes',       k:['las condes'],            u:'https://www.lascondes.cl'},
-  {n:'Ñuñoa',            k:['nunoa','ñuñoa'],         u:'https://www.nunoa.cl'},
-  {n:'Maipú',            k:['maipu','maipú'],          u:'https://www.municipalidadmaipu.cl'},
-  {n:'Macul',            k:['macul'],                 u:'https://www.macul.cl'},
-  {n:'Peñalolén',        k:['penalolen','peñalolén'], u:'https://www.penalolen.cl'},
-  {n:'La Florida',       k:['la florida'],            u:'https://www.laflorida.cl'},
-  {n:'Puente Alto',      k:['puente alto'],           u:'https://www.municipalidadpuentealto.cl'},
-  {n:'San Bernardo',     k:['san bernardo'],          u:'https://www.munisanbernardo.cl'},
-  {n:'La Pintana',       k:['la pintana'],            u:'https://www.lapintana.cl'},
-  {n:'El Bosque',        k:['el bosque'],             u:'https://www.municipalidadelbosque.cl'},
-  {n:'Quilicura',        k:['quilicura'],             u:'https://www.quilicura.cl'},
-  {n:'Pudahuel',         k:['pudahuel'],              u:'https://www.pudahuel.cl'},
-  {n:'Lo Barnechea',     k:['lo barnechea'],          u:'https://www.lobarnechea.cl'},
-  {n:'Renca',            k:['renca'],                 u:'https://www.renca.cl'},
-  {n:'Recoleta',         k:['recoleta'],              u:'https://www.recoleta.cl'},
-  {n:'Conchalí',         k:['conchali'],              u:'https://www.conchali.cl'},
-  {n:'Huechuraba',       k:['huechuraba'],            u:'https://www.huechuraba.cl'},
-  {n:'Independencia',    k:['independencia'],         u:'https://www.independencia.cl'},
-  {n:'La Cisterna',      k:['la cisterna'],           u:'https://www.lacisterna.cl'},
-  {n:'La Reina',         k:['la reina'],              u:'https://www.municipalidadlareina.cl'},
-  {n:'Lo Prado',         k:['lo prado'],              u:'https://www.loprado.cl'},
-  {n:'Lo Espejo',        k:['lo espejo'],             u:'https://www.loespejo.cl'},
-  {n:'San Miguel',       k:['san miguel'],            u:'https://www.municipalidadsanmiguel.cl'},
-  {n:'San Ramón',        k:['san ramon'],             u:'https://www.municipalidadsanramon.cl'},
-  {n:'La Granja',        k:['la granja'],             u:'https://www.municipalidadlagranja.cl'},
-  {n:'Cerrillos',        k:['cerrillos'],             u:'https://www.cerrillos.cl'},
-  {n:'Cerro Navia',      k:['cerro navia'],           u:'https://www.cerronavia.cl'},
-  {n:'Estación Central', k:['estacion central'],      u:'https://www.estacioncentral.cl'},
-  {n:'Quinta Normal',    k:['quinta normal'],         u:'https://www.quintanormal.cl'},
-  {n:'San Joaquín',      k:['san joaquin'],           u:'https://www.municipalidadsanjoaquin.cl'},
-  {n:'Padre Hurtado',    k:['padre hurtado'],         u:'https://www.municipalidadpadrehurtado.cl'},
-  {n:'Talagante',        k:['talagante'],             u:'https://www.municipalidadtalagante.cl'},
-  {n:'Peñaflor',         k:['penaflor'],              u:'https://www.municipalidadpenaflor.cl'},
-  {n:'Buin',             k:['buin'],                  u:'https://www.municipalidadbuin.cl'},
-  {n:'Melipilla',        k:['melipilla'],             u:'https://www.municipalidadmelipilla.cl'},
-  {n:'Santiago',         k:['santiago'],              u:'https://www.municipalidaddesantiago.cl'},
-  {n:'Valparaíso',       k:['valparaiso'],            u:'https://www.municipalidadvalparaiso.cl'},
-  {n:'Viña del Mar',     k:['vina del mar'],          u:'https://www.municipalidadviña.cl'},
-  {n:'Concepción',       k:['concepcion'],            u:'https://www.municipalidadconcepcion.cl'},
-  {n:'Temuco',           k:['temuco'],                u:'https://www.temuco.cl'},
-  {n:'Rancagua',         k:['rancagua'],              u:'https://www.municipalidadrancagua.cl'},
-  {n:'Talca',            k:['talca'],                 u:'https://www.municipalidadtalca.cl'},
-  {n:'Puerto Montt',     k:['puerto montt'],          u:'https://www.municipalidadpuertomontt.cl'},
-  {n:'Antofagasta',      k:['antofagasta'],           u:'https://www.municipalidadantofagasta.cl'},
-  {n:'Iquique',          k:['iquique'],               u:'https://www.municipalidadiquique.cl'},
-  {n:'La Serena',        k:['la serena'],             u:'https://www.municipalidadlaserena.cl'},
-  {n:'Coquimbo',         k:['coquimbo'],              u:'https://www.municoquimbo.cl'},
-  {n:'Arica',            k:['arica'],                 u:'https://www.muniarica.cl'},
-  {n:'Osorno',           k:['osorno'],                u:'https://www.municipalidadosorno.cl'},
-  {n:'Punta Arenas',     k:['punta arenas'],          u:'https://www.municipalidadpuntaarenas.cl'},
-  {n:'Calama',           k:['calama'],                u:'https://www.municipalidadcalama.cl'},
-  {n:'Chillán',          k:['chillan'],               u:'https://www.municipalidadchillan.cl'},
-];
-function findMuni(name){
-  if(!name)return null;
-  const n=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  for(const m of MUNIS) for(const k of m.k) if(n.includes(k)) return m;
-  return null;
-}
-
-// ── RENDER ────────────────────────────────────────
-
-function renderMultiResults(docs){
-  setView('results');
-  setBadge(docs.length + ' docs analizados', 'blue');
-  let h = '';
-  h += '<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(59,130,246,.08);border:1.5px solid rgba(59,130,246,.18);border-radius:12px;margin-bottom:2px;">';
-  h += '<span style="font-size:20px;">&#x1F4C2;</span>';
-  h += '<div><div style="font-size:12px;font-weight:700;color:#1e3a5f;">' + docs.length + ' documentos analizados y clasificados</div>';
-  h += '<div style="font-size:10px;color:#64748b;margin-top:1px;">Cada documento identificado y extraido por separado</div></div></div>';
-  docs.forEach(function(doc, idx){
-    var confColor = doc.confianza==='alta'?'#16a34a':doc.confianza==='baja'?'#dc2626':'#059669';
-    h += '<div style="border:2px solid rgba(59,130,246,.1);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.5);">';
-    h += '<div style="padding:11px 15px;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);display:flex;align-items:center;gap:10px;">';
-    h += '<div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0;">'+(idx+1)+'</div>';
-    h += '<span style="font-size:22px;">'+(doc.icono||'&#x1F4C4;')+'</span>';
-    h += '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:-.3px;">'+escH(doc.tipo||'Documento')+'</div>';
-    if(doc.confianza) h += '<div style="font-size:9px;color:'+confColor+';font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">&#x25CF; Confianza '+doc.confianza+'</div>';
-    h += '</div></div>';
-    h += '<div style="padding:10px;display:flex;flex-direction:column;gap:7px;">';
-    if(doc.patente) h += frow('Patente / Placa', doc.patentePlain||doc.patente, true, 'plate');
-    if(doc.rut)     h += frow('RUT', doc.rut, true, 'rut');
-    if(doc.nombre)  h += frow('Nombre / Razon Social', doc.nombre, true, 'nombre');
-    var extras = (doc.campos||[]).filter(function(c){ return c.v && String(c.v).trim(); });
-    extras.slice(0,6).forEach(function(c){ h += frow(c.k, c.v, true, ''); });
-    if(doc.observaciones){
-      h += '<div style="padding:8px 11px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:11px;color:#92400e;display:flex;gap:7px;">';
-      h += '<span>&#x26A0;&#xFE0F;</span><div>'+escH(doc.observaciones)+'</div></div>';
-    }
-    if(doc._muUrl){
-      h += '<a class="link-card" href="'+escH(doc._muUrl)+'" target="_blank" rel="noopener">';
-      h += '<span class="li">&#x1F3DB;&#xFE0F;</span>';
-      h += '<div class="lt"><div class="lt-title">'+escH(doc._muName||doc.municipio||'')+'</div>';
-      h += '<div class="lt-sub">Portal de tramites municipales</div></div>';
-      h += '<span class="link-arrow">&#x2197;</span></a>';
-    }
-    if(doc.qr_url){
-      var safe = doc.qr_url.startsWith('http') ? doc.qr_url : 'https://'+doc.qr_url;
-      h += '<a class="qr-card" href="'+escH(safe)+'" target="_blank" rel="noopener">';
-      h += '<span style="font-size:18px;">&#x1F532;</span>';
-      h += '<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:11px;">QR - Abrir enlace</div>';
-      h += '<div style="font-size:10px;color:#4ade80;word-break:break-all;">'+escH(safe)+'</div></div>';
-      h += '<span style="font-size:12px;font-weight:700;">&#x2197;</span></a>';
-    }
-    if(doc.texto){
-      h += '<details><summary style="font-size:10px;color:#94a3b8;cursor:pointer;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:4px 0;">Ver texto extraido</summary>';
-      h += '<div class="raw-box" style="margin-top:6px;">'+escH(doc.texto)+'</div></details>';
-    }
-    h += '</div></div>';
-  });
-  document.getElementById('resultsDiv').innerHTML = h;
-}
-
-// ── VENCIMIENTO Y DEUDA PERMISO CIRCULACION ──────────────
-function parseVencimiento(doc){
-  // PRIORIDAD 1: campo explícito "Fecha de Vencimiento" o "Vencimiento" en campos[]
-  // IGNORAR: fecha emisión, fecha pago, fecha proceso — solo queremos la fecha de VENCIMIENTO
-  for(const c of (doc.campos||[])){
-    const kl = (c.k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const isVenc = kl.includes('vencimiento') || kl === 'vence' || kl === 'venc' ||
-                   (kl.includes('valido') && kl.includes('hasta')) ||
-                   kl === 'fecha venc';
-    // Explicitly exclude payment and emission dates
-    const isExcluded = kl.includes('emision') || kl.includes('emitido') ||
-                       kl.includes('pago') || kl.includes('proceso') ||
-                       kl.includes('factura');
-    if(isVenc && !isExcluded && c.v){
-      const m = (c.v||'').match(/(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/);
-      if(m){
-        const d=parseInt(m[1]),mo=parseInt(m[2]),y=parseInt(m[3]);
-        if(y>2000&&y<2100) return new Date(y,mo-1,d);
-      }
-      // Try YYYY-MM-DD
-      const m2 = (c.v||'').match(/(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})/);
-      if(m2){
-        const y=parseInt(m2[1]),mo=parseInt(m2[2]),d=parseInt(m2[3]);
-        if(y>2000&&y<2100) return new Date(y,mo-1,d);
-      }
-    }
-  }
-
-  // PRIORIDAD 2: buscar "VENCIMIENTO: DD/MM/YYYY" en el texto extraído
-  // But ONLY match lines that say "vencimiento" — not "fecha emisión" etc.
-  const texto = doc.texto||'';
-  const vencPatterns = [
-    /fecha\s+(?:de\s+)?vencimiento[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
-    /vencimiento[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
-    /fecha\s+venc[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
-    /valido\s+hasta[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
-    /vence[:\s]+([\d]{1,2})[/\-]([\d]{1,2})[/\-]([\d]{4})/i,
-  ];
-  for(const p of vencPatterns){
-    const m = texto.match(p);
-    if(m){
-      const d=parseInt(m[1]),mo=parseInt(m[2]),y=parseInt(m[3]);
-      if(y>2000&&y<2100) return new Date(y,mo-1,d);
-    }
-  }
-
-  // PRIORIDAD 3: año del permiso → los permisos chilenos vencen 31/03 del año indicado
-  // Only use "Año Permiso" or "Proceso" fields — NOT emission year
-  for(const c of (doc.campos||[])){
-    const kl = (c.k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const isYear = kl === 'año permiso' || kl === 'ano permiso' ||
-                   kl === 'proceso' || kl === 'año' ||
-                   (kl.includes('permiso') && !kl.includes('emis'));
-    if(isYear && c.v){
-      const m = (c.v||'').match(/(202[3-9]|203\d)/);
-      if(m) return new Date(parseInt(m[1]),2,31); // 31 Marzo = vencimiento permiso CL
-    }
-  }
-
-  // PRIORIDAD 4: "AÑO PERMISO YYYY" en texto
-  const añoM = texto.match(/(?:año permiso|ano permiso|proceso)\s*[:\s]*(202[3-9]|203\d)/i);
-  if(añoM) return new Date(parseInt(añoM[1]),2,31);
-
-  return null; // No se pudo determinar — no mostrar alerta falsa
-}
-
-function renderVencimiento(doc){
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const venc = parseVencimiento(doc);
-
-  if(!venc){
-    return `<div class="sec">Estado del permiso</div>
-    <div class="venc-card unknown">
-      <div class="venc-header">
-        <span class="venc-icon">❓</span>
-        <div><div class="venc-title">Fecha no detectada</div>
-        <div class="venc-sub">No se pudo determinar la vigencia. Verifica manualmente en la municipalidad.</div></div>
-      </div>
-    </div>`;
-  }
-
-  const diffMs  = venc.getTime() - today.getTime();
-  const diffDias = Math.round(diffMs / 86400000);
-  const vencStr  = venc.toLocaleDateString('es-CL',{day:'2-digit',month:'long',year:'numeric'});
-
-  if(diffDias >= 0){
-    // Vigente
-    const color = diffDias < 30 ? 'fbbf24' : '4ade80';
-    return `<div class="sec">Estado del permiso</div>
-    <div class="venc-card ok">
-      <div class="venc-header">
-        <span class="venc-icon">${diffDias < 30 ? '⚠️' : '✅'}</span>
-        <div>
-          <div class="venc-title">Permiso VIGENTE</div>
-          <div class="venc-sub">Vence el ${vencStr}${diffDias < 30 ? ' — <strong>próximo a vencer</strong>' : ''} · ${diffDias} días restantes</div>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  // VENCIDO — calcular deuda estimada
-  const añosVencidos = Math.ceil(Math.abs(diffDias) / 365);
-  const añoVenc = venc.getFullYear();
-  const añoActual = today.getFullYear();
-
-  // Fórmula Kavak Supply:
-  // Deuda = Valor base del permiso + $35.000 × años vencidos completos (desde vencimiento a hoy)
-  // Valor base: extraer de campos del doc (Tasación, Pago Total, Total a Pagar)
-  // Años vencidos: años completos transcurridos desde la fecha de vencimiento
-
-  // Extraer valor real del permiso desde los campos extraídos por Claude
-  let basePermiso = 0;
-  const camposDoc = doc.campos || [];
-  const camposPrioridad = [
-    'pago total','total a pagar','valor permiso','tasacion','tasación',
-    'monto','valor','importe','permiso'
-  ];
-  for(const campo of camposDoc){
-    const k = (campo.k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const v = String(campo.v||'').replace(/[^0-9]/g,'');
-    if(camposPrioridad.some(p => k.includes(p)) && v.length >= 4){
-      const num = parseInt(v);
-      // Filtrar valores razonables: entre $10.000 y $5.000.000
-      if(num >= 10000 && num <= 5000000){
-        basePermiso = num;
-        break;
-      }
-    }
-  }
-  // Si no encontramos el valor, dejar en 0 para mostrar solo la multa
-  const tieneValorReal = basePermiso > 0;
-
-  // Años vencidos completos (floor)
-  const añosVencidos = Math.max(1, Math.floor(Math.abs(diffDias) / 365));
-
-  // Deuda = base + $35.000 × años vencidos
-  const multaPorAño = 35000;
-  const deudaEstimada = basePermiso + (multaPorAño * añosVencidos);
-  const deudaFormateada = new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(deudaEstimada);
-  const baseFormateada = tieneValorReal
-    ? new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(basePermiso)
-    : null;
-
-  const muUrl = doc._muUrl || 'https://www.sem2.gob.cl/';
-  const muName = doc._muName || doc.municipio || 'la municipalidad';
-
-  return `<div class="sec">Estado del permiso</div>
-  <div class="venc-card expired">
-    <div class="venc-header">
-      <span class="venc-icon">🚨</span>
-      <div>
-        <div class="venc-title">Permiso VENCIDO</div>
-        <div class="venc-sub">Venció el ${vencStr} · hace ${Math.abs(diffDias)} días (${mesesVencidos} meses)</div>
-      </div>
-    </div>
-    <div class="deuda-row">
-      <div class="deuda-title">💰 Deuda estimada para regularizar</div>
-      <div class="deuda-amount">${deudaFormateada}</div>
-      <div class="deuda-detail">
-        Base permiso ~$80.000 + multa ~1.5% mensual × ${mesesVencidos} meses vencidos<br>
-        <strong style="color:rgba(255,255,255,.5);">⚠️ Monto referencial — el valor exacto lo entrega ${escH(muName)}</strong>
-      </div>
-    </div>
-    <a class="deuda-cta" href="${escH(muUrl)}" target="_blank" rel="noopener">
-      🏛️ Ir a ${escH(muName)} para pagar y regularizar &nbsp;↗
-    </a>
-  </div>`;
-}
-
-function renderResults(doc){
-  setView('results');
-  doc.tipo = detectDocType(doc);
-  setBadge(doc.tipo||'Documento','blue');
-  playTinySound('done');
-
-  const patenteState = validatePlate(doc.patente);
-  const rutState = validateRut(doc.rut);
-  const muni = doc.municipio || doc._muName || null;
-  const conf = normalizeConfidence(doc.confianza, patenteState, rutState);
-  window._lastDoc = doc;
-
-  let h='';
-  h+=`<div class="doc-card"><div class="doc-emo">${doc.icono||'📄'}</div><div>
-    <div class="doc-type">${escH(doc.tipo||'Documento vehicular')}</div>
-    <div class="doc-sub">${images.length>1?`Analizado con ${images.length} imágenes · `:''}Resumen Kavak Supply</div>
-    <div class="doc-detect-pill">🔎 ${escH(doc.tipo||'Detectado')}</div>
-  </div></div>`;
-
-  h+=`<div class="summary-card">
-    <div class="summary-title">
-      <strong>Resumen</strong>
-      <span class="conf-pill conf-${conf.cls}">${conf.txt==='alta'?'✓ Alta precisión':conf.txt==='baja'?'⚠ Baja precisión':'◎ Precisión media'}</span>
-    </div>
-    ${doc.patente?frowCheck('Patente',doc.patentePlain||doc.patente,patenteState,'plate'):frowCheck('Patente','— no visible',{ok:false,label:'Revisar',cls:'warn'},'')}
-    ${doc.rut?frowCheck('RUT',doc.rut,rutState,'rut'):frowCheck('RUT','— no detectado',{ok:false,label:'Revisar',cls:'warn'},'')}
-    ${muni?frowCheck('Municipio',muni,{ok:true,label:'Detectada',cls:'ok'},''):frowCheck('Municipio','— no detectada',{ok:false,label:'Revisar',cls:'warn'},'')}
-    <div class="report-actions">
-      <button class="action-btn primary" onclick="copyReport()">📋 Copiar reporte</button>
-      <button class="action-btn soft" onclick="copyMainData()">⎘ Copiar datos</button>
-    </div>
-  </div>`;
-
-  if(doc._muUrl){
-    const muSearch = (doc._muName||doc.municipio||'') + ' pagar permiso de circulacion';
-    const muId = 'mu_'+Math.random().toString(36).slice(2,7);
-    h+=`<div class="sec">Página de la comuna</div>
-    <div style="display:flex;gap:7px;align-items:center">
-      <a class="link-card" style="flex:1" href="${escH(doc._muUrl)}" target="_blank" rel="noopener">
-        <span class="li">🏛️</span>
-        <div class="lt">
-          <div class="lt-title">Municipalidad de ${escH(doc._muName||doc.municipio||'')}</div>
-          <div class="lt-sub">Ir al portal de trámites</div>
-        </div>
-        <span class="link-arrow">↗</span>
-      </a>
-      <button class="cp" id="${muId}" onclick="copyVal('${muId}',this)" title="Copiar texto búsqueda" data-full="${escH(muSearch)}" style="width:auto;padding:8px 12px;border-radius:11px;height:44px;font-size:10px;font-weight:700;flex-shrink:0;white-space:nowrap">
-        ⎘ Copiar
-      </button>
-    </div>
-    <div style="font-size:10px;color:rgba(255,255,255,.25);padding:3px 2px;margin-top:-4px">
-      Texto copiado: <span style="color:rgba(16,185,129,.6);font-family:'JetBrains Mono',monospace">${escH(muSearch)}</span>
-    </div>`;
-  }
-
-  // ── VENCIMIENTO PERMISO CIRCULACION ──
-  const tipoNorm = (doc.tipo||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const isPermiso = tipoNorm.includes('permiso') && tipoNorm.includes('circulacion');
-  if(isPermiso){
-    h += renderVencimiento(doc);
-  }
-
-  if(doc.observaciones){
-    h+=`<div class="sec">Observación</div><div class="raw-box" style="max-height:none;font-family:'Inter',sans-serif;font-size:12px;color:rgba(255,255,255,.6)">${escH(doc.observaciones)}</div>`;
-  }
-
-  const extras=(doc.campos||[]).filter(c=>c.v&&String(c.v).trim());
-  if(extras.length){
-    h+=`<div class="sec">Información adicional</div>`;
-    extras.forEach(c=>{h+=frow(c.k,c.v,true,'');});
-  }
-
-  if(doc.qr_url){
-    const safe=doc.qr_url.startsWith('http')?doc.qr_url:'https://'+doc.qr_url;
-    h+=`<div class="sec">QR del documento</div>
-    <a class="qr-card" href="${escH(safe)}" target="_blank" rel="noopener">
-      <span style="font-size:20px">🔗</span>
-      <div><div style="font-weight:800;font-size:12px">Abrir enlace del QR</div><div style="font-size:10px;color:#9a3412;margin-top:1px;word-break:break-all">${escH(safe)}</div></div>
-      <span style="margin-left:auto;font-size:13px;font-weight:900">↗</span>
-    </a>`;
-  }
-
-  if(doc.texto){ h+=`<div class="sec">Texto completo extraído</div><div class="raw-box">${highlightOCRText(doc.texto, doc)}</div>`; }
-  document.getElementById('resultsDiv').innerHTML=h;
-}
-
-function frowCheck(key,val,state,cls){
-  const id='f'+Math.random().toString(36).slice(2,7);
-  const hi=(cls==='plate'||cls==='rut')?'frow hi':'frow '+(state?.cls==='ok'?'valid':state?.cls==='bad'?'bad':'warn');
-  const vc='fval'+(cls?' '+cls:'');
-  const pill=`<span class="check-pill check-${state?.cls||'warn'}">${escH(state?.label||'Revisar')}</span>`;
-  return `<div class="${hi}"><span class="fkey">${escH(key)}</span><span class="${vc}" id="${id}">${escH(String(val))}</span>${pill}<button class="cp" onclick="copyVal('${id}',this)">⎘</button></div>`;
-}
-
-function frow(key,val,copyable,cls){
-  const id='f'+Math.random().toString(36).slice(2,7);
-  const hi=(cls==='plate'||cls==='rut'||cls==='nombre')?'frow hi':'frow';
-  const vc='fval'+(cls?' '+cls:'');
-  const strVal=String(val);
-  const isLong=strVal.length>40;
-  // Store full value in data-full for copy; display may be truncated by CSS
-  // Click to toggle expand/collapse
-  const clickExpand=isLong?`onclick="toggleExpand('${id}')" title="Clic para ver completo"`:''
-  const cb=copyable?`<button class="cp" onclick="copyVal('${id}',this)">⎘</button>`:'<span></span>';
-  return `<div class="${hi}"><span class="fkey">${escH(key)}</span><span class="${vc}" id="${id}" data-full="${escH(strVal)}" ${clickExpand}>${escH(strVal)}</span>${cb}</div>`;
-}
-
-function toggleExpand(id){
-  const el=document.getElementById(id);
-  if(!el)return;
-  el.classList.toggle('expanded');
-}
-
-
-function detectDocType(doc){
-  const current=String(doc.tipo||'').trim();
-  const all=(current+' '+(doc.texto||'')+' '+(doc.campos||[]).map(c=>(c.k||'')+' '+(c.v||'')).join(' ')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  if(all.includes('permiso de circulacion')||all.includes('permiso circulacion')) return 'Permiso de circulación';
-  if(all.includes('seguro obligatorio')||all.includes('soap')) return 'SOAP';
-  if(all.includes('revision tecnica')||all.includes('certificado de revision')) return 'Revisión técnica';
-  if(all.includes('homologacion')||all.includes('certificado de homologacion')) return 'Homologación';
-  if(all.includes('padron')||all.includes('certificado de inscripcion')||all.includes('inscripcion y anotaciones')) return 'Padrón vehicular';
-  if(all.includes('cedula de identidad')||all.includes('republica de chile')&&all.includes('cedula')) return 'Cédula de identidad';
-  if(current && !/^nombre doc|documento$/i.test(current)) return current;
-  return 'Documento vehicular';
-}
-
-function highlightOCRText(text, doc){
-  let safe=escH(text||'');
-  const terms=[doc.patente, doc.rut, doc.nombre, doc.municipio, doc._muName].filter(Boolean).map(String);
-  const uniq=[...new Set(terms.filter(t=>t.trim().length>2))].sort((a,b)=>b.length-a.length);
-  uniq.forEach(t=>{
-    const escaped=escReg(escH(t.trim()));
-    safe=safe.replace(new RegExp(escaped,'gi'), m=>`<span class="ocr-hit">${m}</span>`);
-  });
-  return safe;
-}
-function escReg(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
-
-function validatePlate(v){
-  if(!v || String(v).includes('—')) return {ok:false,label:'Revisar',cls:'warn'};
-  const s=String(v).toUpperCase().replace(/\s/g,'').replace(/[.]/g,'');
-  const ok=/^[A-Z]{4}-?\d{2}$/.test(s)||/^[A-Z]{2}-?\d{4}$/.test(s)||/^[A-Z]{3}-?\d{3}$/.test(s);
-  return ok?{ok:true,label:'Formato OK',cls:'ok'}:{ok:false,label:'Formato raro',cls:'warn'};
-}
-
-function cleanRut(v){return String(v||'').replace(/\./g,'').replace(/\s/g,'').toUpperCase();}
-function validateRut(v){
-  const s=cleanRut(v);
-  const m=s.match(/^(\d{7,8})-?([\dK])$/);
-  if(!m) return {ok:false,label:'Formato raro',cls:'warn'};
-  let sum=0,mul=2;
-  for(let i=m[1].length-1;i>=0;i--){
-    sum+=parseInt(m[1][i],10)*mul;
-    mul=mul===7?2:mul+1;
-  }
-  const res=11-(sum%11);
-  const dv=res===11?'0':res===10?'K':String(res);
-  return dv===m[2]?{ok:true,label:'RUT OK',cls:'ok'}:{ok:false,label:'DV revisar',cls:'bad'};
+  const dv=rutDV(m[1]);
+  if(dv===m[2]) return {ok:true,label:'RUT OK',cls:'ok'};
+  // DV no coincide: sugerir el correcto para detectar errores de transcripción del OCR
+  return {ok:false,label:'DV debería ser '+dv,cls:'bad',expected:m[1]+'-'+dv};
 }
 
 function normalizeConfidence(c, plate, rut){

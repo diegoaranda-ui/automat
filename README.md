@@ -1,47 +1,64 @@
 # Kavak Supply Tools — Apps Script
+
+Web App de Apps Script para Supply Chile. Automatiza el dictamen legal de documentos
+vehiculares (C2B) y de empresas (B2B) con Claude Vision, más utilidades de validación.
+
 ## Archivos
 
-| Archivo | Descripción |
-|---------|-------------|
-| `Codigo.gs` | Router principal — pegar en el archivo Code.gs de Apps Script |
-| `hub.html` | Hub completo con DocScan y B2BScan embebidos — **este es el principal** |
-| `_styles_hub.html` | CSS global compartido (partial) |
-| `_header.html` | Header compartido (partial) |
-| `_sidebar.html` | Sidebar compartido (partial) |
-| `DOCScan_v3_standalone.html` | DocScan para usar solo fuera del hub |
-| `B2BScan_v1_standalone.html` | B2B Scan para usar solo fuera del hub |
+| Archivo (repo) | Nombre en Apps Script | Descripción |
+|---|---|---|
+| `Codigo.gs` | `Codigo` (Code.gs) | Router (`doGet`) + `include()` + proxy `callClaude` |
+| `hub.html` | `hub` | Shell: sidebar + carga DocScan/B2BScan/Validador en iframes |
+| `docscan.html` | `docscan` | DocScan (C2B) — servido por `?page=docscan` |
+| `b2bscan.html` | `b2bscan` | B2B Scan — servido por `?page=b2bscan` |
+| `validador.html` | `validador` | Validador de RUT/patente — servido por `?page=validador` |
+| `_styles_hub.html` | `_styles_hub` | CSS global del hub (partial) |
+| `_header.html` | `_header` | Header compartido (partial) |
+| `_sidebar.html` | `_sidebar` | Sidebar compartido (partial) |
+
+> **Importante:** el nombre del archivo HTML en Apps Script debe coincidir EXACTAMENTE
+> con el de la tabla (sin `.html`). El router hace `createTemplateFromFile('docscan')`,
+> así que el archivo debe llamarse `docscan`, no `DOCScan_v3_standalone`.
 
 ## Deploy en Apps Script
 
-1. Ir a script.google.com → Nuevo proyecto
-2. Pegar `Codigo.gs` en el archivo Code.gs
-3. Crear archivo HTML llamado `hub` → pegar contenido de `hub.html`
-4. Crear archivo HTML llamado `_styles_hub` → pegar contenido de `_styles_hub.html`
-5. Crear archivo HTML llamado `_header` → pegar contenido de `_header.html`
-6. Crear archivo HTML llamado `_sidebar` → pegar contenido de `_sidebar.html`
-7. Implementar → Nueva implementación → Aplicación web
-   - Ejecutar como: Yo
-   - Acceso: Cualquier usuario de Kavak
-8. Copiar URL y compartir con el equipo
+1. Ir a [script.google.com](https://script.google.com) → Nuevo proyecto.
+2. Pegar `Codigo.gs` en el archivo `Code.gs`.
+3. Crear un archivo HTML por cada fila de la tabla con el nombre exacto indicado y pegar su contenido.
+4. **Configurar la API key** (obligatorio): *Configuración del proyecto → Propiedades del script → Agregar propiedad*:
+   - Propiedad: `ANTHROPIC_KEY`
+   - Valor: tu API key de Anthropic (`sk-ant-...`)
+   La key vive sólo en el servidor; nunca se envía al navegador.
+5. Implementar → Nueva implementación → Aplicación web:
+   - Ejecutar como: **Yo**
+   - Acceso: **Cualquier usuario de Kavak**
+6. Copiar la URL `/exec` y compartirla con el equipo.
+7. Cada cambio de código requiere una **nueva versión** de la implementación.
 
-## Herramientas incluidas
+## Arquitectura
 
-### DocScan v3 (C2B)
-- Análisis de RT, SOAP y Permiso de Circulación
-- Compresión automática de imágenes antes de enviar
-- Detección de estado del permiso (vigente/vencido)
-- Cálculo de deuda estimada con fórmula: valor_permiso + $35.000 × años_vencidos
-- Historial local con búsqueda
-- KPI timer de inspección
+- `doGet(?page=hub|docscan|b2bscan|validador)` → `buildPage(name)` con `HtmlService`.
+- El **hub** ya no embebe las herramientas: las carga en `<iframe src="…?page=…">` de forma
+  diferida (al abrir cada una). Una sola fuente de verdad por herramienta.
+- Las llamadas a Claude pasan por `google.script.run.callClaude(payload)` → `UrlFetchApp`
+  en el servidor. El frontend conserva su lógica de reintentos/overload.
 
-### B2B Scan v1 (B2B)
-- Módulos: Estatuto, Vigencia societaria, E-RUT SII
-- Estatuto: detecta COBRAR Y PERCIBIR, En un día vs Notarial, Administrador/Rep. Legal
-- Facultades en mayúscula extraídas completas
-- Links clickeables a modificaciones en Registro de Empresas y Sociedades
-- Análisis simultáneo de los 3 módulos sin perder estado al cambiar tab
-- Exportar CSV del historial
+## Herramientas
 
-## Próximamente
-- Autofact (integración con GetAPI.cl o Boostr.cl)
-- Panel inspecciones del día (sync BBDD BOT sin IMPORTRANGE)
+### DocScan (C2B)
+- Análisis de RT, SOAP, Permiso de Circulación, padrón, cédula.
+- Compresión de imágenes y render de PDF (pdf.js) antes de enviar.
+- Detección de vigencia/vencimiento y deuda estimada.
+- Validación de RUT (módulo 11) con **sugerencia de dígito verificador** cuando no calza.
+- **Dictamen consolidado**: al analizar varios documentos juntos, cruza RUT/patente entre
+  ellos, valida vigencias y entrega un veredicto copiable con alertas.
+- Historial local con búsqueda, export CSV, timer de inspección.
+
+### B2B Scan
+- Módulos: Estatuto, Vigencia societaria, E-RUT SII.
+- Detecta COBRAR Y PERCIBIR, "en un día" vs notarial, administrador/rep. legal.
+- Links a modificaciones en el Registro de Empresas y Sociedades.
+
+### Validador
+- Valida RUT chileno (dígito verificador) y formato de patente al instante, sin IA ni subir documento.
+- Sugiere el RUT correcto y normaliza la patente. Botones de copiado.

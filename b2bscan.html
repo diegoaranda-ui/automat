@@ -287,7 +287,20 @@ html,body{height:100%;font-family:'IBM Plex Sans',sans-serif;font-size:13px;line
 </div>
 
 <script>
-const SHARED_KEY = 'REEMPLAZAR_CON_CLAVE_VIA_APPS_SCRIPT';
+// ── BACKEND PROXY ─────────────────────────────────
+// La API key vive en Apps Script (Propiedades del script → ANTHROPIC_KEY), nunca en el cliente.
+function callClaudeServer(payload){
+  return new Promise((resolve,reject)=>{
+    if(!(window.google && google.script && google.script.run)){
+      reject(new Error('Esta herramienta debe ejecutarse dentro del Web App de Apps Script.'));
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(s=>{ try{ resolve(JSON.parse(s)); }catch(e){ reject(new Error('Respuesta inválida del servidor')); } })
+      .withFailureHandler(err=>reject(err instanceof Error ? err : new Error(String(err && err.message || err))))
+      .callClaude(payload);
+  });
+}
 
 // ── ESTADO POR MÓDULO ─────────────────────────────
 // Cada módulo guarda su propio estado completamente independiente
@@ -554,21 +567,17 @@ async function analyze() {
     while(attempt<3) {
       attempt++;
       if(attempt>1){ for(let t=attempt*4;t>0;t--){ spinMsg('Reintentando en '+t+'s…'); await new Promise(r=>setTimeout(r,1000)); } }
-      res = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':SHARED_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2048,messages:[{role:'user',content:contentArr}]})
-      });
-      if(res.ok) break;
-      const eb = await res.json().catch(()=>({}));
-      const em = eb?.error?.message||'';
-      if((res.status===529||em.toLowerCase().includes('overload'))&&attempt<3) continue;
-      throw new Error(em||'HTTP '+res.status);
+      const rr = await callClaudeServer({model:'claude-sonnet-4-6',max_tokens:2048,messages:[{role:'user',content:contentArr}]});
+      let rb; try{ rb = JSON.parse(rr.body); }catch(_){ rb = {}; }
+      if(rr.status===200){ res = {ok:true, status:200, _data:rb}; break; }
+      const em = rb?.error?.message||'';
+      if((rr.status===529||em.toLowerCase().includes('overload'))&&attempt<3){ res={ok:false,status:rr.status}; continue; }
+      throw new Error(em||'HTTP '+rr.status);
     }
     clearInterval(spinInterval);
-    if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
+    if(!res || !res.ok){ throw new Error('Servidor saturado. Intenta de nuevo.'); }
 
-    const raw = (await res.json()).content?.[0]?.text||'';
+    const raw = res._data.content?.[0]?.text||'';
     const fi=raw.indexOf('{'), li=raw.lastIndexOf('}');
     if(fi===-1) throw new Error('Respuesta inesperada:\n'+raw.slice(0,200));
     const parsed = JSON.parse(raw.slice(fi,li+1));
