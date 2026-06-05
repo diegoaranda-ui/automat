@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Suite — Kavak Supply</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;font-size:13px;line-height:1.5;overflow:hidden;background:#f5f5f7;color:#0f172a;-webkit-font-smoothing:antialiased}
+:root{
+  --n0:#ffffff;--n50:#f5f5f7;--n100:#f1f5f9;--n200:#e2e8f0;--n300:#cbd5e1;--n400:#94a3b8;--n500:#64748b;--n600:#475569;--n700:#334155;--n800:#1e293b;--n900:#0f172a;
+  --green:#00a060;--green-d:#007a4a;--green-l:#e6f7f0;--green-b:#b3e8d3;
+  --red:#dc1a23;--red-d:#b01019;--red-l:#fde8e9;--red-b:#f9b3b6;
+  --amber:#d97706;--amber-l:#fffbeb;--amber-b:#fde68a;
+  --purple:#7c3aed;--purple-l:#f5f3ff;--purple-b:#ddd6fe;
+  --blue:#2563eb;--blue-d:#1d4ed8;--blue-l:#eff6ff;--blue-b:#bfdbfe;
+  --sidebar-bg:rgba(24,24,27,.95);
+  --s1:0 1px 2px rgba(0,0,0,.05);--s2:0 1px 3px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.05);--s3:0 4px 6px rgba(0,0,0,.07),0 10px 20px rgba(0,0,0,.07);
+  --mono:'JetBrains Mono','Fira Code','SF Mono',monospace;
+  --t:.15s cubic-bezier(.4,0,.2,1);
+}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:4px}
+.main ::-webkit-scrollbar-thumb{background:#cbd5e1}
+
+/* ── LAYOUT ── */
+.shell{display:grid;grid-template-columns:230px 1fr;height:100vh;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{background:var(--sidebar-bg);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,255,255,.06)}
+
+.brand{padding:16px 14px 12px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0}
+.brand-lockup{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.brand-mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--green),#00c97a);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,160,96,.4)}
+.brand-wordmark{font-size:13px;font-weight:800;color:#fff;letter-spacing:-.3px;line-height:1.2}
+.brand-sub{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.1px;margin-top:1px}
+.brand-badge{display:inline-flex;padding:2px 8px;background:rgba(0,160,96,.18);border:1px solid rgba(0,160,96,.35);border-radius:20px;font-size:9px;font-weight:700;color:#4ade80;letter-spacing:.5px;text-transform:uppercase;margin-top:6px}
+
+.nav-section{padding:8px 8px 4px;flex-shrink:0}
+.nav-label{font-size:9px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1px;padding:0 6px;margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent;transition:var(--t);margin-bottom:2px;border-left:3px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.07)}
+.nav-item.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.1);border-left-color:var(--green)}
+.nav-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.nav-text{flex:1;min-width:0}
+.nav-name{font-size:11px;font-weight:700;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-item.active .nav-name{color:#fff}
+.nav-desc{font-size:9px;color:rgba(255,255,255,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.nav-badge{font-size:8px;font-weight:700;padding:2px 5px;border-radius:4px;background:rgba(0,160,96,.2);color:#4ade80;border:1px solid rgba(0,160,96,.3);letter-spacing:.3px;white-space:nowrap;flex-shrink:0}
+
+.sidebar-divider{height:1px;background:rgba(255,255,255,.06);margin:4px 12px}
+
+.user-section{padding:8px 10px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.user-lbl{font-size:9px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px}
+.user-inp{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.85);font-size:11px;padding:7px 10px;border-radius:8px;outline:none;font-family:inherit;transition:var(--t)}
+.user-inp:focus{border-color:var(--green);background:rgba(0,160,96,.08)}
+.user-inp::placeholder{color:rgba(255,255,255,.2)}
+
+.hist-head{padding:8px 14px 4px;flex-shrink:0;display:flex;align-items:center;gap:4px}
+.hist-lbl{font-size:9px;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1px;font-weight:700;flex:1}
+.hist-count{font-size:9px;color:var(--green);font-weight:700}
+.hist-clear{background:none;border:none;color:rgba(255,255,255,.25);font-size:10px;cursor:pointer;padding:2px 4px;border-radius:4px;transition:var(--t)}
+.hist-clear:hover{color:var(--red);background:rgba(220,26,35,.1)}
+
+.hist-scroll{flex:1;overflow-y:auto;padding:2px 8px 8px}
+.hi{padding:8px 9px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:var(--t);margin-bottom:2px}
+.hi:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.07)}
+.hi-mod{font-size:9px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.hi-title{font-size:11px;font-weight:600;color:rgba(255,255,255,.75);line-height:1.3}
+.hi-ts{font-size:9px;color:rgba(255,255,255,.25);margin-top:1px}
+.hi-empty{padding:24px 10px;text-align:center;color:rgba(255,255,255,.2);font-size:11px;line-height:1.8}
+
+/* ── MAIN ── */
+.main{display:flex;flex-direction:column;overflow:hidden;background:var(--n50)}
+
+/* ── TOPBAR ── */
+.topbar{height:46px;padding:0 16px;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:8px;flex-shrink:0;background:var(--n0);box-shadow:var(--s1)}
+.topbar-icon{font-size:16px}
+.topbar-title{font-size:13px;font-weight:700;color:var(--n900);letter-spacing:-.2px;flex:1}
+.badge{padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.1px;border:1px solid}
+.b-green{background:var(--green-l);color:var(--green-d);border-color:var(--green-b)}
+.b-red{background:var(--red-l);color:var(--red-d);border-color:var(--red-b)}
+.b-amber{background:var(--amber-l);color:var(--amber);border-color:var(--amber-b)}
+.b-purple{background:var(--purple-l);color:var(--purple);border-color:var(--purple-b)}
+.b-blue{background:var(--blue-l);color:var(--blue-d);border-color:var(--blue-b)}
+.b-gray{background:var(--n100);color:var(--n500);border-color:var(--n200)}
+
+/* ── PROGRESS ── */
+.prog{height:2px;background:var(--n100);flex-shrink:0;overflow:hidden}
+.prog.hidden{display:none}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--green),#4ade80);animation:prog 1s ease-in-out infinite;width:35%}
+@keyframes prog{0%{margin-left:-35%}100%{margin-left:100%}}
+
+/* ── VIEWS ── */
+.views{flex:1;overflow:hidden;position:relative}
+.view{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.view.active{display:flex}
+
+/* ── CONTENT AREA ── */
+.content{flex:1;overflow-y:auto;padding:16px}
+.content-inner{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+/* ── UPLOAD ZONES ── */
+.upload-grid{display:grid;gap:12px}
+.upload-grid.two-col{grid-template-columns:1fr 1fr}
+.upload-zone{border:2px dashed var(--n200);border-radius:16px;background:var(--n0);padding:32px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:var(--t);position:relative;min-height:140px;text-align:center}
+.upload-zone:hover,.upload-zone.over{border-color:var(--green);background:var(--green-l)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:28px;opacity:.45;line-height:1}
+.upload-title{font-size:13px;font-weight:700;color:var(--n800)}
+.upload-sub{font-size:11px;color:var(--n400);line-height:1.5}
+.upload-kbd{display:inline-flex;padding:2px 8px;background:var(--n100);border-radius:6px;font-size:10px;color:var(--n500);font-family:var(--mono);border:1px solid var(--n200)}
+.upload-zone.has-file{border-style:solid;border-color:var(--green);background:var(--green-l)}
+.file-preview{display:none;width:100%;align-items:center;gap:10px;padding:8px 12px;background:var(--n0);border-radius:10px;border:1px solid var(--n200);margin-top:4px}
+.file-preview.show{display:flex}
+.file-thumb{width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--n200);flex-shrink:0}
+.file-pdf-icon{width:40px;height:40px;border-radius:6px;background:var(--red-l);border:1px solid var(--red-b);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.file-name{font-size:11px;font-weight:600;color:var(--n700);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-size{font-size:10px;color:var(--n400)}
+.file-remove{background:none;border:none;color:var(--n400);cursor:pointer;font-size:14px;padding:2px;border-radius:4px;transition:var(--t);flex-shrink:0}
+.file-remove:hover{color:var(--red);background:var(--red-l)}
+
+/* ── ACTION BAR ── */
+.action-bar{padding:10px 16px;border-top:1px solid var(--n200);background:var(--n0);display:flex;gap:8px;align-items:center;flex-shrink:0}
+.btn-primary{padding:9px 20px;border-radius:9px;background:var(--green);color:#fff;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:var(--t);display:flex;align-items:center;gap:6px;letter-spacing:-.1px;box-shadow:0 1px 4px rgba(0,160,96,.35)}
+.btn-primary:hover:not(:disabled){background:var(--green-d);box-shadow:0 4px 12px rgba(0,160,96,.4);transform:translateY(-1px)}
+.btn-primary:active:not(:disabled){transform:translateY(0)}
+.btn-primary:disabled{background:var(--n200);color:var(--n400);cursor:not-allowed;box-shadow:none}
+.btn-secondary{padding:9px 14px;border-radius:9px;border:1px solid var(--n200);background:var(--n50);color:var(--n600);font-size:11px;font-weight:600;cursor:pointer;transition:var(--t);font-family:inherit}
+.btn-secondary:hover{background:var(--n100);border-color:var(--n300);color:var(--n800)}
+.btn-icon{width:34px;height:34px;border-radius:8px;border:1px solid var(--n200);background:var(--n50);color:var(--n500);cursor:pointer;transition:var(--t);display:flex;align-items:center;justify-content:center;font-size:14px;font-family:inherit}
+.btn-icon:hover{background:var(--n100);border-color:var(--n300)}
+.action-hint{font-size:11px;color:var(--n400);flex:1}
+
+/* ── SPINNER ── */
+.spinner-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:48px 20px}
+.spinner{width:28px;height:28px;border:2.5px solid var(--n200);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin-msg{font-size:12px;color:var(--n500);text-align:center;max-width:220px;line-height:1.6;font-weight:500}
+
+/* ── EMPTY STATE ── */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:10px;text-align:center}
+.empty-icon{font-size:40px;opacity:.3}
+.empty-title{font-size:14px;font-weight:700;color:var(--n700)}
+.empty-sub{font-size:12px;color:var(--n400);max-width:260px;line-height:1.6}
+
+/* ── CARDS ── */
+.card{background:var(--n0);border-radius:16px;border:1px solid var(--n200);box-shadow:var(--s1);overflow:hidden}
+.card-header{padding:12px 16px;border-bottom:1px solid var(--n100);display:flex;align-items:center;gap:8px}
+.card-title{font-size:12px;font-weight:700;color:var(--n800);flex:1}
+.card-body{padding:14px 16px}
+.card-icon{font-size:14px;width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ── SUMMARY ROW ── */
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.summary-item{background:var(--n0);border-radius:12px;border:1px solid var(--n200);padding:12px 14px;text-align:center}
+.summary-item.green{background:var(--green-l);border-color:var(--green-b)}
+.summary-item.amber{background:var(--amber-l);border-color:var(--amber-b)}
+.summary-item.blue{background:var(--blue-l);border-color:var(--blue-b)}
+.summary-item.red{background:var(--red-l);border-color:var(--red-b)}
+.si-val{font-size:22px;font-weight:800;color:var(--n900);font-family:var(--mono);letter-spacing:-1px;line-height:1.1}
+.si-lbl{font-size:10px;color:var(--n500);font-weight:500;margin-top:4px}
+.summary-item.green .si-val{color:var(--green-d)}
+.summary-item.amber .si-val{color:var(--amber)}
+.summary-item.blue .si-val{color:var(--blue-d)}
+.summary-item.red .si-val{color:var(--red-d)}
+
+/* ── TABLES ── */
+.tbl-wrap{overflow-x:auto;border-radius:0 0 14px 14px}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{background:var(--n50);padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--n200);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--n100);color:var(--n700);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr.row-green td{background:rgba(0,160,96,.04)}
+tr.row-amber td{background:rgba(217,119,6,.04)}
+tr.row-blue td{background:rgba(37,99,235,.04)}
+tr:hover td{background:var(--n50)}
+.num{font-family:var(--mono);font-size:11px}
+.tbl-foot td{background:var(--n50);font-weight:700;border-top:2px solid var(--n200);border-bottom:none}
+.tbl-foot .num{font-size:12px}
+
+/* ── KPI CARDS ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi-card{background:var(--n0);border-radius:12px;border:1px solid var(--n200);padding:14px 16px;position:relative;overflow:hidden}
+.kpi-cat{font-size:9px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.kpi-val{font-size:20px;font-weight:800;color:var(--n900);font-family:var(--mono);letter-spacing:-1px;line-height:1.1}
+.kpi-name{font-size:10px;color:var(--n500);margin-top:4px;font-weight:500}
+.kpi-unit{font-size:11px;font-weight:600;color:var(--n400);margin-left:2px}
+.kpi-note{font-size:9px;color:var(--n400);margin-top:2px;font-style:italic}
+.kpi-accent{position:absolute;top:0;left:0;width:3px;height:100%}
+.kpi-card.good .kpi-accent{background:var(--green)}
+.kpi-card.good .kpi-val{color:var(--green-d)}
+.kpi-card.alert .kpi-accent{background:var(--red)}
+.kpi-card.alert .kpi-val{color:var(--red-d)}
+.kpi-card.warn .kpi-accent{background:var(--amber)}
+.kpi-card.warn .kpi-val{color:var(--amber)}
+.kpi-card.neutral .kpi-accent{background:var(--blue)}
+
+/* ── ALERTS ── */
+.alerts-list{display:flex;flex-direction:column;gap:6px}
+.alert-item{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:9px;font-size:11.5px;font-weight:500}
+.alert-item.error{background:var(--red-l);color:var(--red-d);border:1px solid var(--red-b)}
+.alert-item.warn{background:var(--amber-l);color:#92400e;border:1px solid var(--amber-b)}
+.alert-item.info{background:var(--blue-l);color:var(--blue-d);border:1px solid var(--blue-b)}
+.alert-icon{flex-shrink:0;margin-top:1px}
+
+/* ── DOC HEADER ── */
+.doc-header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--n0);border-radius:14px;border:1px solid var(--n200)}
+.doc-type-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.doc-number{font-size:17px;font-weight:800;color:var(--n900);font-family:var(--mono);letter-spacing:-0.5px}
+.doc-date{font-size:11px;color:var(--n400);margin-top:2px}
+
+/* ── PARTY CARDS ── */
+.party-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.party-card{background:var(--n0);border-radius:12px;border:1px solid var(--n200);padding:14px 16px}
+.party-role{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--n400);margin-bottom:8px}
+.party-name{font-size:13px;font-weight:700;color:var(--n900);margin-bottom:6px}
+.party-row{display:flex;gap:6px;align-items:center;margin-bottom:3px}
+.party-key{font-size:10px;color:var(--n400);width:50px;flex-shrink:0}
+.party-val{font-size:11px;color:var(--n700);font-weight:500;flex:1}
+.copy-btn{background:none;border:none;color:var(--n300);cursor:pointer;font-size:11px;padding:2px;transition:var(--t)}
+.copy-btn:hover{color:var(--green)}
+
+/* ── TOTALS ── */
+.totals-row{display:flex;gap:8px;padding:12px 16px;background:var(--n50);border-radius:12px;border:1px solid var(--n200);align-items:center;justify-content:flex-end}
+.total-item{text-align:right}
+.total-label{font-size:9px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.5px}
+.total-value{font-size:14px;font-weight:700;color:var(--n800);font-family:var(--mono)}
+.total-divider{width:1px;height:36px;background:var(--n200);margin:0 4px}
+.total-item.grand .total-value{font-size:20px;font-weight:800;color:var(--n900)}
+.total-item.grand .total-label{color:var(--green-d);font-size:10px}
+
+/* ── ASIENTO ── */
+.asiento-header{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px;background:var(--n50);border-radius:12px;border:1px solid var(--n200)}
+.ah-item{}
+.ah-label{font-size:9px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.ah-value{font-size:12px;font-weight:600;color:var(--n800)}
+.balance-indicator{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:9px;font-size:12px;font-weight:700}
+.balance-indicator.ok{background:var(--green-l);color:var(--green-d);border:1px solid var(--green-b)}
+.balance-indicator.fail{background:var(--red-l);color:var(--red-d);border:1px solid var(--red-b)}
+
+/* ── CONFIANZA BADGE ── */
+.conf-badge{padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.conf-alta{background:var(--green-l);color:var(--green-d)}
+.conf-media{background:var(--amber-l);color:var(--amber)}
+.conf-baja{background:var(--red-l);color:var(--red-d)}
+
+/* ── STATUS BADGE ── */
+.st-badge{padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;text-transform:uppercase}
+.st-vigente{background:var(--green-l);color:var(--green-d)}
+.st-pagado{background:var(--blue-l);color:var(--blue-d)}
+.st-pendiente{background:var(--amber-l);color:var(--amber)}
+.st-anulado{background:var(--red-l);color:var(--red-d)}
+
+/* ── EXECUTIVE SUMMARY ── */
+.exec-summary{padding:14px 16px;background:var(--n50);border-radius:12px;border:1px solid var(--n200);font-size:12px;color:var(--n700);line-height:1.7}
+.exec-summary p{margin-bottom:6px}
+.exec-summary p:last-child{margin-bottom:0}
+
+/* ── NOTES ── */
+.notes-box{padding:10px 14px;background:var(--blue-l);border:1px solid var(--blue-b);border-radius:10px;font-size:11.5px;color:var(--blue-d);line-height:1.6}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--n900);color:#fff;padding:10px 18px;border-radius:10px;font-size:12px;font-weight:600;z-index:9999;opacity:0;transition:all .25s cubic-bezier(.4,0,.2,1);pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{background:var(--green-d)}
+#toast.error{background:var(--red-d)}
+
+/* ── RESULT ANIMATION ── */
+.result-section{animation:fu .2s cubic-bezier(.4,0,.2,1) both}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── MULTIPLE FILES ── */
+.files-list{display:flex;flex-direction:column;gap:4px;padding:8px 0 0}
+.files-list-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--n50);border-radius:8px;border:1px solid var(--n200)}
+.fli-name{font-size:11px;font-weight:500;color:var(--n700);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fli-size{font-size:10px;color:var(--n400)}
+.fli-remove{background:none;border:none;color:var(--n300);cursor:pointer;font-size:12px;transition:var(--t)}
+.fli-remove:hover{color:var(--red)}
+
+/* ── ADD MORE ── */
+.add-more{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border:1px dashed var(--n300);border-radius:8px;font-size:10px;color:var(--n400);cursor:pointer;position:relative;transition:var(--t);margin-top:4px}
+.add-more:hover{border-color:var(--green);color:var(--green)}
+.add-more input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+/* ── SECTION HEADER ── */
+.section-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.section-title{font-size:12px;font-weight:700;color:var(--n700)}
+.section-line{flex:1;height:1px;background:var(--n200)}
+
+/* ── RATIO TABLE ── */
+.ratio-row-good td:first-child::before{content:'▲';color:var(--green);margin-right:4px;font-size:9px}
+.ratio-row-alert td:first-child::before{content:'▼';color:var(--red);margin-right:4px;font-size:9px}
+.ratio-row-neutro td:first-child::before{content:'━';color:var(--n400);margin-right:4px;font-size:9px}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .kpi-grid,.summary-row{grid-template-columns:1fr 1fr}
+  .upload-grid.two-col{grid-template-columns:1fr}
+  .party-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-lockup">
+        <div class="brand-mark">💰</div>
+        <div>
+          <div class="brand-wordmark">Finance Suite</div>
+          <div class="brand-sub">Kavak Supply Chile</div>
+        </div>
+      </div>
+      <div class="brand-badge">v<?= VERSION ?></div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Módulos</div>
+
+      <div class="nav-item active" id="nav-conciliacion" onclick="selectModule('conciliacion')">
+        <div class="nav-icon" style="background:rgba(0,160,96,.15)">⚖️</div>
+        <div class="nav-text">
+          <div class="nav-name">Conciliación</div>
+          <div class="nav-desc">Cartola vs. libro mayor</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
+
+      <div class="nav-item" id="nav-reporteria" onclick="selectModule('reporteria')">
+        <div class="nav-icon" style="background:rgba(37,99,235,.15)">📊</div>
+        <div class="nav-text">
+          <div class="nav-name">Reportería</div>
+          <div class="nav-desc">Estados financieros</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
+
+      <div class="nav-item" id="nav-gestion" onclick="selectModule('gestion')">
+        <div class="nav-icon" style="background:rgba(124,58,237,.15)">📄</div>
+        <div class="nav-text">
+          <div class="nav-name">Gestión Documental</div>
+          <div class="nav-desc">Facturas y contratos</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
+
+      <div class="nav-item" id="nav-automatizacion" onclick="selectModule('automatizacion')">
+        <div class="nav-icon" style="background:rgba(217,119,6,.15)">⚙️</div>
+        <div class="nav-text">
+          <div class="nav-name">Automatización</div>
+          <div class="nav-desc">Asientos contables</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="user-section">
+      <div class="user-lbl">Analista</div>
+      <input class="user-inp" id="userInput" type="text" placeholder="Tu nombre…" autocomplete="off">
+    </div>
+
+    <div class="hist-head">
+      <span class="hist-lbl">Historial</span>
+      <span class="hist-count" id="histCount">0</span>
+      <button class="hist-clear" onclick="clearHistory()" title="Limpiar historial">✕</button>
+    </div>
+    <div class="hist-scroll" id="histList">
+      <div class="hi-empty">No hay análisis aún.</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+    <div class="topbar" id="topbar">
+      <span class="topbar-icon" id="topbarIcon">⚖️</span>
+      <span class="topbar-title" id="topbarTitle">Conciliación Bancaria</span>
+      <span class="badge b-green" id="topbarBadge">FINANZAS</span>
+    </div>
+    <div class="prog hidden" id="progBar"><div class="prog-fill"></div></div>
+
+    <div class="views">
+
+      <!-- ══ VIEW: CONCILIACION ══ -->
+      <div class="view active" id="view-conciliacion">
+        <div class="content">
+          <div class="content-inner">
+            <div class="upload-grid two-col">
+              <!-- Cartola -->
+              <div>
+                <div class="section-header">
+                  <span class="section-title">📋 Cartola Bancaria</span>
+                  <div class="section-line"></div>
+                </div>
+                <div class="upload-zone" id="zone-cartola" ondragover="onDragOver(event,'zone-cartola')" ondragleave="onDragLeave('zone-cartola')" ondrop="onDrop(event,'cartola-file-input','cartola')">
+                  <input type="file" id="cartola-file-input" accept="image/*,.pdf" onchange="handleFile('cartola',this)">
+                  <div class="upload-icon">📋</div>
+                  <div class="upload-title">Cartola Bancaria</div>
+                  <div class="upload-sub">Arrastra o haz clic<br>PDF o imagen</div>
+                  <div class="upload-kbd">PDF · JPG · PNG</div>
+                </div>
+                <div class="file-preview" id="prev-cartola">
+                  <span id="prev-cartola-icon">📄</span>
+                  <div style="flex:1;min-width:0">
+                    <div class="file-name" id="prev-cartola-name">—</div>
+                    <div class="file-size" id="prev-cartola-size">—</div>
+                  </div>
+                  <button class="file-remove" onclick="removeFile('cartola')">✕</button>
+                </div>
+              </div>
+              <!-- Libro -->
+              <div>
+                <div class="section-header">
+                  <span class="section-title">📚 Registros Contables</span>
+                  <div class="section-line"></div>
+                </div>
+                <div class="upload-zone" id="zone-libro" ondragover="onDragOver(event,'zone-libro')" ondragleave="onDragLeave('zone-libro')" ondrop="onDrop(event,'libro-file-input','libro')">
+                  <input type="file" id="libro-file-input" accept="image/*,.pdf" onchange="handleFile('libro',this)">
+                  <div class="upload-icon">📚</div>
+                  <div class="upload-title">Registros Contables</div>
+                  <div class="upload-sub">Arrastra o haz clic<br>PDF o imagen</div>
+                  <div class="upload-kbd">PDF · JPG · PNG</div>
+                </div>
+                <div class="file-preview" id="prev-libro">
+                  <span id="prev-libro-icon">📄</span>
+                  <div style="flex:1;min-width:0">
+                    <div class="file-name" id="prev-libro-name">—</div>
+                    <div class="file-size" id="prev-libro-size">—</div>
+                  </div>
+                  <button class="file-remove" onclick="removeFile('libro')">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Results -->
+            <div id="results-conciliacion">
+              <div class="empty-state">
+                <div class="empty-icon">⚖️</div>
+                <div class="empty-title">Conciliación lista</div>
+                <div class="empty-sub">Sube la cartola bancaria y los registros contables, luego presiona Conciliar.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Sube ambos documentos para iniciar la conciliación</span>
+          <button class="btn-secondary" onclick="resetModule('conciliacion')">Limpiar</button>
+          <button class="btn-primary" id="btn-conciliacion" onclick="analyzeModule('conciliacion')" disabled>⚡ Conciliar</button>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: REPORTERIA ══ -->
+      <div class="view" id="view-reporteria">
+        <div class="content">
+          <div class="content-inner">
+            <div class="section-header">
+              <span class="section-title">📈 Estado Financiero</span>
+              <div class="section-line"></div>
+            </div>
+            <div class="upload-zone" id="zone-reporteria" ondragover="onDragOver(event,'zone-reporteria')" ondragleave="onDragLeave('zone-reporteria')" ondrop="onDrop(event,'rep-file-input','reporteria')">
+              <input type="file" id="rep-file-input" accept="image/*,.pdf" onchange="handleFile('reporteria',this)">
+              <div class="upload-icon">📈</div>
+              <div class="upload-title">Estado Financiero</div>
+              <div class="upload-sub">Balance general · Estado de resultados · Flujo de caja<br>Arrastra o haz clic para subir</div>
+              <div class="upload-kbd">PDF · JPG · PNG</div>
+            </div>
+            <div class="file-preview" id="prev-reporteria">
+              <span id="prev-reporteria-icon">📄</span>
+              <div style="flex:1;min-width:0">
+                <div class="file-name" id="prev-reporteria-name">—</div>
+                <div class="file-size" id="prev-reporteria-size">—</div>
+              </div>
+              <button class="file-remove" onclick="removeFile('reporteria')">✕</button>
+            </div>
+
+            <div id="results-reporteria">
+              <div class="empty-state">
+                <div class="empty-icon">📊</div>
+                <div class="empty-title">Análisis financiero</div>
+                <div class="empty-sub">Sube un balance, estado de resultados o flujo de caja para obtener métricas y ratios clave.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Balance · P&amp;L · Flujo de Caja</span>
+          <button class="btn-secondary" onclick="resetModule('reporteria')">Limpiar</button>
+          <button class="btn-primary" id="btn-reporteria" onclick="analyzeModule('reporteria')" disabled>📊 Analizar</button>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: GESTION ══ -->
+      <div class="view" id="view-gestion">
+        <div class="content">
+          <div class="content-inner">
+            <div class="section-header">
+              <span class="section-title">📄 Documentos Financieros</span>
+              <div class="section-line"></div>
+            </div>
+            <div class="upload-zone" id="zone-gestion" ondragover="onDragOver(event,'zone-gestion')" ondragleave="onDragLeave('zone-gestion')" ondrop="onDropMulti(event,'gest-file-input','gestion')">
+              <input type="file" id="gest-file-input" accept="image/*,.pdf" multiple onchange="handleFileMulti('gestion',this)">
+              <div class="upload-icon">📄</div>
+              <div class="upload-title">Factura / Boleta / Nota de Crédito / Contrato</div>
+              <div class="upload-sub">Puedes subir múltiples archivos<br>Arrastra o haz clic</div>
+              <div class="upload-kbd">PDF · JPG · PNG · múltiples</div>
+            </div>
+            <div id="gestion-files-list" class="files-list" style="display:none"></div>
+            <div style="display:none" id="gestion-add-more-wrap">
+              <label class="add-more">
+                <input type="file" accept="image/*,.pdf" multiple onchange="handleFileMulti('gestion',this)"> + Agregar más archivos
+              </label>
+            </div>
+
+            <div id="results-gestion">
+              <div class="empty-state">
+                <div class="empty-icon">📄</div>
+                <div class="empty-title">Extracción documental</div>
+                <div class="empty-sub">Sube facturas, boletas, notas de crédito o contratos para extraer y validar los datos automáticamente.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Facturas · Boletas · Notas de Crédito · Contratos</span>
+          <button class="btn-secondary" onclick="resetModule('gestion')">Limpiar</button>
+          <button class="btn-primary" id="btn-gestion" onclick="analyzeModule('gestion')" disabled>🔍 Extraer datos</button>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: AUTOMATIZACION ══ -->
+      <div class="view" id="view-automatizacion">
+        <div class="content">
+          <div class="content-inner">
+            <div class="section-header">
+              <span class="section-title">📑 Documento Fuente</span>
+              <div class="section-line"></div>
+            </div>
+            <div class="upload-zone" id="zone-automatizacion" ondragover="onDragOver(event,'zone-automatizacion')" ondragleave="onDragLeave('zone-automatizacion')" ondrop="onDrop(event,'auto-file-input','automatizacion')">
+              <input type="file" id="auto-file-input" accept="image/*,.pdf" onchange="handleFile('automatizacion',this)">
+              <div class="upload-icon">📑</div>
+              <div class="upload-title">Documento Fuente</div>
+              <div class="upload-sub">Factura, boleta, recibo u otro documento<br>Genera el asiento contable automáticamente</div>
+              <div class="upload-kbd">PDF · JPG · PNG</div>
+            </div>
+            <div class="file-preview" id="prev-automatizacion">
+              <span id="prev-automatizacion-icon">📄</span>
+              <div style="flex:1;min-width:0">
+                <div class="file-name" id="prev-automatizacion-name">—</div>
+                <div class="file-size" id="prev-automatizacion-size">—</div>
+              </div>
+              <button class="file-remove" onclick="removeFile('automatizacion')">✕</button>
+            </div>
+
+            <div id="results-automatizacion">
+              <div class="empty-state">
+                <div class="empty-icon">⚙️</div>
+                <div class="empty-title">Asiento automático</div>
+                <div class="empty-sub">Sube cualquier documento fuente y el sistema generará el asiento contable según el Plan de Cuentas chileno (IFRS + SII).</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Plan de Cuentas chileno · IFRS · SII</span>
+          <button class="btn-secondary" onclick="resetModule('automatizacion')">Limpiar</button>
+          <button class="btn-primary" id="btn-automatizacion" onclick="analyzeModule('automatizacion')" disabled>⚙️ Generar asiento</button>
+        </div>
+      </div>
+
+    </div><!-- /views -->
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+'use strict';
+
+// ── GLOBALS ──
+const BASE_URL = '<?= BASE_URL ?>';
+const HIST_KEY = 'fin_hist';
+const MAX_HIST = 50;
+const IMG_MAX_PX = 1600;
+const IMG_QUALITY = 0.88;
+
+// Per-module state
+const STATE = {
+  conciliacion: { files: {} },   // files.cartola, files.libro
+  reporteria:   { files: {} },   // files.reporteria
+  gestion:      { files: [] },   // array of files
+  automatizacion:{ files: {} }   // files.automatizacion
+};
+
+let currentModule = 'conciliacion';
+let spinMsgInterval = null;
+
+const SPIN_MSGS = [
+  'Analizando documento con IA…',
+  'Procesando datos financieros…',
+  'Extrayendo información clave…',
+  'Generando resultados…',
+  'Casi listo…'
+];
+
+const MODULE_META = {
+  conciliacion:   { icon: '⚖️', title: 'Conciliación Bancaria' },
+  reporteria:     { icon: '📊', title: 'Reportería Financiera' },
+  gestion:        { icon: '📄', title: 'Gestión Documental' },
+  automatizacion: { icon: '⚙️', title: 'Automatización Contable' }
+};
+
+// ── INIT ──
+(function init() {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  loadUserName();
+  renderHistory();
+
+  // Tab from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const tab = urlParams.get('tab') || 'conciliacion';
+  selectModule(tab);
+
+  // postMessage from parent
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.tab) selectModule(e.data.tab);
+  });
+
+  document.getElementById('userInput').addEventListener('input', function() {
+    localStorage.setItem('fin_user', this.value);
+  });
+})();
+
+function loadUserName() {
+  const v = localStorage.getItem('fin_user') || '';
+  document.getElementById('userInput').value = v;
+}
+
+// ── MODULE SELECTION ──
+function selectModule(mod) {
+  const mods = ['conciliacion','reporteria','gestion','automatizacion'];
+  if (!mods.includes(mod)) mod = 'conciliacion';
+  currentModule = mod;
+
+  mods.forEach(function(m) {
+    document.getElementById('nav-' + m).classList.toggle('active', m === mod);
+    document.getElementById('view-' + m).classList.toggle('active', m === mod);
+  });
+
+  const meta = MODULE_META[mod];
+  document.getElementById('topbarIcon').textContent = meta.icon;
+  document.getElementById('topbarTitle').textContent = meta.title;
+}
+
+// ── DRAG & DROP ──
+function onDragOver(e, zoneId) {
+  e.preventDefault();
+  document.getElementById(zoneId).classList.add('over');
+}
+function onDragLeave(zoneId) {
+  document.getElementById(zoneId).classList.remove('over');
+}
+function onDrop(e, inputId, key) {
+  e.preventDefault();
+  const zoneId = 'zone-' + (key === 'cartola' || key === 'libro' ? key : key);
+  document.getElementById(zoneId) && document.getElementById(zoneId).classList.remove('over');
+  const files = e.dataTransfer.files;
+  if (!files.length) return;
+  const fakeInput = { files: files };
+  handleFile(key, fakeInput);
+}
+function onDropMulti(e, inputId, key) {
+  e.preventDefault();
+  document.getElementById('zone-' + key).classList.remove('over');
+  const files = e.dataTransfer.files;
+  if (!files.length) return;
+  const fakeInput = { files: files };
+  handleFileMulti(key, fakeInput);
+}
+
+// ── FILE HANDLING ──
+function handleFile(key, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  processFile(file).then(function(b64) {
+    // key can be: 'cartola','libro','reporteria','automatizacion'
+    const mod = getModuleForKey(key);
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: b64, type: file.type };
+    showFilePreview(key, file);
+    updateAnalyzeButton(mod);
+  }).catch(function(err) {
+    showToast('Error procesando archivo: ' + err.message, 'error');
+  });
+}
+
+function handleFileMulti(mod, input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+
+  Promise.all(files.map(function(f) {
+    return processFile(f).then(function(b64) {
+      return { name: f.name, size: f.size, b64: b64, type: f.type };
+    });
+  })).then(function(processed) {
+    STATE[mod].files = STATE[mod].files.concat(processed);
+    renderMultiFileList(mod);
+    updateAnalyzeButton(mod);
+  }).catch(function(err) {
+    showToast('Error procesando archivos: ' + err.message, 'error');
+  });
+}
+
+function getModuleForKey(key) {
+  if (key === 'cartola' || key === 'libro') return 'conciliacion';
+  return key;
+}
+
+function processFile(file) {
+  return new Promise(function(resolve, reject) {
+    if (file.type === 'application/pdf') {
+      pdfToBase64(file).then(resolve).catch(reject);
+    } else {
+      compressImage(file).then(resolve).catch(reject);
+    }
+  });
+}
+
+function compressImage(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        let w = img.width, h = img.height;
+        if (w > IMG_MAX_PX || h > IMG_MAX_PX) {
+          const ratio = Math.min(IMG_MAX_PX / w, IMG_MAX_PX / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', IMG_QUALITY);
+        resolve(dataUrl.split(',')[1]);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function pdfToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const typedArray = new Uint8Array(e.target.result);
+      pdfjsLib.getDocument({ data: typedArray }).promise.then(function(pdf) {
+        const scale = 2;
+        const pages = Math.min(pdf.numPages, 4);
+        const canvasArr = [];
+
+        function renderPage(i) {
+          if (i > pages) {
+            // Stack all pages vertically
+            const widths = canvasArr.map(function(c) { return c.width; });
+            const heights = canvasArr.map(function(c) { return c.height; });
+            const totalW = Math.max.apply(null, widths);
+            const totalH = heights.reduce(function(a, b) { return a + b; }, 0);
+            const out = document.createElement('canvas');
+            out.width = totalW; out.height = totalH;
+            const ctx = out.getContext('2d');
+            let y = 0;
+            canvasArr.forEach(function(c) {
+              ctx.drawImage(c, 0, y);
+              y += c.height;
+            });
+            const dataUrl = out.toDataURL('image/jpeg', IMG_QUALITY);
+            resolve(dataUrl.split(',')[1]);
+            return;
+          }
+          pdf.getPage(i).then(function(page) {
+            const vp = page.getViewport({ scale: scale });
+            const canvas = document.createElement('canvas');
+            canvas.width = vp.width; canvas.height = vp.height;
+            const ctx = canvas.getContext('2d');
+            page.render({ canvasContext: ctx, viewport: vp }).promise.then(function() {
+              canvasArr.push(canvas);
+              renderPage(i + 1);
+            });
+          });
+        }
+        renderPage(1);
+      }).catch(reject);
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function showFilePreview(key, file) {
+  const prev = document.getElementById('prev-' + key);
+  if (!prev) return;
+  document.getElementById('prev-' + key + '-name').textContent = file.name;
+  document.getElementById('prev-' + key + '-size').textContent = formatBytes(file.size);
+  const iconEl = document.getElementById('prev-' + key + '-icon');
+  iconEl.textContent = file.type === 'application/pdf' ? '📕' : '🖼️';
+  prev.classList.add('show');
+  const zone = document.getElementById('zone-' + key);
+  if (zone) zone.classList.add('has-file');
+}
+
+function removeFile(key) {
+  const mod = getModuleForKey(key);
+  if (STATE[mod].files && !Array.isArray(STATE[mod].files)) {
+    delete STATE[mod].files[key];
+  }
+  const prev = document.getElementById('prev-' + key);
+  if (prev) prev.classList.remove('show');
+  const zone = document.getElementById('zone-' + key);
+  if (zone) zone.classList.remove('has-file');
+  updateAnalyzeButton(mod);
+}
+
+function renderMultiFileList(mod) {
+  const list = document.getElementById(mod + '-files-list');
+  const addWrap = document.getElementById(mod + '-add-more-wrap');
+  if (!list) return;
+  const files = STATE[mod].files;
+  if (!files.length) {
+    list.style.display = 'none';
+    if (addWrap) addWrap.style.display = 'none';
+    return;
+  }
+  list.style.display = 'flex';
+  if (addWrap) addWrap.style.display = 'block';
+  list.innerHTML = files.map(function(f, i) {
+    return '<div class="files-list-item">' +
+      '<span>' + (f.type === 'application/pdf' ? '📕' : '🖼️') + '</span>' +
+      '<span class="fli-name">' + esc(f.name) + '</span>' +
+      '<span class="fli-size">' + formatBytes(f.size) + '</span>' +
+      '<button class="fli-remove" onclick="removeMultiFile(\'' + mod + '\',' + i + ')">✕</button>' +
+      '</div>';
+  }).join('');
+  document.getElementById('zone-' + mod).classList.add('has-file');
+}
+
+function removeMultiFile(mod, idx) {
+  STATE[mod].files.splice(idx, 1);
+  renderMultiFileList(mod);
+  updateAnalyzeButton(mod);
+  if (!STATE[mod].files.length) {
+    document.getElementById('zone-' + mod).classList.remove('has-file');
+  }
+}
+
+function updateAnalyzeButton(mod) {
+  const btn = document.getElementById('btn-' + mod);
+  if (!btn) return;
+  let ready = false;
+  if (mod === 'conciliacion') {
+    ready = !!(STATE[mod].files.cartola && STATE[mod].files.libro);
+  } else if (mod === 'gestion') {
+    ready = STATE[mod].files.length > 0;
+  } else {
+    ready = !!(STATE[mod].files[mod]);
+  }
+  btn.disabled = !ready;
+}
+
+function resetModule(mod) {
+  if (mod === 'gestion') {
+    STATE[mod].files = [];
+    renderMultiFileList(mod);
+    document.getElementById('zone-' + mod).classList.remove('has-file');
+  } else if (mod === 'conciliacion') {
+    STATE[mod].files = {};
+    ['cartola','libro'].forEach(function(k) {
+      const prev = document.getElementById('prev-' + k);
+      if (prev) prev.classList.remove('show');
+      const z = document.getElementById('zone-' + k);
+      if (z) z.classList.remove('has-file');
+    });
+  } else {
+    STATE[mod].files = {};
+    const prev = document.getElementById('prev-' + mod);
+    if (prev) prev.classList.remove('show');
+    document.getElementById('zone-' + mod).classList.remove('has-file');
+  }
+  updateAnalyzeButton(mod);
+  showEmptyState(mod);
+}
+
+function showEmptyState(mod) {
+  const r = document.getElementById('results-' + mod);
+  if (!r) return;
+  const empties = {
+    conciliacion: '<div class="empty-state"><div class="empty-icon">⚖️</div><div class="empty-title">Conciliación lista</div><div class="empty-sub">Sube la cartola bancaria y los registros contables, luego presiona Conciliar.</div></div>',
+    reporteria:   '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Análisis financiero</div><div class="empty-sub">Sube un balance, estado de resultados o flujo de caja para obtener métricas y ratios clave.</div></div>',
+    gestion:      '<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-title">Extracción documental</div><div class="empty-sub">Sube facturas, boletas, notas de crédito o contratos para extraer y validar los datos.</div></div>',
+    automatizacion:'<div class="empty-state"><div class="empty-icon">⚙️</div><div class="empty-title">Asiento automático</div><div class="empty-sub">Sube cualquier documento fuente y el sistema generará el asiento contable según el Plan de Cuentas chileno.</div></div>'
+  };
+  r.innerHTML = empties[mod] || '';
+}
+
+// ── CLAUDE INTEGRATION ──
+function callClaudeServer(payload) {
+  return new Promise(function(resolve, reject) {
+    if (!(window.google && google.script && google.script.run)) {
+      reject(new Error('Disponible solo dentro del Web App de Apps Script'));
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(function(r) {
+        try {
+          const obj = JSON.parse(r);
+          if (obj.status !== 200) reject(new Error('HTTP ' + obj.status));
+          else resolve(JSON.parse(obj.body));
+        } catch(e) { reject(e); }
+      })
+      .withFailureHandler(reject)
+      .callClaude(payload);
+  });
+}
+
+function buildImageBlock(b64, mediaType) {
+  return {
+    type: 'image',
+    source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: b64 }
+  };
+}
+
+// ── ANALYZE DISPATCH ──
+function analyzeModule(mod) {
+  const btn = document.getElementById('btn-' + mod);
+  btn.disabled = true;
+  showProgress(true);
+  showSpinner(mod);
+
+  const handlers = {
+    conciliacion:   analyzeConciliacion,
+    reporteria:     analyzeReporteria,
+    gestion:        analyzeGestion,
+    automatizacion: analyzeAutomatizacion
+  };
+
+  handlers[mod]().then(function(result) {
+    showProgress(false);
+    stopSpinMsg();
+    renderResult(mod, result);
+    saveHistory(mod, result);
+  }).catch(function(err) {
+    showProgress(false);
+    stopSpinMsg();
+    btn.disabled = false;
+    renderError(mod, err.message);
+  }).finally(function() {
+    updateAnalyzeButton(mod);
+  });
+}
+
+// ── CONCILIACION ──
+function analyzeConciliacion() {
+  const f = STATE.conciliacion.files;
+  const prompt = `Eres experto en conciliación bancaria chilena. Analiza los documentos adjuntos:
+Documento 1: Cartola bancaria — extrae cada transacción con fecha (DD/MM/YYYY), descripción, monto (número), tipo ("abono"/"cargo")
+Documento 2: Registros contables — extrae cada asiento con fecha, glosa, monto, referencia
+
+Concilia las transacciones: cruza por monto y fecha cercana (±3 días).
+Responde ÚNICAMENTE con JSON válido:
+{
+  "cartola": [{"fecha":"DD/MM/YYYY","descripcion":"...","monto":0,"tipo":"abono|cargo"}],
+  "libro": [{"fecha":"DD/MM/YYYY","glosa":"...","monto":0,"referencia":"..."}],
+  "conciliados": [{"cartola_idx":0,"libro_idx":0,"confianza":"alta|media","diferencia":0}],
+  "solo_cartola": [0],
+  "solo_libro": [0],
+  "saldo_cartola": 0,
+  "saldo_libro": 0,
+  "diferencia_total": 0,
+  "resumen": "texto"
+}`;
+
+  const content = [
+    { type: 'text', text: prompt },
+    buildImageBlock(f.cartola.b64),
+    buildImageBlock(f.libro.b64)
+  ];
+
+  return callClaudeServer({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2048,
+    messages: [{ role: 'user', content: content }]
+  }).then(function(resp) {
+    return extractJSON(resp);
+  });
+}
+
+// ── REPORTERIA ──
+function analyzeReporteria() {
+  const f = STATE.reporteria.files.reporteria;
+  const prompt = `Eres analista financiero senior. Analiza este estado financiero chileno y extrae los datos clave.
+Identifica el tipo (balance general, estado de resultados, flujo de caja) y período.
+Responde ÚNICAMENTE con JSON válido:
+{
+  "tipo": "balance|resultados|flujo|otro",
+  "periodo": "...",
+  "moneda": "CLP|USD|...",
+  "metricas": [{"categoria":"...","nombre":"...","valor":0,"unidad":"$|%|x","nota":"..."}],
+  "ratios": [{"nombre":"...","valor":0,"formula":"...","interpretacion":"bueno|neutro|alerta"}],
+  "resumen_ejecutivo": "...",
+  "alertas": ["..."],
+  "confianza": "alta|media|baja"
+}`;
+
+  return callClaudeServer({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2048,
+    messages: [{ role: 'user', content: [
+      { type: 'text', text: prompt },
+      buildImageBlock(f.b64)
+    ]}]
+  }).then(function(resp) { return extractJSON(resp); });
+}
+
+// ── GESTION ──
+function analyzeGestion() {
+  const files = STATE.gestion.files;
+  const prompt = `Extrae todos los datos de este documento financiero chileno.
+Responde ÚNICAMENTE con JSON válido:
+{
+  "tipo_documento": "factura|boleta|nota_credito|nota_debito|contrato|otro",
+  "numero": "...",
+  "fecha": "DD/MM/YYYY",
+  "emisor": {"rut":"...","nombre":"...","giro":"...","direccion":"..."},
+  "receptor": {"rut":"...","nombre":"...","giro":"..."},
+  "items": [{"descripcion":"...","cantidad":0,"precio_unitario":0,"precio_total":0}],
+  "subtotal": 0,
+  "iva": 0,
+  "total": 0,
+  "moneda": "CLP",
+  "estado": "vigente|anulado|pagado|pendiente",
+  "observaciones": "...",
+  "confianza": "alta|media|baja"
+}`;
+
+  const content = [{ type: 'text', text: prompt }];
+  files.forEach(function(f) {
+    content.push(buildImageBlock(f.b64));
+  });
+
+  return callClaudeServer({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2048,
+    messages: [{ role: 'user', content: content }]
+  }).then(function(resp) { return extractJSON(resp); });
+}
+
+// ── AUTOMATIZACION ──
+function analyzeAutomatizacion() {
+  const f = STATE.automatizacion.files.automatizacion;
+  const prompt = `Eres contador experto en contabilidad chilena (IFRS + normas locales SII).
+Analiza este documento y genera el asiento contable correspondiente.
+Usa cuentas del Plan de Cuentas estándar chileno.
+Responde ÚNICAMENTE con JSON válido:
+{
+  "tipo_operacion": "...",
+  "fecha": "DD/MM/YYYY",
+  "numero_documento": "...",
+  "glosa": "...",
+  "asientos": [
+    {"codigo":"...","cuenta":"...","debe":0,"haber":0,"centro_costo":"..."}
+  ],
+  "total_debe": 0,
+  "total_haber": 0,
+  "cuadrado": true,
+  "notas": "...",
+  "confianza": "alta|media|baja"
+}`;
+
+  return callClaudeServer({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2048,
+    messages: [{ role: 'user', content: [
+      { type: 'text', text: prompt },
+      buildImageBlock(f.b64)
+    ]}]
+  }).then(function(resp) { return extractJSON(resp); });
+}
+
+function extractJSON(resp) {
+  const text = resp.content && resp.content[0] && resp.content[0].text || '';
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('No se encontró JSON en la respuesta');
+  return JSON.parse(match[0]);
+}
+
+// ── RENDER RESULTS ──
+function renderResult(mod, data) {
+  const r = document.getElementById('results-' + mod);
+  if (!r) return;
+  const renders = {
+    conciliacion:   renderConciliacion,
+    reporteria:     renderReporteria,
+    gestion:        renderGestion,
+    automatizacion: renderAutomatizacion
+  };
+  r.innerHTML = renders[mod](data);
+}
+
+function renderError(mod, msg) {
+  const r = document.getElementById('results-' + mod);
+  if (!r) return;
+  r.innerHTML = '<div class="alert-item error result-section"><span class="alert-icon">❌</span>' +
+    '<div><strong>Error al analizar:</strong> ' + esc(msg) + '</div></div>';
+}
+
+// ── RENDER CONCILIACION ──
+function renderConciliacion(d) {
+  const conciliados = (d.conciliados || []).length;
+  const soloCartola = (d.solo_cartola || []).length;
+  const soloLibro = (d.solo_libro || []).length;
+  const diferencia = d.diferencia_total || 0;
+
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // Summary row
+  html += '<div class="summary-row result-section">';
+  html += '<div class="summary-item green"><div class="si-val">' + conciliados + '</div><div class="si-lbl">✓ Conciliados</div></div>';
+  html += '<div class="summary-item amber"><div class="si-val">' + soloCartola + '</div><div class="si-lbl">⚠ Solo cartola</div></div>';
+  html += '<div class="summary-item blue"><div class="si-val">' + soloLibro + '</div><div class="si-lbl">⚠ Solo libro</div></div>';
+  html += '<div class="summary-item ' + (diferencia === 0 ? 'green' : 'red') + '">';
+  html += '<div class="si-val">' + fmtMoney(Math.abs(diferencia)) + '</div>';
+  html += '<div class="si-lbl">Diferencia total</div></div>';
+  html += '</div>';
+
+  // Build index maps
+  const cartola = d.cartola || [];
+  const libro = d.libro || [];
+  const conciliadosArr = d.conciliados || [];
+  const soloCartolaArr = d.solo_cartola || [];
+  const soloLibroArr = d.solo_libro || [];
+
+  const matchedCartola = new Set(conciliadosArr.map(function(c) { return c.cartola_idx; }));
+  const matchedLibro = new Set(conciliadosArr.map(function(c) { return c.libro_idx; }));
+
+  // Full table
+  html += '<div class="card result-section">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--green-l)">⚖️</div><div class="card-title">Detalle de Conciliación</div></div>';
+  html += '<div class="tbl-wrap"><table>';
+  html += '<tr><th>Fecha</th><th>Descripción / Glosa</th><th style="text-align:right">Monto</th><th>Referencia</th><th>Estado</th><th>Confianza</th></tr>';
+
+  // Matched rows
+  conciliadosArr.forEach(function(c) {
+    const ct = cartola[c.cartola_idx] || {};
+    const lb = libro[c.libro_idx] || {};
+    html += '<tr class="row-green">';
+    html += '<td>' + esc(ct.fecha || lb.fecha || '—') + '</td>';
+    html += '<td>' + esc(ct.descripcion || lb.glosa || '—') + '</td>';
+    html += '<td class="num" style="text-align:right">' + fmtMoney(ct.monto || lb.monto || 0) + '</td>';
+    html += '<td>' + esc(lb.referencia || '—') + '</td>';
+    html += '<td><span class="badge b-green">✓ Conciliado</span></td>';
+    html += '<td><span class="conf-badge conf-' + (c.confianza || 'alta') + '">' + (c.confianza || 'alta') + '</span></td>';
+    html += '</tr>';
+  });
+
+  // Solo cartola
+  soloCartolaArr.forEach(function(idx) {
+    const ct = cartola[idx] || {};
+    html += '<tr class="row-amber">';
+    html += '<td>' + esc(ct.fecha || '—') + '</td>';
+    html += '<td>' + esc(ct.descripcion || '—') + '</td>';
+    html += '<td class="num" style="text-align:right">' + fmtMoney(ct.monto || 0) + '</td>';
+    html += '<td>—</td>';
+    html += '<td><span class="badge b-amber">⚠ Solo cartola</span></td>';
+    html += '<td>—</td>';
+    html += '</tr>';
+  });
+
+  // Solo libro
+  soloLibroArr.forEach(function(idx) {
+    const lb = libro[idx] || {};
+    html += '<tr class="row-blue">';
+    html += '<td>' + esc(lb.fecha || '—') + '</td>';
+    html += '<td>' + esc(lb.glosa || '—') + '</td>';
+    html += '<td class="num" style="text-align:right">' + fmtMoney(lb.monto || 0) + '</td>';
+    html += '<td>' + esc(lb.referencia || '—') + '</td>';
+    html += '<td><span class="badge b-blue">📚 Solo libro</span></td>';
+    html += '<td>—</td>';
+    html += '</tr>';
+  });
+
+  html += '</table></div></div>';
+
+  // Saldos
+  html += '<div class="card result-section">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--blue-l)">💰</div><div class="card-title">Saldos</div></div>';
+  html += '<div class="card-body">';
+  html += '<div class="totals-row">';
+  html += '<div class="total-item"><div class="total-label">Saldo Cartola</div><div class="total-value">' + fmtMoney(d.saldo_cartola || 0) + '</div></div>';
+  html += '<div class="total-divider"></div>';
+  html += '<div class="total-item"><div class="total-label">Saldo Libro</div><div class="total-value">' + fmtMoney(d.saldo_libro || 0) + '</div></div>';
+  html += '<div class="total-divider"></div>';
+  html += '<div class="total-item grand"><div class="total-label">Diferencia</div><div class="total-value" style="color:' + (diferencia === 0 ? 'var(--green-d)' : 'var(--red-d)') + '">' + fmtMoney(Math.abs(diferencia)) + '</div></div>';
+  html += '</div></div></div>';
+
+  // Resumen
+  if (d.resumen) {
+    html += '<div class="exec-summary result-section"><p>' + esc(d.resumen) + '</p></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ── RENDER REPORTERIA ──
+function renderReporteria(d) {
+  const tipoLabels = { balance: 'Balance General', resultados: 'Estado de Resultados', flujo: 'Flujo de Caja', otro: 'Documento Financiero' };
+  const tipoColors = { balance: 'b-blue', resultados: 'b-green', flujo: 'b-purple', otro: 'b-gray' };
+
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // Doc header
+  html += '<div class="doc-header result-section">';
+  html += '<div class="doc-type-icon" style="background:var(--blue-l)">📊</div>';
+  html += '<div style="flex:1">';
+  html += '<div style="display:flex;align-items:center;gap:8px">';
+  html += '<span class="badge ' + (tipoColors[d.tipo] || 'b-gray') + '">' + (tipoLabels[d.tipo] || d.tipo || 'Financiero') + '</span>';
+  html += '<span class="conf-badge conf-' + (d.confianza || 'media') + '">' + (d.confianza || 'media') + '</span>';
+  html += '</div>';
+  html += '<div class="doc-number" style="font-size:14px;margin-top:6px">' + esc(d.periodo || 'Período no especificado') + '</div>';
+  html += '<div class="doc-date">Moneda: ' + esc(d.moneda || 'CLP') + '</div>';
+  html += '</div></div>';
+
+  // Top 4 KPIs
+  const metricas = d.metricas || [];
+  if (metricas.length) {
+    const top4 = metricas.slice(0, 4);
+    html += '<div class="kpi-grid result-section">';
+    top4.forEach(function(m, i) {
+      const colors = ['neutral','good','warn','alert'];
+      const cls = colors[i % colors.length];
+      html += '<div class="kpi-card ' + cls + '">';
+      html += '<div class="kpi-accent"></div>';
+      html += '<div class="kpi-cat">' + esc(m.categoria || '') + '</div>';
+      html += '<div class="kpi-val">' + fmtMetricVal(m.valor, m.unidad) + '<span class="kpi-unit">' + esc(m.unidad || '') + '</span></div>';
+      html += '<div class="kpi-name">' + esc(m.nombre || '') + '</div>';
+      if (m.nota) html += '<div class="kpi-note">' + esc(m.nota) + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Ratios table
+  const ratios = d.ratios || [];
+  if (ratios.length) {
+    html += '<div class="card result-section">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--purple-l)">📐</div><div class="card-title">Ratios Financieros</div></div>';
+    html += '<div class="tbl-wrap"><table>';
+    html += '<tr><th>Ratio</th><th style="text-align:right">Valor</th><th>Fórmula</th><th>Interpretación</th></tr>';
+    ratios.forEach(function(r) {
+      const cls = r.interpretacion === 'bueno' ? 'ratio-row-good' : r.interpretacion === 'alerta' ? 'ratio-row-alert' : 'ratio-row-neutro';
+      const badgeCls = r.interpretacion === 'bueno' ? 'b-green' : r.interpretacion === 'alerta' ? 'b-red' : 'b-gray';
+      html += '<tr class="' + cls + '">';
+      html += '<td><strong>' + esc(r.nombre || '') + '</strong></td>';
+      html += '<td class="num" style="text-align:right">' + (r.valor !== undefined ? r.valor : '—') + '</td>';
+      html += '<td style="color:var(--n400);font-size:10px;font-family:var(--mono)">' + esc(r.formula || '') + '</td>';
+      html += '<td><span class="badge ' + badgeCls + '">' + esc(r.interpretacion || 'neutro') + '</span></td>';
+      html += '</tr>';
+    });
+    html += '</table></div></div>';
+  }
+
+  // More metrics
+  if (metricas.length > 4) {
+    html += '<div class="card result-section">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--green-l)">📈</div><div class="card-title">Todas las métricas</div></div>';
+    html += '<div class="tbl-wrap"><table>';
+    html += '<tr><th>Categoría</th><th>Nombre</th><th style="text-align:right">Valor</th><th>Nota</th></tr>';
+    metricas.slice(4).forEach(function(m) {
+      html += '<tr><td>' + esc(m.categoria || '') + '</td><td>' + esc(m.nombre || '') + '</td>';
+      html += '<td class="num" style="text-align:right">' + fmtMetricVal(m.valor, m.unidad) + ' ' + esc(m.unidad || '') + '</td>';
+      html += '<td style="color:var(--n400);font-size:10px">' + esc(m.nota || '') + '</td></tr>';
+    });
+    html += '</table></div></div>';
+  }
+
+  // Executive summary
+  if (d.resumen_ejecutivo) {
+    html += '<div class="card result-section">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--amber-l)">📝</div><div class="card-title">Resumen Ejecutivo</div></div>';
+    html += '<div class="card-body"><div class="exec-summary"><p>' + esc(d.resumen_ejecutivo) + '</p></div></div>';
+    html += '</div>';
+  }
+
+  // Alerts
+  const alertas = d.alertas || [];
+  if (alertas.length) {
+    html += '<div class="alerts-list result-section">';
+    alertas.forEach(function(a) {
+      html += '<div class="alert-item warn"><span class="alert-icon">⚠️</span><span>' + esc(a) + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ── RENDER GESTION ──
+function renderGestion(d) {
+  const tipoIcons = { factura: '🧾', boleta: '🏪', nota_credito: '📉', nota_debito: '📈', contrato: '📋', otro: '📄' };
+  const estadoClass = { vigente: 'st-vigente', pagado: 'st-pagado', pendiente: 'st-pendiente', anulado: 'st-anulado' };
+
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // Doc header
+  html += '<div class="doc-header result-section">';
+  html += '<div class="doc-type-icon" style="background:var(--purple-l)">' + (tipoIcons[d.tipo_documento] || '📄') + '</div>';
+  html += '<div style="flex:1">';
+  html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+  html += '<span class="badge b-purple">' + esc((d.tipo_documento || 'documento').toUpperCase()) + '</span>';
+  html += '<span class="st-badge ' + (estadoClass[d.estado] || 'st-pendiente') + '">' + esc(d.estado || 'pendiente') + '</span>';
+  html += '<span class="conf-badge conf-' + (d.confianza || 'media') + '">' + (d.confianza || 'media') + '</span>';
+  html += '</div>';
+  html += '<div class="doc-number">N° ' + esc(d.numero || '—') + '</div>';
+  html += '<div class="doc-date">Fecha: ' + esc(d.fecha || '—') + ' &nbsp;·&nbsp; Moneda: ' + esc(d.moneda || 'CLP') + '</div>';
+  html += '</div></div>';
+
+  // Party cards
+  html += '<div class="party-grid result-section">';
+
+  // Emisor
+  const em = d.emisor || {};
+  html += '<div class="party-card">';
+  html += '<div class="party-role">🏢 Emisor</div>';
+  html += '<div class="party-name">' + esc(em.nombre || '—') + '</div>';
+  if (em.rut) {
+    html += '<div class="party-row"><span class="party-key">RUT</span><span class="party-val" style="font-family:var(--mono)">' + esc(em.rut) + '</span>';
+    html += '<button class="copy-btn" onclick="copyText(\'' + esc(em.rut) + '\')" title="Copiar RUT">📋</button></div>';
+  }
+  if (em.giro) html += '<div class="party-row"><span class="party-key">Giro</span><span class="party-val">' + esc(em.giro) + '</span></div>';
+  if (em.direccion) html += '<div class="party-row"><span class="party-key">Dir.</span><span class="party-val">' + esc(em.direccion) + '</span></div>';
+  html += '</div>';
+
+  // Receptor
+  const re = d.receptor || {};
+  html += '<div class="party-card">';
+  html += '<div class="party-role">🏬 Receptor</div>';
+  html += '<div class="party-name">' + esc(re.nombre || '—') + '</div>';
+  if (re.rut) {
+    html += '<div class="party-row"><span class="party-key">RUT</span><span class="party-val" style="font-family:var(--mono)">' + esc(re.rut) + '</span>';
+    html += '<button class="copy-btn" onclick="copyText(\'' + esc(re.rut) + '\')" title="Copiar RUT">📋</button></div>';
+  }
+  if (re.giro) html += '<div class="party-row"><span class="party-key">Giro</span><span class="party-val">' + esc(re.giro) + '</span></div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  // Items table
+  const items = d.items || [];
+  if (items.length) {
+    html += '<div class="card result-section">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--blue-l)">📋</div><div class="card-title">Detalle de Items</div></div>';
+    html += '<div class="tbl-wrap"><table>';
+    html += '<tr><th>Descripción</th><th style="text-align:right">Cant.</th><th style="text-align:right">P. Unitario</th><th style="text-align:right">P. Total</th></tr>';
+    items.forEach(function(it) {
+      html += '<tr>';
+      html += '<td>' + esc(it.descripcion || '') + '</td>';
+      html += '<td class="num" style="text-align:right">' + (it.cantidad || 0) + '</td>';
+      html += '<td class="num" style="text-align:right">' + fmtMoney(it.precio_unitario || 0) + '</td>';
+      html += '<td class="num" style="text-align:right">' + fmtMoney(it.precio_total || 0) + '</td>';
+      html += '</tr>';
+    });
+    html += '</table></div></div>';
+  }
+
+  // Totals
+  html += '<div class="totals-row result-section">';
+  html += '<div class="total-item"><div class="total-label">Subtotal</div><div class="total-value">' + fmtMoney(d.subtotal || 0) + '</div></div>';
+  html += '<div class="total-divider"></div>';
+  html += '<div class="total-item"><div class="total-label">IVA 19%</div><div class="total-value">' + fmtMoney(d.iva || 0) + '</div></div>';
+  html += '<div class="total-divider"></div>';
+  html += '<div class="total-item grand">';
+  html += '<div class="total-label">TOTAL</div>';
+  html += '<div style="display:flex;align-items:center;gap:6px">';
+  html += '<div class="total-value">' + fmtMoney(d.total || 0) + '</div>';
+  html += '<button class="btn-icon" onclick="copyText(\'' + (d.total || 0) + '\')" title="Copiar total">📋</button>';
+  html += '</div></div>';
+  html += '</div>';
+
+  // Observaciones
+  if (d.observaciones) {
+    html += '<div class="notes-box result-section">ℹ️ ' + esc(d.observaciones) + '</div>';
+  }
+
+  // Save to Sheets
+  html += '<div style="display:flex;gap:8px;padding-top:4px" class="result-section">';
+  html += '<button class="btn-secondary" onclick="saveGestionToSheets(' + JSON.stringify(d).replace(/'/g,"&#39;").replace(/</g,"&lt;") + ')">📊 Guardar en Sheets</button>';
+  html += '</div>';
+
+  html += '</div>';
+  return html;
+}
+
+// ── RENDER AUTOMATIZACION ──
+function renderAutomatizacion(d) {
+  const asientos = d.asientos || [];
+
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // Operation header
+  html += '<div class="asiento-header result-section">';
+  html += '<div class="ah-item"><div class="ah-label">Tipo de Operación</div><div class="ah-value">' + esc(d.tipo_operacion || '—') + '</div></div>';
+  html += '<div class="ah-item"><div class="ah-label">Fecha</div><div class="ah-value" style="font-family:var(--mono)">' + esc(d.fecha || '—') + '</div></div>';
+  html += '<div class="ah-item"><div class="ah-label">N° Documento</div><div class="ah-value" style="font-family:var(--mono)">' + esc(d.numero_documento || '—') + '</div></div>';
+  html += '<div class="ah-item"><div class="ah-label">Glosa</div><div class="ah-value">' + esc(d.glosa || '—') + '</div></div>';
+  html += '</div>';
+
+  // Accounting entry table
+  html += '<div class="card result-section">';
+  html += '<div class="card-header">';
+  html += '<div class="card-icon" style="background:var(--amber-l)">⚙️</div>';
+  html += '<div class="card-title">Asiento Contable</div>';
+  html += '<span class="conf-badge conf-' + (d.confianza || 'media') + '" style="margin-left:auto">' + (d.confianza || 'media') + '</span>';
+  html += '</div>';
+  html += '<div class="tbl-wrap"><table>';
+  html += '<tr><th>Código</th><th>Cuenta</th><th>Centro Costo</th><th style="text-align:right">Debe</th><th style="text-align:right">Haber</th></tr>';
+  asientos.forEach(function(a) {
+    html += '<tr>';
+    html += '<td style="font-family:var(--mono);font-size:11px">' + esc(a.codigo || '') + '</td>';
+    html += '<td>' + esc(a.cuenta || '') + '</td>';
+    html += '<td style="color:var(--n400);font-size:10px">' + esc(a.centro_costo || '') + '</td>';
+    html += '<td class="num" style="text-align:right;color:var(--green-d)">' + (a.debe > 0 ? fmtMoney(a.debe) : '—') + '</td>';
+    html += '<td class="num" style="text-align:right;color:var(--red-d)">' + (a.haber > 0 ? fmtMoney(a.haber) : '—') + '</td>';
+    html += '</tr>';
+  });
+  // Totals row
+  html += '<tr class="tbl-foot">';
+  html += '<td colspan="3" style="text-align:right">TOTAL</td>';
+  html += '<td class="num" style="text-align:right;color:var(--green-d)">' + fmtMoney(d.total_debe || 0) + '</td>';
+  html += '<td class="num" style="text-align:right;color:var(--red-d)">' + fmtMoney(d.total_haber || 0) + '</td>';
+  html += '</tr>';
+  html += '</table></div></div>';
+
+  // Balance indicator
+  const cuadrado = d.cuadrado !== false;
+  html += '<div class="balance-indicator ' + (cuadrado ? 'ok' : 'fail') + ' result-section">';
+  html += (cuadrado ? '✓ Asiento cuadrado' : '✗ Asiento descuadrado — revisar');
+  if (!cuadrado) {
+    const diff = Math.abs((d.total_debe || 0) - (d.total_haber || 0));
+    html += ' &nbsp; Diferencia: ' + fmtMoney(diff);
+  }
+  html += '</div>';
+
+  // Notes
+  if (d.notas) {
+    html += '<div class="notes-box result-section">ℹ️ ' + esc(d.notas) + '</div>';
+  }
+
+  // Actions
+  html += '<div style="display:flex;gap:8px;padding-top:4px" class="result-section">';
+  html += '<button class="btn-secondary" onclick="exportAsientoCSV(' + JSON.stringify(d).replace(/</g,'&lt;').replace(/'/g,"&#39;") + ')">⬇️ Exportar CSV</button>';
+  html += '<button class="btn-secondary" onclick="saveAutoToSheets(' + JSON.stringify(d).replace(/</g,'&lt;').replace(/'/g,"&#39;") + ')">📊 Guardar en Sheets</button>';
+  html += '</div>';
+
+  html += '</div>';
+  return html;
+}
+
+// ── SHEETS INTEGRATION ──
+function saveGestionToSheets(d) {
+  if (!(window.google && google.script && google.script.run)) {
+    showToast('Solo disponible en el Web App de Apps Script', 'error');
+    return;
+  }
+  const analista = document.getElementById('userInput').value || 'Sin nombre';
+  const now = new Date();
+  const payload = {
+    fecha: now.toLocaleDateString('es-CL'),
+    hora: now.toLocaleTimeString('es-CL'),
+    analista: analista,
+    herramienta: 'finanzas',
+    tipo_doc: d.tipo_documento || '',
+    numero: d.numero || '',
+    emisor_rut: (d.emisor || {}).rut || '',
+    emisor_nombre: (d.emisor || {}).nombre || '',
+    receptor_rut: (d.receptor || {}).rut || '',
+    receptor_nombre: (d.receptor || {}).nombre || '',
+    subtotal: d.subtotal || 0,
+    iva: d.iva || 0,
+    total: d.total || 0,
+    estado: d.estado || '',
+    confianza: d.confianza || ''
+  };
+  google.script.run
+    .withSuccessHandler(function() { showToast('Guardado en Sheets ✓', 'success'); })
+    .withFailureHandler(function(e) { showToast('Error al guardar: ' + e.message, 'error'); })
+    .appendToSheet(payload);
+}
+
+function saveAutoToSheets(d) {
+  if (!(window.google && google.script && google.script.run)) {
+    showToast('Solo disponible en el Web App de Apps Script', 'error');
+    return;
+  }
+  const analista = document.getElementById('userInput').value || 'Sin nombre';
+  const now = new Date();
+  const payload = {
+    fecha: now.toLocaleDateString('es-CL'),
+    hora: now.toLocaleTimeString('es-CL'),
+    analista: analista,
+    herramienta: 'finanzas',
+    tipo_doc: 'asiento_contable',
+    numero: d.numero_documento || '',
+    glosa: d.glosa || '',
+    total_debe: d.total_debe || 0,
+    total_haber: d.total_haber || 0,
+    cuadrado: d.cuadrado ? 'SI' : 'NO',
+    confianza: d.confianza || ''
+  };
+  google.script.run
+    .withSuccessHandler(function() { showToast('Guardado en Sheets ✓', 'success'); })
+    .withFailureHandler(function(e) { showToast('Error al guardar: ' + e.message, 'error'); })
+    .appendToSheet(payload);
+}
+
+// ── CSV EXPORT ──
+function exportAsientoCSV(d) {
+  const asientos = d.asientos || [];
+  const rows = [['Codigo','Cuenta','Centro Costo','Debe','Haber']];
+  asientos.forEach(function(a) {
+    rows.push([a.codigo || '', a.cuenta || '', a.centro_costo || '', a.debe || 0, a.haber || 0]);
+  });
+  rows.push(['', 'TOTAL', '', d.total_debe || 0, d.total_haber || 0]);
+
+  const csv = rows.map(function(r) {
+    return r.map(function(v) { return '"' + String(v).replace(/"/g,'""') + '"'; }).join(',');
+  }).join('\n');
+
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'asiento_' + (d.numero_documento || 'sin_numero') + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV exportado ✓', 'success');
+}
+
+// ── HISTORY ──
+function saveHistory(mod, data) {
+  const hist = getHistory();
+  const analista = document.getElementById('userInput').value || '';
+  const resumenes = {
+    conciliacion:   (data.conciliados || []).length + ' conciliados · Dif: ' + fmtMoney(Math.abs(data.diferencia_total || 0)),
+    reporteria:     (data.tipo || 'financiero') + ' · ' + (data.periodo || ''),
+    gestion:        (data.tipo_documento || 'doc') + ' N°' + (data.numero || '') + ' · ' + fmtMoney(data.total || 0),
+    automatizacion: (data.tipo_operacion || 'asiento') + ' · ' + fmtMoney(data.total_debe || 0)
+  };
+  const item = {
+    id: Date.now(),
+    modulo: mod,
+    timestamp: new Date().toISOString(),
+    resumen: resumenes[mod] || 'Análisis completado',
+    analista: analista,
+    data: data
+  };
+  hist.unshift(item);
+  if (hist.length > MAX_HIST) hist.length = MAX_HIST;
+  localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+  renderHistory();
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function renderHistory() {
+  const hist = getHistory();
+  const list = document.getElementById('histList');
+  const count = document.getElementById('histCount');
+  count.textContent = hist.length;
+
+  if (!hist.length) {
+    list.innerHTML = '<div class="hi-empty">No hay análisis aún.</div>';
+    return;
+  }
+
+  const modIcons = { conciliacion: '⚖️', reporteria: '📊', gestion: '📄', automatizacion: '⚙️' };
+
+  list.innerHTML = hist.map(function(h) {
+    const ts = new Date(h.timestamp);
+    const tsStr = ts.toLocaleDateString('es-CL') + ' ' + ts.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+    return '<div class="hi" onclick="selectModule(\'' + h.modulo + '\')">' +
+      '<div class="hi-mod">' + (modIcons[h.modulo] || '') + ' ' + h.modulo + '</div>' +
+      '<div class="hi-title">' + esc(h.resumen) + '</div>' +
+      (h.analista ? '<div class="hi-ts">' + esc(h.analista) + '</div>' : '') +
+      '<div class="hi-ts">' + tsStr + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function clearHistory() {
+  if (!confirm('¿Limpiar todo el historial?')) return;
+  localStorage.removeItem(HIST_KEY);
+  renderHistory();
+  showToast('Historial limpiado', 'success');
+}
+
+// ── UI HELPERS ──
+function showProgress(show) {
+  const bar = document.getElementById('progBar');
+  bar.classList.toggle('hidden', !show);
+}
+
+function showSpinner(mod) {
+  const r = document.getElementById('results-' + mod);
+  if (!r) return;
+  let msgIdx = 0;
+  r.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><div class="spin-msg" id="spinMsg">' + SPIN_MSGS[0] + '</div></div>';
+  spinMsgInterval = setInterval(function() {
+    msgIdx = (msgIdx + 1) % SPIN_MSGS.length;
+    const el = document.getElementById('spinMsg');
+    if (el) el.textContent = SPIN_MSGS[msgIdx];
+  }, 2500);
+}
+
+function stopSpinMsg() {
+  if (spinMsgInterval) { clearInterval(spinMsgInterval); spinMsgInterval = null; }
+}
+
+let toastTimer = null;
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show' + (type ? ' ' + type : '');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { t.className = ''; }, 3000);
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('Copiado: ' + text, 'success');
+  }).catch(function() {
+    showToast('No se pudo copiar', 'error');
+  });
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sz = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sz[i];
+}
+
+function fmtMoney(v) {
+  if (v === undefined || v === null) return '—';
+  const n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  if (Math.abs(n) >= 1000) {
+    return '$' + n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+  return '$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtMetricVal(val, unit) {
+  if (val === undefined || val === null) return '—';
+  const n = parseFloat(val);
+  if (isNaN(n)) return String(val);
+  if (unit === '%') return n.toFixed(1);
+  if (unit === 'x') return n.toFixed(2);
+  if (unit === '$') return n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n.toLocaleString('es-CL');
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

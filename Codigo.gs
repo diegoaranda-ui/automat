@@ -4,7 +4,7 @@
 
 function doGet(e) {
   const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'hub';
-  const validPages = ['hub', 'docscan', 'b2bscan', 'validador'];
+  const validPages = ['hub', 'docscan', 'b2bscan', 'validador', 'finanzas'];
   const target = validPages.includes(page) ? page : 'hub';
   return buildPage(target);
 }
