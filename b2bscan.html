@@ -282,7 +282,8 @@ html,body{height:100%;font-family:'IBM Plex Sans',sans-serif;font-size:13px;line
 <div class="toast" id="toast"></div>
 <div id="sheetsPopup">
   <div class="sp-head"><span class="sp-title">→ Sheets</span><button class="sp-close" onclick="document.getElementById('sheetsPopup').classList.remove('show')">✕</button></div>
-  <div class="sp-row"><input class="sp-inp" id="sheetsUrl" placeholder="URL Web App de Apps Script"><button class="sp-btn" id="btnSheets" onclick="sendToSheets()">Enviar</button></div>
+  <div class="sp-row"><button class="sp-btn" id="btnSheets" onclick="sendToSheets()" style="flex:1">📊 Guardar en el panel</button></div>
+  <div class="sp-row" id="sheetsLinkRow" style="display:none"><a class="sp-btn" id="sheetsLink" href="#" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none">↗ Abrir panel</a></div>
   <div class="sp-status" id="sheetsStatus"></div>
 </div>
 
@@ -878,19 +879,44 @@ function exportCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='b2bscan_'+new Date().toLocaleDateString('es-CL').replace(/\//g,'-')+'.csv';a.click();toast('CSV exportado');
 }
 
-// ── SHEETS ────────────────────────────────────────
-async function sendToSheets(){
-  const url=(document.getElementById('sheetsUrl')?.value||'').trim();
-  if(!url||!url.startsWith('https://')){setSpStatus('err','⚠ Pega la URL del Web App');return;}
-  localStorage.setItem('b2b_sheets_url',url);
+// ── SHEETS (nativo vía google.script.run) ─────────
+function sendToSheets(){
+  if(!(window.google && google.script && google.script.run)){
+    setSpStatus('err','✗ Disponible sólo dentro del Web App de Apps Script');return;
+  }
   const d=MS[activeTab].doc||{};
   const now=new Date();
-  const payload={fecha:now.toLocaleDateString('es-CL'),hora:now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),analista:getUser(),tipo_doc:d._docType||'—',rut:d.rut||'—',razon_social:d.razon_social||'—',cobrar_percibir:d.cobrar_percibir||false,en_un_dia:d.en_un_dia||false,tipo_empresa:d.tipo_empresa||'—',vigente:d.vigente||false,fecha_vigencia:d.fecha_vigencia||'—',estado_tributario:d.estado_tributario||'—',confianza:d.confianza||'—',observaciones:d.observaciones||''};
+  const flags=[];
+  if(d.cobrar_percibir) flags.push('COBRAR Y PERCIBIR');
+  if(d.en_un_dia) flags.push('Constitución en un día');
+  if(d.tipo_empresa && d.tipo_empresa!=='—') flags.push(d.tipo_empresa);
+  if(d.estado_tributario && d.estado_tributario!=='—') flags.push('SII: '+d.estado_tributario);
+  const obs=[d.observaciones||'', flags.join(' · ')].filter(Boolean).join(' — ');
+  const payload={
+    fecha:now.toLocaleDateString('es-CL'),
+    hora:now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),
+    analista:getUser(),
+    herramienta:'B2B Scan',
+    tipo_doc:d._docType||'',
+    patente:'',
+    rut:d.rut||'',
+    nombre:d.razon_social||'',
+    municipio:'',
+    vigencia:d.vigente?'Vigente':'Revisar',
+    confianza:d.confianza||'',
+    tiempo_fmt:'',
+    observaciones:obs
+  };
   const btn=document.getElementById('btnSheets');if(btn)btn.disabled=true;
   setSpStatus('sending','⏳ Guardando…');
-  try{await fetch(url+'?'+new URLSearchParams(payload).toString(),{method:'GET',mode:'no-cors'});setSpStatus('ok','✅ Guardado');toast('Guardado en Sheets');}
-  catch(e){setSpStatus('err','✗ Error de red');}
-  finally{if(btn)btn.disabled=false;}
+  google.script.run
+    .withSuccessHandler(function(url){
+      setSpStatus('ok','✅ Guardado en el panel');toast('Guardado en Sheets');
+      if(url){const row=document.getElementById('sheetsLinkRow'),a=document.getElementById('sheetsLink');if(a)a.href=url;if(row)row.style.display='flex';}
+      if(btn)btn.disabled=false;
+    })
+    .withFailureHandler(function(err){setSpStatus('err','✗ '+((err&&err.message)||'Error al guardar'));if(btn)btn.disabled=false;})
+    .appendToSheet(payload);
 }
 function setSpStatus(t,m){const el=document.getElementById('sheetsStatus');if(!el)return;el.className='sp-status '+t;el.textContent=m;}
 
@@ -910,8 +936,6 @@ window.addEventListener('load',()=>{
   const u=localStorage.getItem('b2b_user');
   if(u)document.getElementById('userInp').value=u;
   document.getElementById('userInp').addEventListener('input',e=>localStorage.setItem('b2b_user',e.target.value));
-  const su=localStorage.getItem('b2b_sheets_url');
-  if(su)document.getElementById('sheetsUrl').value=su;
   renderHist();
   document.addEventListener('paste',e=>{
     const img=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));

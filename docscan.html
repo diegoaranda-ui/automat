@@ -554,12 +554,14 @@ html,body{
 
     <div id="sheetsPopup">
       <div class="sp-head">
-        <span class="sp-title">Guardar en Google Sheets</span>
+        <span class="sp-title">Guardar en el panel de inspecciones</span>
         <button class="sp-close" onclick="document.getElementById('sheetsPopup').classList.remove('show')">✕</button>
       </div>
       <div class="sp-row">
-        <input class="sp-inp" id="sheetsUrl" placeholder="URL del Web App..." oninput="localStorage.setItem('kpi_sheets_url',this.value)">
-        <button class="sp-btn" id="btnSheets" onclick="sendToSheets()">Enviar</button>
+        <button class="sp-btn" id="btnSheets" onclick="sendToSheets()" style="flex:1">📊 Guardar inspección en Sheets</button>
+      </div>
+      <div class="sp-row" id="sheetsLinkRow" style="display:none">
+        <a class="sp-btn" id="sheetsLink" href="#" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;background:rgba(0,160,96,.12);color:#34d399;border:1px solid rgba(16,185,129,.3)">↗ Abrir panel</a>
       </div>
       <div class="sp-status" id="sheetsStatus"></div>
     </div>
@@ -2001,23 +2003,25 @@ window.saveHist = function(doc){
 
 window.addEventListener('load', ()=>{
   kpiUpdateStats();
-  const saved=localStorage.getItem('kpi_sheets_url');
-  if(saved){ const inp=document.getElementById('sheetsUrl'); if(inp) inp.value=saved; }
 });
 
 function showSheetsPopup(){
   document.getElementById('sheetsPopup').classList.add('show');
 }
 
-// ── ENVIAR A GOOGLE SHEETS (fetch a Apps Script Web App) ─────────────
-async function sendToSheets(){
-  const url=(document.getElementById('sheetsUrl')?.value||'').trim();
-  if(!url||!url.startsWith('https://')){
-    setSpStatus('err','⚠ Pega la URL del Web App de Apps Script');
+// ── ENVIAR A GOOGLE SHEETS (nativo vía google.script.run) ─────────────
+// Calcula el estado de vigencia a partir del vencimiento detectado.
+function vigenciaDe(doc){
+  const f = parseVencimiento(doc);
+  if(!f) return doc.tipo && /estatuto|poder|vigencia/i.test(doc.tipo) ? 'Revisar' : '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  return f < today ? 'Vencido' : 'Vigente';
+}
+function sendToSheets(){
+  if(!(window.google && google.script && google.script.run)){
+    setSpStatus('err','✗ Disponible sólo dentro del Web App de Apps Script');
     return;
   }
-  localStorage.setItem('kpi_sheets_url', url);
-
   const doc  = window._lastDoc  || {};
   const sess = window._lastSession || {};
   const now  = new Date();
@@ -2026,13 +2030,14 @@ async function sendToSheets(){
     fecha:         now.toLocaleDateString('es-CL'),
     hora:          now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}),
     analista:      getUser()||'Anónimo',
-    patente:       doc.patentePlain||doc.patente||'—',
-    rut:           doc.rut||'—',
-    nombre:        doc.nombre||'—',
-    municipio:     doc.municipio||doc._muName||'—',
-    tipo_doc:      doc.tipo||'—',
-    confianza:     doc.confianza||'—',
-    segundos:      sess.segundos||0,
+    herramienta:   'DocScan',
+    tipo_doc:      doc.tipo||'',
+    patente:       doc.patentePlain||doc.patente||'',
+    rut:           doc.rut||'',
+    nombre:        doc.nombre||'',
+    municipio:     doc.municipio||doc._muName||'',
+    vigencia:      vigenciaDe(doc),
+    confianza:     doc.confianza||'',
     tiempo_fmt:    kpiFmt(sess.segundos||0),
     observaciones: doc.observaciones||'',
   };
@@ -2041,16 +2046,21 @@ async function sendToSheets(){
   if(btn) btn.disabled=true;
   setSpStatus('sending','⏳ Guardando...');
 
-  try{
-    const qs=new URLSearchParams(payload).toString();
-    await fetch(url+'?'+qs,{method:'GET',mode:'no-cors'});
-    setSpStatus('ok','✅ Guardado en Sheets');
-    toast('Guardado en Sheets ✓');
-  } catch(e){
-    setSpStatus('err','✗ Error de red — revisa la URL');
-  } finally{
-    if(btn) btn.disabled=false;
-  }
+  google.script.run
+    .withSuccessHandler(function(url){
+      setSpStatus('ok','✅ Guardado en el panel');
+      toast('Guardado en Sheets ✓');
+      if(url){
+        const row=document.getElementById('sheetsLinkRow'), a=document.getElementById('sheetsLink');
+        if(a) a.href=url; if(row) row.style.display='flex';
+      }
+      if(btn) btn.disabled=false;
+    })
+    .withFailureHandler(function(err){
+      setSpStatus('err','✗ '+((err&&err.message)||'Error al guardar'));
+      if(btn) btn.disabled=false;
+    })
+    .appendToSheet(payload);
 }
 
 function setSpStatus(type,msg){

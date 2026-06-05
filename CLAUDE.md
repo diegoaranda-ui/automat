@@ -49,6 +49,10 @@ No build step. Deploy manually:
 - `validatePlate(v)` — accepts `LLLL-NN`, `LLL-NNN`, `LL-NNNN`.
 - `parseVencimiento(doc)` — only returns a date when an explicit expiration label/keyword is present (never infers from permit year).
 
+## Google Sheets panel
+
+`Codigo.gs` holds the integration. `appendToSheet(payload)` is called from the client via `google.script.run` (no external Web App URL) and appends a row to the `Registros` tab. `setupKavakSheet()` is a one-time formatter: dark header, banding, filter, conditional-format traffic lights on the Vigencia column, and a `Dashboard` tab with formula KPIs + QUERY tables. Target spreadsheet = Script Property `SHEET_ID` or `DEFAULT_SHEET_ID` constant. Row schema is `SHEET_HEADERS`; keep client payload keys (`fecha, hora, analista, herramienta, tipo_doc, patente, rut, nombre, municipio, vigencia, confianza, tiempo_fmt, observaciones`) in sync with both `appendToSheet` and the column order.
+
 ## Model in use
 
 `claude-sonnet-4-6` via the Messages API. Prompt engineering is inline in `analyze()`. To change the model, update the `model:` field in the `callClaudeServer({...})` call inside `docscan.html` and `b2bscan.html`.

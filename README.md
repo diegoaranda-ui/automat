@@ -29,11 +29,16 @@ vehiculares (C2B) y de empresas (B2B) con Claude Vision, más utilidades de vali
    - Propiedad: `ANTHROPIC_KEY`
    - Valor: tu API key de Anthropic (`sk-ant-...`)
    La key vive sólo en el servidor; nunca se envía al navegador.
-5. Implementar → Nueva implementación → Aplicación web:
+5. **Panel de inspecciones (Google Sheets):** en el editor de Apps Script, abrir
+   `Codigo.gs`, seleccionar la función `setupKavakSheet` y ejecutarla **una vez**
+   (Ejecutar → autorizar permisos). Esto da formato a la planilla y crea la pestaña
+   `Dashboard`. La planilla por defecto ya está definida en `DEFAULT_SHEET_ID`; para
+   usar otra, crea la propiedad de script `SHEET_ID` con el ID de tu planilla.
+6. Implementar → Nueva implementación → Aplicación web:
    - Ejecutar como: **Yo**
    - Acceso: **Cualquier usuario de Kavak**
-6. Copiar la URL `/exec` y compartirla con el equipo.
-7. Cada cambio de código requiere una **nueva versión** de la implementación.
+7. Copiar la URL `/exec` y compartirla con el equipo.
+8. Cada cambio de código requiere una **nueva versión** de la implementación.
 
 ## Arquitectura
 
@@ -62,3 +67,14 @@ vehiculares (C2B) y de empresas (B2B) con Claude Vision, más utilidades de vali
 ### Validador
 - Valida RUT chileno (dígito verificador) y formato de patente al instante, sin IA ni subir documento.
 - Sugiere el RUT correcto y normaliza la patente. Botones de copiado.
+
+## Panel de inspecciones (Google Sheets)
+
+- Botón **"Guardar en Sheets"** en DocScan y B2B Scan → llama a `appendToSheet(payload)`
+  por `google.script.run` (sin URLs externas). Agrega una fila a la pestaña `Registros`.
+- `setupKavakSheet()` (correr una vez) formatea la planilla con el diseño Kavak:
+  header oscuro, filas alternadas, filtro, **semáforos de vigencia** (Vigente=verde,
+  Vencido=rojo, Revisar=ámbar) y una pestaña **Dashboard** con KPIs por fórmula
+  (total, hoy, vigentes, vencidos) y tablas por analista y por herramienta.
+- Columnas de `Registros`: Fecha · Hora · Analista · Herramienta · Tipo documento ·
+  Patente · RUT · Nombre/Razón social · Comuna · Vigencia · Confianza · Duración · Observaciones.
