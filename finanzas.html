@@ -399,11 +399,11 @@ tr:hover td{background:var(--n50)}
                   <div class="section-line"></div>
                 </div>
                 <div class="upload-zone" id="zone-cartola" ondragover="onDragOver(event,'zone-cartola')" ondragleave="onDragLeave('zone-cartola')" ondrop="onDrop(event,'cartola-file-input','cartola')">
-                  <input type="file" id="cartola-file-input" accept="image/*,.pdf" onchange="handleFile('cartola',this)">
+                  <input type="file" id="cartola-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('cartola',this)">
                   <div class="upload-icon">📋</div>
                   <div class="upload-title">Cartola Bancaria</div>
                   <div class="upload-sub">Arrastra o haz clic<br>PDF o imagen</div>
-                  <div class="upload-kbd">PDF · JPG · PNG</div>
+                  <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
                 </div>
                 <div class="file-preview" id="prev-cartola">
                   <span id="prev-cartola-icon">📄</span>
@@ -421,11 +421,11 @@ tr:hover td{background:var(--n50)}
                   <div class="section-line"></div>
                 </div>
                 <div class="upload-zone" id="zone-libro" ondragover="onDragOver(event,'zone-libro')" ondragleave="onDragLeave('zone-libro')" ondrop="onDrop(event,'libro-file-input','libro')">
-                  <input type="file" id="libro-file-input" accept="image/*,.pdf" onchange="handleFile('libro',this)">
+                  <input type="file" id="libro-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('libro',this)">
                   <div class="upload-icon">📚</div>
                   <div class="upload-title">Registros Contables</div>
                   <div class="upload-sub">Arrastra o haz clic<br>PDF o imagen</div>
-                  <div class="upload-kbd">PDF · JPG · PNG</div>
+                  <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
                 </div>
                 <div class="file-preview" id="prev-libro">
                   <span id="prev-libro-icon">📄</span>
@@ -464,11 +464,11 @@ tr:hover td{background:var(--n50)}
               <div class="section-line"></div>
             </div>
             <div class="upload-zone" id="zone-reporteria" ondragover="onDragOver(event,'zone-reporteria')" ondragleave="onDragLeave('zone-reporteria')" ondrop="onDrop(event,'rep-file-input','reporteria')">
-              <input type="file" id="rep-file-input" accept="image/*,.pdf" onchange="handleFile('reporteria',this)">
+              <input type="file" id="rep-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('reporteria',this)">
               <div class="upload-icon">📈</div>
               <div class="upload-title">Estado Financiero</div>
               <div class="upload-sub">Balance general · Estado de resultados · Flujo de caja<br>Arrastra o haz clic para subir</div>
-              <div class="upload-kbd">PDF · JPG · PNG</div>
+              <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
             </div>
             <div class="file-preview" id="prev-reporteria">
               <span id="prev-reporteria-icon">📄</span>
@@ -504,16 +504,16 @@ tr:hover td{background:var(--n50)}
               <div class="section-line"></div>
             </div>
             <div class="upload-zone" id="zone-gestion" ondragover="onDragOver(event,'zone-gestion')" ondragleave="onDragLeave('zone-gestion')" ondrop="onDropMulti(event,'gest-file-input','gestion')">
-              <input type="file" id="gest-file-input" accept="image/*,.pdf" multiple onchange="handleFileMulti('gestion',this)">
+              <input type="file" id="gest-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" multiple onchange="handleFileMulti('gestion',this)">
               <div class="upload-icon">📄</div>
               <div class="upload-title">Factura / Boleta / Nota de Crédito / Contrato</div>
               <div class="upload-sub">Puedes subir múltiples archivos<br>Arrastra o haz clic</div>
-              <div class="upload-kbd">PDF · JPG · PNG · múltiples</div>
+              <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG · múltiples</div>
             </div>
             <div id="gestion-files-list" class="files-list" style="display:none"></div>
             <div style="display:none" id="gestion-add-more-wrap">
               <label class="add-more">
-                <input type="file" accept="image/*,.pdf" multiple onchange="handleFileMulti('gestion',this)"> + Agregar más archivos
+                <input type="file" accept="image/*,.pdf,.xlsx,.xls,.csv" multiple onchange="handleFileMulti('gestion',this)"> + Agregar más archivos
               </label>
             </div>
 
@@ -542,11 +542,11 @@ tr:hover td{background:var(--n50)}
               <div class="section-line"></div>
             </div>
             <div class="upload-zone" id="zone-automatizacion" ondragover="onDragOver(event,'zone-automatizacion')" ondragleave="onDragLeave('zone-automatizacion')" ondrop="onDrop(event,'auto-file-input','automatizacion')">
-              <input type="file" id="auto-file-input" accept="image/*,.pdf" onchange="handleFile('automatizacion',this)">
+              <input type="file" id="auto-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('automatizacion',this)">
               <div class="upload-icon">📑</div>
               <div class="upload-title">Documento Fuente</div>
               <div class="upload-sub">Factura, boleta, recibo u otro documento<br>Genera el asiento contable automáticamente</div>
-              <div class="upload-kbd">PDF · JPG · PNG</div>
+              <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
             </div>
             <div class="file-preview" id="prev-automatizacion">
               <span id="prev-automatizacion-icon">📄</span>
@@ -580,6 +580,7 @@ tr:hover td{background:var(--n50)}
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 'use strict';
 
@@ -588,7 +589,9 @@ const BASE_URL = '<?= BASE_URL ?>';
 const HIST_KEY = 'fin_hist';
 const MAX_HIST = 50;
 const IMG_MAX_PX = 1600;
-const IMG_QUALITY = 0.88;
+const IMG_QUALITY = 0.82;
+const PDF_SCALE   = 1.2;
+const PDF_MAX_PX  = 1800; // max height of stacked PDF canvas before downscaling
 
 // Per-module state
 const STATE = {
@@ -689,10 +692,9 @@ function handleFile(key, input) {
   const file = input.files && input.files[0];
   if (!file) return;
 
-  processFile(file).then(function(b64) {
-    // key can be: 'cartola','libro','reporteria','automatizacion'
+  processFile(file).then(function(fd) {
     const mod = getModuleForKey(key);
-    STATE[mod].files[key] = { name: file.name, size: file.size, b64: b64, type: file.type };
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type };
     showFilePreview(key, file);
     updateAnalyzeButton(mod);
   }).catch(function(err) {
@@ -705,8 +707,8 @@ function handleFileMulti(mod, input) {
   if (!files.length) return;
 
   Promise.all(files.map(function(f) {
-    return processFile(f).then(function(b64) {
-      return { name: f.name, size: f.size, b64: b64, type: f.type };
+    return processFile(f).then(function(fd) {
+      return { name: f.name, size: f.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: f.type };
     });
   })).then(function(processed) {
     STATE[mod].files = STATE[mod].files.concat(processed);
@@ -723,13 +725,17 @@ function getModuleForKey(key) {
 }
 
 function processFile(file) {
-  return new Promise(function(resolve, reject) {
-    if (file.type === 'application/pdf') {
-      pdfToBase64(file).then(resolve).catch(reject);
-    } else {
-      compressImage(file).then(resolve).catch(reject);
-    }
-  });
+  const name = (file.name || '').toLowerCase();
+  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+               || file.type === 'application/vnd.ms-excel'
+               || name.endsWith('.xlsx') || name.endsWith('.xls');
+  const isCsv  = file.type === 'text/csv' || name.endsWith('.csv');
+  const isPdf  = file.type === 'application/pdf' || name.endsWith('.pdf');
+
+  if (isExcel) return excelToText(file);
+  if (isCsv)   return csvToText(file);
+  if (isPdf)   return pdfToBase64(file);
+  return compressImage(file);
 }
 
 function compressImage(file) {
@@ -749,7 +755,7 @@ function compressImage(file) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
         const dataUrl = canvas.toDataURL('image/jpeg', IMG_QUALITY);
-        resolve(dataUrl.split(',')[1]);
+        resolve({ b64: dataUrl.split(',')[1], isText: false, text: null });
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -765,7 +771,7 @@ function pdfToBase64(file) {
     reader.onload = function(e) {
       const typedArray = new Uint8Array(e.target.result);
       pdfjsLib.getDocument({ data: typedArray }).promise.then(function(pdf) {
-        const scale = 2;
+        const scale = PDF_SCALE;
         const pages = Math.min(pdf.numPages, 4);
         const canvasArr = [];
 
@@ -776,16 +782,25 @@ function pdfToBase64(file) {
             const heights = canvasArr.map(function(c) { return c.height; });
             const totalW = Math.max.apply(null, widths);
             const totalH = heights.reduce(function(a, b) { return a + b; }, 0);
+            let outW = totalW, outH = totalH;
+            // Downscale if combined height is too large (keeps base64 < ~4 MB)
+            if (outH > PDF_MAX_PX) {
+              const r = PDF_MAX_PX / outH;
+              outW = Math.round(outW * r);
+              outH = PDF_MAX_PX;
+            }
             const out = document.createElement('canvas');
-            out.width = totalW; out.height = totalH;
+            out.width = outW; out.height = outH;
             const ctx = out.getContext('2d');
+            // Draw stacked pages scaled to fit
             let y = 0;
             canvasArr.forEach(function(c) {
-              ctx.drawImage(c, 0, y);
-              y += c.height;
+              const h = Math.round(c.height * (outH / totalH));
+              ctx.drawImage(c, 0, y, outW, h);
+              y += h;
             });
             const dataUrl = out.toDataURL('image/jpeg', IMG_QUALITY);
-            resolve(dataUrl.split(',')[1]);
+            resolve({ b64: dataUrl.split(',')[1], isText: false, text: null });
             return;
           }
           pdf.getPage(i).then(function(page) {
@@ -804,6 +819,37 @@ function pdfToBase64(file) {
     };
     reader.onerror = reject;
     reader.readAsArrayBuffer(file);
+  });
+}
+
+function excelToText(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+        let text = '';
+        wb.SheetNames.forEach(function(name) {
+          const ws = wb.Sheets[name];
+          text += '\n--- Hoja: ' + name + ' ---\n';
+          text += XLSX.utils.sheet_to_csv(ws, { blankrows: false });
+        });
+        resolve({ b64: null, isText: true, text: text.trim() });
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
+function csvToText(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      resolve({ b64: null, isText: true, text: e.target.result });
+    };
+    reader.onerror = reject;
+    reader.readAsText(file, 'UTF-8');
   });
 }
 
@@ -923,8 +969,12 @@ function callClaudeServer(payload) {
       .withSuccessHandler(function(r) {
         try {
           const obj = JSON.parse(r);
-          if (obj.status !== 200) reject(new Error('HTTP ' + obj.status));
-          else resolve(JSON.parse(obj.body));
+          if (obj.status !== 200) {
+            let msg = 'HTTP ' + obj.status;
+            try { const b = JSON.parse(obj.body); msg += ': ' + (b.error && b.error.message || obj.body); } catch(e) {}
+            reject(new Error(msg)); return;
+          }
+          resolve(JSON.parse(obj.body));
         } catch(e) { reject(e); }
       })
       .withFailureHandler(reject)
@@ -937,6 +987,13 @@ function buildImageBlock(b64, mediaType) {
     type: 'image',
     source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: b64 }
   };
+}
+
+// Builds the right content block regardless of file type (image or Excel/CSV text)
+function buildContentBlock(fileObj) {
+  if (!fileObj) return null;
+  if (fileObj.isText) return { type: 'text', text: fileObj.text };
+  return buildImageBlock(fileObj.b64);
 }
 
 // ── ANALYZE DISPATCH ──
@@ -991,8 +1048,8 @@ Responde ÚNICAMENTE con JSON válido:
 
   const content = [
     { type: 'text', text: prompt },
-    buildImageBlock(f.cartola.b64),
-    buildImageBlock(f.libro.b64)
+    buildContentBlock(f.cartola),
+    buildContentBlock(f.libro)
   ];
 
   return callClaudeServer({
@@ -1026,7 +1083,7 @@ Responde ÚNICAMENTE con JSON válido:
     max_tokens: 2048,
     messages: [{ role: 'user', content: [
       { type: 'text', text: prompt },
-      buildImageBlock(f.b64)
+      buildContentBlock(f)
     ]}]
   }).then(function(resp) { return extractJSON(resp); });
 }
@@ -1054,7 +1111,8 @@ Responde ÚNICAMENTE con JSON válido:
 
   const content = [{ type: 'text', text: prompt }];
   files.forEach(function(f) {
-    content.push(buildImageBlock(f.b64));
+    const block = buildContentBlock(f);
+    if (block) content.push(block);
   });
 
   return callClaudeServer({
@@ -1091,7 +1149,7 @@ Responde ÚNICAMENTE con JSON válido:
     max_tokens: 2048,
     messages: [{ role: 'user', content: [
       { type: 'text', text: prompt },
-      buildImageBlock(f.b64)
+      buildContentBlock(f)
     ]}]
   }).then(function(resp) { return extractJSON(resp); });
 }
