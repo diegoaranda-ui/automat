@@ -834,7 +834,12 @@ function excelToText(file) {
           text += '\n--- Hoja: ' + name + ' ---\n';
           text += XLSX.utils.sheet_to_csv(ws, { blankrows: false });
         });
-        resolve({ b64: null, isText: true, text: text.trim() });
+        const TEXT_LIMIT = 25000;
+        let trimmed = text.trim();
+        if (trimmed.length > TEXT_LIMIT) {
+          trimmed = trimmed.slice(0, TEXT_LIMIT) + '\n\n[CONTENIDO TRUNCADO — el archivo excede el límite de procesamiento. Solo se analizaron los primeros 25 000 caracteres.]';
+        }
+        resolve({ b64: null, isText: true, text: trimmed });
       } catch(err) { reject(err); }
     };
     reader.onerror = reject;
@@ -846,7 +851,12 @@ function csvToText(file) {
   return new Promise(function(resolve, reject) {
     const reader = new FileReader();
     reader.onload = function(e) {
-      resolve({ b64: null, isText: true, text: e.target.result });
+      const TEXT_LIMIT = 25000;
+      let txt = e.target.result || '';
+      if (txt.length > TEXT_LIMIT) {
+        txt = txt.slice(0, TEXT_LIMIT) + '\n\n[CONTENIDO TRUNCADO — el archivo excede el límite de procesamiento.]';
+      }
+      resolve({ b64: null, isText: true, text: txt });
     };
     reader.onerror = reject;
     reader.readAsText(file, 'UTF-8');
@@ -1054,7 +1064,7 @@ Responde ÚNICAMENTE con JSON válido:
 
   return callClaudeServer({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 4096,
     messages: [{ role: 'user', content: content }]
   }).then(function(resp) {
     return extractJSON(resp);
@@ -1080,7 +1090,7 @@ Responde ÚNICAMENTE con JSON válido:
 
   return callClaudeServer({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 4096,
     messages: [{ role: 'user', content: [
       { type: 'text', text: prompt },
       buildContentBlock(f)
@@ -1117,7 +1127,7 @@ Responde ÚNICAMENTE con JSON válido:
 
   return callClaudeServer({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 4096,
     messages: [{ role: 'user', content: content }]
   }).then(function(resp) { return extractJSON(resp); });
 }
@@ -1146,7 +1156,7 @@ Responde ÚNICAMENTE con JSON válido:
 
   return callClaudeServer({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 4096,
     messages: [{ role: 'user', content: [
       { type: 'text', text: prompt },
       buildContentBlock(f)
@@ -1155,10 +1165,17 @@ Responde ÚNICAMENTE con JSON válido:
 }
 
 function extractJSON(resp) {
+  if (resp.stop_reason === 'max_tokens') {
+    throw new Error('El documento es muy grande para procesar de una vez. Intenta subir una sola hoja del Excel o un PDF más corto.');
+  }
   const text = resp.content && resp.content[0] && resp.content[0].text || '';
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('No se encontró JSON en la respuesta');
-  return JSON.parse(match[0]);
+  if (!match) throw new Error('No se encontró JSON en la respuesta de la IA.');
+  try {
+    return JSON.parse(match[0]);
+  } catch(e) {
+    throw new Error('La respuesta fue cortada. Intenta con un archivo más pequeño o una sola hoja del Excel.');
+  }
 }
 
 // ── RENDER RESULTS ──
