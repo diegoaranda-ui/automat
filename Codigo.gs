@@ -59,6 +59,142 @@ var DEFAULT_SHEET_ID = '1aUPadOFLivxi7u-IeSSACJsCJDPkRAi-04KxrCkm7tk';
 var CONCIL_SHEET_ID = '1p3TYuzbwMw1Iijd07lTpsJMM_e73VUmnIlBkeM57Txc';
 
 /**
+ * Ejecutar UNA vez desde el editor de Apps Script (▶ Run → setupDesgloseTemplate).
+ * Deja la hoja "Desglose" con estructura, headers y formato listos.
+ * No borra datos existentes si ya hay análisis — limpia y reconstruye la plantilla vacía.
+ */
+function setupDesgloseTemplate() {
+  const ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
+  const ss   = SpreadsheetApp.openById(ssId);
+
+  let sh = ss.getSheetByName('Desglose');
+  if (!sh) sh = ss.insertSheet('Desglose');
+  else {
+    sh.clearContents();
+    sh.clearFormats();
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+
+  // Anchos de columna: Fecha | Descripción/Glosa | Monto | Fecha libro | Glosa | Referencia | Confianza/Tipo
+  var cols = [100, 270, 120, 100, 220, 140, 90];
+  cols.forEach(function(w, i){ sh.setColumnWidth(i + 1, w); });
+
+  var rows = [];
+
+  // Fila 1 — Título principal
+  rows.push(['CONCILIACIÓN BANCARIA — Papel de Trabajo  ·  Kavak Supply Chile', '', '', '', '', '', '']);
+
+  // Fila 2 — Metadata (se llenará con cada análisis)
+  rows.push(['Analista: —', 'Fecha: —', 'Hora: —', '', 'Saldo Cartola: —', 'Saldo Libro: —', 'Diferencia Total: —']);
+
+  // Fila 3 — Separador
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección ✓ Conciliados ──
+  rows.push(['✓  ÍTEMS CONCILIADOS', '', '', '', '', '', '']);           // fila 4
+  rows.push(['Fecha Cartola', 'Descripción', 'Monto', 'Fecha Libro', 'Glosa', 'Referencia', 'Confianza']); // fila 5
+  rows.push(['← Los ítems conciliados aparecerán aquí al ejecutar el análisis', '', '', '', '', '', '']);   // fila 6
+
+  // Fila 7 — Separador
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección ⚠ Solo en Cartola ──
+  rows.push(['⚠  SOLO EN CARTOLA — sin registro contable', '', '', '', '', '', '']); // fila 8
+  rows.push(['Fecha', 'Descripción', 'Monto', 'Tipo', '', '', '']);                   // fila 9
+  rows.push(['← Movimientos del banco sin asiento contable', '', '', '', '', '', '']); // fila 10
+
+  // Fila 11 — Separador
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección ⚠ Solo en Libro ──
+  rows.push(['⚠  SOLO EN LIBRO — sin movimiento bancario', '', '', '', '', '', '']); // fila 12
+  rows.push(['Fecha', 'Glosa', 'Monto', 'Referencia', '', '', '']);                   // fila 13
+  rows.push(['← Asientos contables sin movimiento en cartola', '', '', '', '', '', '']); // fila 14
+
+  // Fila 15 — Separador
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Resumen ──
+  rows.push(['RESUMEN', '', '', '', '', '', '']);                        // fila 16
+  rows.push(['← El resumen del análisis aparecerá aquí', '', '', '', '', '', '']); // fila 17
+
+  sh.getRange(1, 1, rows.length, 7).setValues(rows);
+
+  // ── Formato fila 1: Título ──
+  var r1 = sh.getRange(1, 1, 1, 7);
+  r1.merge().setBackground('#1c1c1e').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(14).setHorizontalAlignment('left')
+    .setVerticalAlignment('middle').setPaddingLeft && r1.setPaddingLeft(12);
+  sh.setRowHeight(1, 40);
+
+  // ── Formato fila 2: Metadata ──
+  sh.getRange(2, 1, 1, 7).setBackground('#f1f5f9').setFontColor('#475569')
+    .setFontSize(10).setFontStyle('italic');
+  sh.setRowHeight(2, 26);
+
+  // ── Formato fila 4: Header sección Conciliados ──
+  sh.getRange(4, 1, 1, 7).merge().setBackground('#00a060').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(12);
+  sh.setRowHeight(4, 32);
+
+  // ── Formato fila 5: Columnas Conciliados ──
+  sh.getRange(5, 1, 1, 7).setBackground('#0f172a').setFontColor('#e2e8f0')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(5, 26);
+
+  // ── Formato fila 6: Placeholder Conciliados ──
+  sh.getRange(6, 1, 1, 7).merge().setBackground('#f0fdf7').setFontColor('#94a3b8')
+    .setFontStyle('italic').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(6, 32);
+
+  // ── Formato fila 8: Header sección Solo Cartola ──
+  sh.getRange(8, 1, 1, 7).merge().setBackground('#d97706').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(12);
+  sh.setRowHeight(8, 32);
+
+  // ── Formato fila 9: Columnas Solo Cartola ──
+  sh.getRange(9, 1, 1, 7).setBackground('#0f172a').setFontColor('#e2e8f0')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(9, 26);
+
+  // ── Formato fila 10: Placeholder Solo Cartola ──
+  sh.getRange(10, 1, 1, 7).merge().setBackground('#fffdf0').setFontColor('#94a3b8')
+    .setFontStyle('italic').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(10, 32);
+
+  // ── Formato fila 12: Header sección Solo Libro ──
+  sh.getRange(12, 1, 1, 7).merge().setBackground('#2563eb').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(12);
+  sh.setRowHeight(12, 32);
+
+  // ── Formato fila 13: Columnas Solo Libro ──
+  sh.getRange(13, 1, 1, 7).setBackground('#0f172a').setFontColor('#e2e8f0')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(13, 26);
+
+  // ── Formato fila 14: Placeholder Solo Libro ──
+  sh.getRange(14, 1, 1, 7).merge().setBackground('#f0f5ff').setFontColor('#94a3b8')
+    .setFontStyle('italic').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(14, 32);
+
+  // ── Formato fila 16: Header Resumen ──
+  sh.getRange(16, 1, 1, 7).merge().setBackground('#f1f5f9').setFontColor('#334155')
+    .setFontWeight('bold').setFontSize(11);
+  sh.setRowHeight(16, 28);
+
+  // ── Formato fila 17: Texto Resumen ──
+  sh.getRange(17, 1, 1, 7).merge().setBackground('#ffffff').setFontColor('#94a3b8')
+    .setFontStyle('italic').setFontSize(10).setWrap(true);
+  sh.setRowHeight(17, 60);
+
+  sh.setFrozenRows(1);
+  ss.setActiveSheet(sh);
+
+  return 'Plantilla Desglose lista: ' + ss.getUrl();
+}
+
+/**
  * Escribe (sobreescribe) la hoja "Desglose" de la planilla de conciliaciones
  * con el resultado completo del análisis. Llamado desde finanzas.html tras
  * analizar Conciliación Bancaria.
