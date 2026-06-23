@@ -55,6 +55,168 @@ function callClaude(payload) {
 // Si prefieres otra, cambia SHEET_ID en Propiedades del script.
 var DEFAULT_SHEET_ID = '1aUPadOFLivxi7u-IeSSACJsCJDPkRAi-04KxrCkm7tk';
 
+// Planilla de papel de trabajo de conciliaciones
+var CONCIL_SHEET_ID = '1p3TYuzbwMw1Iijd07lTpsJMM_e73VUmnIlBkeM57Txc';
+
+/**
+ * Escribe (sobreescribe) la hoja "Desglose" de la planilla de conciliaciones
+ * con el resultado completo del análisis. Llamado desde finanzas.html tras
+ * analizar Conciliación Bancaria.
+ *
+ * payload: {
+ *   analista, fecha, hora,
+ *   cartola: [{fecha, descripcion, monto, tipo}],
+ *   libro:   [{fecha, glosa, monto, referencia}],
+ *   conciliados: [{cartola_idx, libro_idx, confianza, diferencia}],
+ *   solo_cartola: [idx,...],
+ *   solo_libro:   [idx,...],
+ *   saldo_cartola, saldo_libro, diferencia_total, resumen
+ * }
+ */
+function writeConciliacionDesglose(payload) {
+  const p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+
+  const ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
+  const ss    = SpreadsheetApp.openById(ssId);
+
+  // Obtener o crear la hoja "Desglose"
+  let sh = ss.getSheetByName('Desglose');
+  if (!sh) {
+    sh = ss.insertSheet('Desglose');
+  } else {
+    sh.clearContents();
+    sh.clearFormats();
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+
+  const cartola      = p.cartola      || [];
+  const libro        = p.libro        || [];
+  const conciliados  = p.conciliados  || [];
+  const soloCartola  = (p.solo_cartola || []).map(Number);
+  const soloLibro    = (p.solo_libro   || []).map(Number);
+
+  function fmtMoney(v) {
+    const n = parseFloat(v) || 0;
+    return n.toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 });
+  }
+
+  const rows = [];
+
+  // ── Título ──
+  rows.push(['CONCILIACIÓN BANCARIA — Papel de Trabajo Kavak Supply Chile', '', '', '', '', '', '']);
+  rows.push([
+    'Analista: ' + (p.analista || 'Anónimo'),
+    'Fecha: ' + (p.fecha || ''),
+    'Hora: ' + (p.hora || ''),
+    '',
+    'Saldo Cartola: ' + fmtMoney(p.saldo_cartola),
+    'Saldo Libro: ' + fmtMoney(p.saldo_libro),
+    'Diferencia Total: ' + fmtMoney(p.diferencia_total)
+  ]);
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección: Conciliados ──
+  rows.push(['✓ ÍTEMS CONCILIADOS (' + conciliados.length + ')', '', '', '', '', '', '']);
+  rows.push(['Fecha Cartola', 'Descripción', 'Monto', 'Fecha Libro', 'Glosa', 'Referencia', 'Confianza']);
+  conciliados.forEach(function(c) {
+    const ct = cartola[c.cartola_idx] || {};
+    const lb = libro[c.libro_idx]     || {};
+    rows.push([
+      ct.fecha || '', ct.descripcion || '', parseFloat(ct.monto) || 0,
+      lb.fecha || '', lb.glosa || '', lb.referencia || '',
+      c.confianza || ''
+    ]);
+  });
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección: Solo en cartola ──
+  rows.push(['⚠ SOLO EN CARTOLA — sin registro contable (' + soloCartola.length + ')', '', '', '', '', '', '']);
+  rows.push(['Fecha', 'Descripción', 'Monto', 'Tipo', '', '', '']);
+  soloCartola.forEach(function(idx) {
+    const ct = cartola[idx] || {};
+    rows.push([ct.fecha || '', ct.descripcion || '', parseFloat(ct.monto) || 0, ct.tipo || '', '', '', '']);
+  });
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección: Solo en libro ──
+  rows.push(['⚠ SOLO EN LIBRO — sin movimiento bancario (' + soloLibro.length + ')', '', '', '', '', '', '']);
+  rows.push(['Fecha', 'Glosa', 'Monto', 'Referencia', '', '', '']);
+  soloLibro.forEach(function(idx) {
+    const lb = libro[idx] || {};
+    rows.push([lb.fecha || '', lb.glosa || '', parseFloat(lb.monto) || 0, lb.referencia || '', '', '', '']);
+  });
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Resumen ──
+  rows.push(['RESUMEN', '', '', '', '', '', '']);
+  rows.push([p.resumen || '', '', '', '', '', '', '']);
+
+  // Escribir todo de una vez
+  sh.getRange(1, 1, rows.length, 7).setValues(rows);
+
+  // ── Formato: Título ──
+  const titleR = sh.getRange(1, 1, 1, 7);
+  titleR.merge().setBackground('#1c1c1e').setFontColor('#ffffff')
+        .setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+  sh.setRowHeight(1, 36);
+
+  // ── Formato: Metadata ──
+  sh.getRange(2, 1, 1, 7).setBackground('#f1f5f9').setFontColor('#334155').setFontSize(10);
+  sh.setRowHeight(2, 28);
+
+  // Localizar filas de sección y formatearlas
+  var currentRow = 4;
+
+  // Conciliados
+  var concilHeader = currentRow;
+  sh.getRange(concilHeader, 1, 1, 7).merge().setBackground('#00a060').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+  sh.getRange(concilHeader + 1, 1, 1, 7).setBackground('#0f172a').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+  if (conciliados.length > 0) {
+    sh.getRange(concilHeader + 2, 1, conciliados.length, 7)
+      .setBackground('#e6f7f0').setFontColor('#0b6b3a');
+    // Columna monto alineada a la derecha y formato moneda
+    sh.getRange(concilHeader + 2, 3, conciliados.length, 1)
+      .setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+  }
+  currentRow += 2 + conciliados.length + 1; // headers + data + blank
+
+  // Solo cartola
+  var soloCartHeader = currentRow;
+  sh.getRange(soloCartHeader, 1, 1, 7).merge().setBackground('#d97706').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+  sh.getRange(soloCartHeader + 1, 1, 1, 7).setBackground('#0f172a').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+  if (soloCartola.length > 0) {
+    sh.getRange(soloCartHeader + 2, 1, soloCartola.length, 7)
+      .setBackground('#fffbeb').setFontColor('#92400e');
+    sh.getRange(soloCartHeader + 2, 3, soloCartola.length, 1)
+      .setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+  }
+  currentRow += 2 + soloCartola.length + 1;
+
+  // Solo libro
+  var soloLibHeader = currentRow;
+  sh.getRange(soloLibHeader, 1, 1, 7).merge().setBackground('#2563eb').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+  sh.getRange(soloLibHeader + 1, 1, 1, 7).setBackground('#0f172a').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+  if (soloLibro.length > 0) {
+    sh.getRange(soloLibHeader + 2, 1, soloLibro.length, 7)
+      .setBackground('#eff6ff').setFontColor('#1e3a8a');
+    sh.getRange(soloLibHeader + 2, 3, soloLibro.length, 1)
+      .setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+  }
+  currentRow += 2 + soloLibro.length + 1;
+
+  // Resumen
+  sh.getRange(currentRow, 1, 1, 7).merge().setBackground('#f1f5f9').setFontColor('#334155').setFontWeight('bold').setFontSize(11);
+  sh.getRange(currentRow + 1, 1, 1, 7).merge().setWrap(true).setFontColor('#475569').setFontSize(10);
+  sh.setRowHeight(currentRow + 1, 72);
+
+  // Anchos de columna
+  [100, 260, 110, 100, 220, 130, 80].forEach(function(w, i) { sh.setColumnWidth(i + 1, w); });
+  sh.setFrozenRows(1);
+
+  return ss.getUrl() + '#gid=' + sh.getSheetId();
+}
+
 var SHEET_HEADERS = ['Fecha','Hora','Analista','Herramienta','Tipo documento','Patente',
   'RUT','Nombre / Razón social','Comuna','Vigencia','Confianza','Duración','Observaciones'];
 

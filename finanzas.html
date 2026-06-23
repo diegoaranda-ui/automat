@@ -1025,6 +1025,9 @@ function analyzeModule(mod) {
     stopSpinMsg();
     renderResult(mod, result);
     saveHistory(mod, result);
+    if (mod === 'conciliacion') {
+      saveDesgloseConciliacion(result);
+    }
   }).catch(function(err) {
     showProgress(false);
     stopSpinMsg();
@@ -1606,6 +1609,39 @@ function saveAutoToSheets(d) {
     .withSuccessHandler(function() { showToast('Guardado en Sheets ✓', 'success'); })
     .withFailureHandler(function(e) { showToast('Error al guardar: ' + e.message, 'error'); })
     .appendToSheet(payload);
+}
+
+// ── CONCILIACION → SHEETS DESGLOSE ──
+function saveDesgloseConciliacion(d) {
+  if (!(window.google && google.script && google.script.run)) return;
+  const now  = new Date();
+  const analista = document.getElementById('userInput').value || 'Anónimo';
+  const payload  = Object.assign({}, d, {
+    analista: analista,
+    fecha: now.toLocaleDateString('es-CL'),
+    hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' })
+  });
+  showToast('Escribiendo en planilla Desglose…', 'info');
+  google.script.run
+    .withSuccessHandler(function(url) {
+      // Inyectar link en el panel de resultados
+      const r = document.getElementById('results-conciliacion');
+      if (r) {
+        const old = r.querySelector('.desglose-link-bar');
+        if (old) old.remove();
+        const bar = document.createElement('div');
+        bar.className = 'desglose-link-bar';
+        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:#e6f7f0;border:1px solid #b3e8d3;border-radius:10px;margin-bottom:8px;font-size:12px;color:#0b6b3a';
+        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Desglose escrito en la planilla</span>' +
+          '<a href="' + url + '" target="_blank" style="margin-left:auto;font-size:11px;font-weight:700;color:#007a4a;text-decoration:none;padding:4px 10px;background:#fff;border:1px solid #b3e8d3;border-radius:6px">Abrir Sheets →</a>';
+        r.insertBefore(bar, r.firstChild);
+      }
+      showToast('Desglose guardado en Sheets ✓', 'success');
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error al escribir Desglose: ' + e.message, 'error');
+    })
+    .writeConciliacionDesglose(JSON.stringify(payload));
 }
 
 // ── CSV EXPORT ──
