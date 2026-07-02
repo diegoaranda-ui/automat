@@ -17,10 +17,10 @@
  *   - analyze        : nombre de la función de análisis específica del banco
  *                      (declarada en src/banks/<Banco>.gs).
  *
- * IMPORTANTE: BCI, Santander y Banco Internacional están confirmados contra
- * cartolas reales (export NetSuite General Ledger). Scotiabank e ITAU traen una
- * configuración inicial marcada como AJUSTABLE — corrige los índices de
- * `columns` cuando tengas una muestra real de cada cartola.
+ * IMPORTANTE: BCI, Santander, Banco Internacional e ITAU están confirmados
+ * contra cartolas reales (export NetSuite General Ledger). Sólo Scotiabank
+ * queda con configuración inicial AJUSTABLE — corrige los índices de `columns`
+ * cuando tengas una muestra real de su cartola.
  * -----------------------------------------------------------------------------
  */
 
@@ -91,7 +91,7 @@ function getBankRegistry() {
     // ---------------------------------------------------------- Santander ----
     // CONFIRMADO: mismo export NetSuite "General Ledger" que BCI, cuenta 1101-01.
     // También caen COBROS -> llave = ID de Cobro (PAY-XXXXXX) en Memo/Nota, con
-    // P-XXXX como llave secundaria. Movimientos sin ninguna referencia (Diario,
+    // P-XXXX como llave secundaria. Movimientos sin referencia (Diario,
     // devoluciones) quedan como SIN ID para revisión manual.
     Santander: {
       key: 'Santander',
@@ -142,24 +142,37 @@ function getBankRegistry() {
     },
 
     // --------------------------------------------------------------- ITAU ----
-    // AJUSTABLE. Aquí se pagan las REMUNERACIONES -> la llave es el
-    // beneficiario/RUT + período. La duplicidad típica es pagar 2 veces a la
-    // misma persona en el mismo período.
+    // CONFIRMADO: export NetSuite "General Ledger". El archivo trae varias
+    // cuentas; sólo interesa la bancaria 1101-04 (accountFilter). Es una cuenta
+    // operativa mixta: las remuneraciones caen como asientos AGREGADOS ("PAGOS
+    // DE REMUNERACIONES" / "PAGO DE SUELDOS"), no como pago por persona/RUT.
+    // Por eso la llave de deduplicación es el N° de documento (JECL), y el
+    // análisis resalta aparte las líneas de remuneraciones.
     ITAU: {
       key: 'ITAU',
       label: 'ITAU',
       tipoOperacion: 'remuneraciones',
       requiereIdCobro: false,
-      keyStrategy: 'remuneracion',
+      keyStrategy: 'auto',
+      format: 'netsuite_gl',
+      numberFormat: 'us',
+      accountFilter: '1101-04',
       columns: {
-        fecha: 0,
-        glosa: 1,        // beneficiario / nombre
-        glosa2: 2,       // RUT o detalle
-        importe: 3,
-        idCobro: null,
-        debitoCredito: null
+        accountCol: 0,
+        typeCol: 1,
+        fecha: 2,
+        docNumber: 3,   // JECL...  <- llave de deduplicación
+        glosa: 11,      // Memo/Nota CABECERA (describe el movimiento)
+        glosa2: 5,      // Name (suele venir vacío en estos asientos)
+        debit: 8,
+        credit: 9,
+        importe: 16,
+        idCobro: 11,
+        idCobroAlt: 12,
+        rutCol: 7,      // RUT (referencia; no se usa como llave)
+        transId: 21
       },
-      idHeaders: ['RUT', 'Beneficiario', 'Nombre', 'ID Transacción'],
+      idHeaders: ['RUT', 'Beneficiario', 'Nombre', 'Documento', 'Document Number', 'Memo', 'Memo/Nota', 'ID Transacción'],
       analyze: 'ITAU_analyze'
     },
 

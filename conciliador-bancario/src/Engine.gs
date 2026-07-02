@@ -67,14 +67,27 @@ function buildRows_(matrix, cfg) {
   var fmt = cfg.numberFormat || 'auto';
 
   // Filtrado por formato: en NetSuite GL sólo se conservan las filas de datos
-  // (Account vacío y Type con valor); se descartan preámbulo, encabezado,
-  // subcuentas y totales.
+  // (Account vacío y Type con valor); se descartan preámbulo, encabezado y
+  // totales. Se rastrea la subcuenta actual para poder restringir a la cuenta
+  // bancaria del banco (cfg.accountFilter), p.ej. ITAU sólo "1101-04".
   var data = matrix;
   if (cfg.format === 'netsuite_gl') {
-    data = matrix.filter(function (cells) {
+    var current = '';
+    data = [];
+    matrix.forEach(function (cells) {
       var acc = c.accountCol != null ? String(cells[c.accountCol] || '').trim() : '';
       var typ = c.typeCol != null ? String(cells[c.typeCol] || '').trim() : '';
-      return !acc && typ;
+      if (acc) {
+        // Fila de cuenta/subcuenta: actualiza el contexto (ignora "Total ..." y
+        // el preámbulo, que no son códigos de cuenta).
+        if (/^\d{4}(-\d+)?\b/.test(acc)) current = acc;
+        return;
+      }
+      if (!typ) return; // fila vacía
+      // Fila de datos. Si el banco define accountFilter, sólo se conservan las
+      // filas cuya subcuenta empieza con ese código.
+      if (cfg.accountFilter && current.indexOf(cfg.accountFilter) !== 0) return;
+      data.push(cells);
     });
   }
 
@@ -247,7 +260,7 @@ function findBlocks_(values, cfg) {
   var headerRows = [];
   for (var r = 0; r < values.length; r++) {
     var normCells = values[r].map(function (x) { return normText(x); });
-    var hasFecha = normCells.some(function (x) { return x === 'fecha'; });
+    var hasFecha = normCells.some(function (x) { return x === 'fecha' || x === 'date'; });
     var hasImporte = normCells.some(function (x) {
       return x === 'importe' || x === 'monto' || x === 'abono' || x === 'cargo' || x === 'debit' || x === 'credit';
     });
