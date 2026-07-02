@@ -17,8 +17,8 @@
  *   - analyze        : nombre de la función de análisis específica del banco
  *                      (declarada en src/banks/<Banco>.gs).
  *
- * IMPORTANTE: BCI y Santander están confirmados contra cartolas reales (export
- * NetSuite General Ledger). Scotiabank, ITAU y Banco Internacional traen una
+ * IMPORTANTE: BCI, Santander y Banco Internacional están confirmados contra
+ * cartolas reales (export NetSuite General Ledger). Scotiabank e ITAU traen una
  * configuración inicial marcada como AJUSTABLE — corrige los índices de
  * `columns` cuando tengas una muestra real de cada cartola.
  * -----------------------------------------------------------------------------
@@ -90,9 +90,9 @@ function getBankRegistry() {
 
     // ---------------------------------------------------------- Santander ----
     // CONFIRMADO: mismo export NetSuite "General Ledger" que BCI, cuenta 1101-01.
-    // También caen COBROS -> llave = ID de Cobro (PAY-XXXXXX) en Memo/Nota.
-    // Suele traer más movimientos sin PAY (addons, P-XXXX, devoluciones), que
-    // quedan como SIN ID para revisión manual.
+    // También caen COBROS -> llave = ID de Cobro (PAY-XXXXXX) en Memo/Nota, con
+    // P-XXXX como llave secundaria. Movimientos sin ninguna referencia (Diario,
+    // devoluciones) quedan como SIN ID para revisión manual.
     Santander: {
       key: 'Santander',
       label: 'Santander',
@@ -122,7 +122,7 @@ function getBankRegistry() {
     // --------------------------------------------------------- Scotiabank ----
     // AJUSTABLE. Caen los PAGOS de las RESERVAS / DLOCAL -> la llave es la
     // referencia DLOCAL / id de reserva. Si su cartola también es export
-    // NetSuite, copia el bloque de columnas de BCI y cambia keyStrategy.
+    // NetSuite, copia el bloque de columnas de BCI y ajusta keyStrategy.
     Scotiabank: {
       key: 'Scotiabank',
       label: 'Scotiabank',
@@ -164,24 +164,33 @@ function getBankRegistry() {
     },
 
     // ------------------------------------------------ Banco Internacional ----
-    // AJUSTABLE. Caen TODO tipo de pagos y cobros -> se clasifica por
-    // Débito/Crédito y se usa la mejor llave disponible (PAY-ID si existe,
-    // si no, hash de fecha+monto+glosa).
+    // CONFIRMADO: mismo export NetSuite "General Ledger", cuenta 1101-05.
+    // Caen TODO tipo de pagos y cobros. Sólo ~12% trae PAY/P-ref, así que la
+    // llave de deduplicación por defecto es el N° de documento (PYMTCL/JECL),
+    // que está siempre presente. Cascada: PAY-nnn > P-XXXX > DLOCAL > N° doc > hash.
     BancoInternacional: {
       key: 'BancoInternacional',
       label: 'Banco Internacional',
       tipoOperacion: 'mixto',
       requiereIdCobro: false,
       keyStrategy: 'auto',
+      format: 'netsuite_gl',
+      numberFormat: 'us',
       columns: {
-        fecha: 0,
-        glosa: 1,
-        glosa2: 2,
-        importe: 3,
-        idCobro: 4,
-        debitoCredito: 8
+        accountCol: 0,
+        typeCol: 1,
+        fecha: 2,
+        docNumber: 3,   // PYMTCL / JECL  <- llave por defecto
+        glosa: 5,
+        glosa2: 15,
+        debit: 8,
+        credit: 9,
+        importe: 16,
+        idCobro: 11,
+        idCobroAlt: 12,
+        transId: 21
       },
-      idHeaders: ['ID Transacción', 'ID Transaccion', 'ID de Cobro', 'Referencia', 'Nombre'],
+      idHeaders: ['ID Transacción', 'ID Transaccion', 'ID de Cobro', 'Referencia', 'Documento', 'Document Number', 'Memo', 'Memo/Nota', 'Nombre'],
       analyze: 'BancoInternacional_analyze'
     }
   };

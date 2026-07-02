@@ -144,7 +144,11 @@ function keyForRow_(row, cfg, rowText) {
   switch (cfg.keyStrategy) {
     case 'payId': {
       var pay = extractPayId(row.idText) || extractPayId(text);
-      return { key: pay, keyType: 'payId' };
+      if (pay) return { key: pay, keyType: 'payId' };
+      // Secundaria: referencia de pago P-XXXX (baja los SIN ID en cobros).
+      var pref = extractPayRef(row.idText) || extractPayRef(text);
+      if (pref) return { key: pref, keyType: 'payRef' };
+      return { key: '', keyType: 'payId' };
     }
     case 'dlocal': {
       var ref = extractDlocalRef(row.idText) || extractDlocalRef(text);
@@ -164,9 +168,18 @@ function keyForRow_(row, cfg, rowText) {
     default: {
       var p = extractPayId(row.idText) || extractPayId(text);
       if (p) return { key: p, keyType: 'payId' };
-      var d = extractDlocalRef(row.idText);
+      var pr = extractPayRef(row.idText) || extractPayRef(text);
+      if (pr) return { key: pr, keyType: 'payRef' };
+      var d = extractDlocalRef(row.idText) || extractDlocalRef(text);
       if (d) return { key: d, keyType: 'dlocal' };
-      // Fallback: hash fecha+monto+glosa.
+      // N° de documento (PYMTCL/JECL): llave de deduplicación por defecto para
+      // el grueso de Banco Internacional (Pago de factura, etc.). Usa la columna
+      // Document Number tal cual (siempre presente), o la extrae del texto.
+      var doc = row.doc ? String(row.doc).trim() : '';
+      if (doc) return { key: 'DOC-' + doc.toUpperCase(), keyType: 'doc' };
+      var docT = extractDocRef(text);
+      if (docT) return { key: docT, keyType: 'doc' };
+      // Último recurso: hash fecha+monto+glosa.
       return {
         key: hashKey_(row.fecha + '|' + row.importe + '|' + normText(row.glosa)),
         keyType: 'hash'
@@ -206,6 +219,7 @@ function collectExistingKeys_(ss, cfg) {
           idText: idText,
           glosa: b.glosaCol != null ? cells[b.glosaCol] : '',
           glosa2: '',
+          doc: '',
           fecha: normalizeDate(b.dateCol != null ? cells[b.dateCol] : ''),
           importe: parseAmount(b.amtCol != null ? cells[b.amtCol] : '')
         }, cfg, rowText);
@@ -235,7 +249,7 @@ function findBlocks_(values, cfg) {
     var normCells = values[r].map(function (x) { return normText(x); });
     var hasFecha = normCells.some(function (x) { return x === 'fecha'; });
     var hasImporte = normCells.some(function (x) {
-      return x === 'importe' || x === 'monto' || x === 'abono' || x === 'cargo';
+      return x === 'importe' || x === 'monto' || x === 'abono' || x === 'cargo' || x === 'debit' || x === 'credit';
     });
     if (hasFecha && hasImporte) {
       headerRows.push({ row: r, cells: normCells });
@@ -246,10 +260,10 @@ function findBlocks_(values, cfg) {
     return {
       start: h.row + 1,
       end: next,
-      dateCol: firstIndexOf_(h.cells, ['fecha']),
-      amtCol: firstIndexOf_(h.cells, ['importe', 'monto', 'abono', 'cargo']),
+      dateCol: firstIndexOf_(h.cells, ['fecha', 'date']),
+      amtCol: firstIndexOf_(h.cells, ['importe', 'monto', 'abono', 'cargo', 'debit', 'credit']),
       idCol: firstIndexOf_(h.cells, idHeaders),
-      glosaCol: firstIndexOf_(h.cells, ['concepto', 'glosa', 'documento', 'detalle', 'nombre'])
+      glosaCol: firstIndexOf_(h.cells, ['concepto', 'glosa', 'documento', 'detalle', 'nombre', 'name'])
     };
   });
 }
@@ -266,18 +280,25 @@ function firstIndexOf_(normCells, candidates) {
  * las demás filas del mismo lote.
  */
 function classifyRows_(rows, existingIndex) {
-  var seenInBatch = {};
+  var seenInBatch = {}; // key -> [filas previas con esa llave]
   rows.forEach(function (row) {
     if (!row.key) { row.estado = ESTADO.SIN_ID; row.nota = 'No se pudo obtener ID de Cobro'; return; }
 
-    // Duplicado dentro del mismo lote pegado.
-    if (seenInBatch[row.key]) {
-      var prev = seenInBatch[row.key];
+    // Duplicado dentro del mismo lote: misma llave Y mismo monto. Una llave
+    // repetida con monto distinto es una línea adicional legítima del mismo
+    // documento (varios SKU), no un duplicado.
+    var prevList = seenInBatch[row.key] || [];
+    var gemelo = null;
+    for (var j = 0; j < prevList.length; j++) {
+      if (montosIguales_(prevList[j].importe, row.importe)) { gemelo = prevList[j]; break; }
+    }
+    prevList.push(row);
+    seenInBatch[row.key] = prevList;
+    if (gemelo) {
       row.estado = ESTADO.DUP_LOTE;
-      row.nota = 'Repetido en la misma cartola (fila ' + (prev.idx + 1) + ')';
+      row.nota = 'Repetido en la misma cartola (fila ' + (gemelo.idx + 1) + ')';
       return;
     }
-    seenInBatch[row.key] = row;
 
     var hits = existingIndex[row.key];
     if (!hits || !hits.length) {

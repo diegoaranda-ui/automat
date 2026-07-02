@@ -140,8 +140,8 @@ function extractPayId(text) {
 }
 
 /**
- * Extrae una referencia DLOCAL / reserva. Busca "DLOCAL" seguido de dígitos,
- * o un token alfanumérico largo que parezca referencia. Devuelve '' si no hay.
+ * Extrae una referencia DLOCAL / reserva. Busca "DLOCAL" seguido de dígitos.
+ * Devuelve '' si no hay.
  */
 function extractDlocalRef(text) {
   if (!text) return '';
@@ -151,9 +151,30 @@ function extractDlocalRef(text) {
   // Fallback: PAY-ID también puede venir en reservas.
   var pay = extractPayId(s);
   if (pay) return pay;
-  // Token de referencia largo (>=8 alfanuméricos).
-  var t = s.match(/\b([A-Z0-9]{8,})\b/i);
-  return t ? t[1].toUpperCase() : '';
+  // Nota: NO usamos un fallback de "token largo" porque capturaba SKUs/IDs
+  // arbitrarios. Si Scotiabank trae otra referencia, se mapea por columna.
+  return '';
+}
+
+/**
+ * Extrae una referencia de pago tipo "P-XXXXXXXX" (P- seguido de >=6 alfanum.),
+ * usada en pagos a proveedor de Kavak. NO colisiona con "PAY-nnn" (ahí tras la P
+ * viene "AY", no un guión). Devuelve "P-XXXX" normalizado o ''.
+ */
+function extractPayRef(text) {
+  if (!text) return '';
+  var m = String(text).match(/\bP-([A-Z0-9]{6,})\b/i);
+  return m ? 'P-' + m[1].toUpperCase() : '';
+}
+
+/**
+ * Extrae un N° de documento NetSuite (PYMTCL41677, JECL424882, etc.): prefijo
+ * de letras terminado en "CL" seguido de dígitos. Devuelve "DOC-XXXX" o ''.
+ */
+function extractDocRef(text) {
+  if (!text) return '';
+  var m = String(text).match(/\b([A-Z]{2,}CL\d{3,})\b/i);
+  return m ? 'DOC-' + m[1].toUpperCase() : '';
 }
 
 /** Normaliza texto para llaves/hashes: minúsculas, sin acentos ni dobles espacios. */
