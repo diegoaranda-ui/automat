@@ -66,35 +66,49 @@ function looksLikeHeader_(cells) {
 }
 
 /**
- * Normaliza un monto en formato chileno: "4.711.920" -> 4711920,
- * "1.234,56" -> 1234.56, "(1.000)" -> -1000, "-2.000" -> -2000.
- * Devuelve número (puede ser 0) o NaN si no se puede interpretar.
+ * Normaliza un monto. Soporta dos formatos, seleccionables con `fmt`:
+ *   - 'clp' : formato chileno de texto  "4.711.920" -> 4711920, "1.234,56" -> 1234.56
+ *   - 'us'  : formato estándar / NetSuite "7812548.0", "5.6530906E7" (científico),
+ *             "1.0E8" -> 100000000, comas de miles opcionales.
+ *   - 'auto' (default): si trae notación científica o una sola coma decimal lo
+ *             trata como 'us'; si trae múltiples puntos lo trata como 'clp'.
+ * Acepta paréntesis o signo menos para negativos. Devuelve número o NaN.
  */
-function parseAmount(raw) {
+function parseAmount(raw, fmt) {
   if (raw === null || raw === undefined) return NaN;
   if (typeof raw === 'number') return raw;
   var s = String(raw).trim();
   if (!s) return NaN;
+  fmt = fmt || 'auto';
 
-  var negative = /^\(.*\)$/.test(s) || /^-/.test(s);
-  s = s.replace(/[()]/g, '').replace(/\$/g, '').replace(/\s|CLP|clp/g, '').trim();
-  s = s.replace(/^-/, '');
+  var negative = /^\(.*\)$/.test(s);
+  s = s.replace(/[()]/g, '').replace(/\$/g, '').replace(/CLP/gi, '').replace(/\s/g, '').trim();
+  if (s.charAt(0) === '-') { negative = true; s = s.slice(1); }
 
-  // Si hay coma decimal (formato es-CL): puntos = miles, coma = decimal.
-  if (s.indexOf(',') > -1) {
-    s = s.replace(/\./g, '').replace(',', '.');
-  } else {
-    // Sólo puntos: son separadores de miles.
-    s = s.replace(/\./g, '');
+  var n;
+  var hasExp = /[eE]/.test(s);
+  if (fmt === 'us' || (fmt === 'auto' && hasExp)) {
+    // Punto = decimal; comas = miles.
+    n = Number(s.replace(/,/g, ''));
+  } else if (fmt === 'clp') {
+    n = s.indexOf(',') > -1 ? parseFloat(s.replace(/\./g, '').replace(',', '.'))
+                            : parseFloat(s.replace(/\./g, ''));
+  } else { // auto sin notación científica
+    if (s.indexOf(',') > -1) {
+      n = parseFloat(s.replace(/\./g, '').replace(',', '.')); // coma decimal es-CL
+    } else {
+      // Sólo puntos: los tratamos como separadores de miles (caso conciliador CL).
+      n = parseFloat(s.replace(/\./g, ''));
+    }
   }
-  var n = parseFloat(s);
   if (isNaN(n)) return NaN;
   return negative ? -n : n;
 }
 
 /**
- * Normaliza una fecha dd/mm/yyyy (o dd-mm-yyyy) a "yyyy-mm-dd" (string estable
- * para comparar). Si no matchea, devuelve el texto original recortado.
+ * Normaliza una fecha a "yyyy-mm-dd" (string estable para comparar). Soporta
+ * dd/mm/yyyy, dd-mm-yyyy, ISO "2026-05-14T00:00:00.000" y objetos Date.
+ * Si no matchea, devuelve el texto original recortado.
  */
 function normalizeDate(raw) {
   if (raw === null || raw === undefined) return '';
@@ -102,6 +116,9 @@ function normalizeDate(raw) {
     return Utilities.formatDate(raw, 'America/Santiago', 'yyyy-MM-dd');
   }
   var s = String(raw).trim();
+  // ISO / NetSuite: 2026-05-14T00:00:00.000 -> 2026-05-14
+  var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
   var m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   if (m) {
     var d = ('0' + m[1]).slice(-2);

@@ -53,23 +53,38 @@ var PALETTE = {
 function getBankRegistry() {
   return {
     // ---------------------------------------------------------------- BCI ----
-    // Layout CONFIRMADO contra la hoja real. En BCI caen COBROS y la llave es
-    // el "ID de Cobro" (PAY-XXXXXX) que viene en la columna "ID Transacción".
+    // Layout CONFIRMADO contra la cartola real del mayor: export NetSuite
+    // "CL - General Ledger (Con filtro por Cuenta)" de la cuenta 1101-02.
+    // En BCI la llave es el "ID de Cobro" (PAY-XXXXXX) que viene en las columnas
+    // Memo/Nota. Los montos vienen en Debit/Credit en formato US/científico.
+    // Índices 0-based de la cartola NetSuite:
+    //   0 Account | 1 Type | 2 Date | 3 Document Number | 4 Período | 5 Name |
+    //   6 Name(Diario) | 7 RUT | 8 Debit | 9 Credit | 10 Saldo |
+    //   11 Memo/Nota CABECERA | 12 Memo/Nota Línea | 13 Item | 14 Stock ID |
+    //   15 SKU Related | 16 Amount(Foreign Currency) | ... | 21 ID de transacción
     BCI: {
       key: 'BCI',
       label: 'BCI',
       tipoOperacion: 'cobros',
       requiereIdCobro: true,
       keyStrategy: 'payId',
+      format: 'netsuite_gl',   // activa filtrado de preámbulo/subtotales/totales
+      numberFormat: 'us',      // 7812548.0 / 5.6530906E7
       columns: {
-        fecha: 0,        // A Fecha
-        glosa: 1,        // B Concepto
-        glosa2: 2,       // C Concepto 2
-        importe: 3,      // D Importe
-        idCobro: 4,      // E ID Transacción  <- PAY-XXXXXX
-        debitoCredito: 8 // I Débito/Crédito (si viene en la cartola)
+        accountCol: 0,   // sólo se conservan filas con Account VACÍO...
+        typeCol: 1,      // ...y Type con valor (Pago / Diario)
+        fecha: 2,        // Date (ISO)
+        docNumber: 3,    // Document Number (PYMTCL / JECL)
+        glosa: 5,        // Name
+        glosa2: 15,      // SKU Related (vehículo)
+        debit: 8,        // Debit
+        credit: 9,       // Credit
+        importe: 16,     // Amount (Foreign Currency) como respaldo
+        idCobro: 11,     // Memo/Nota CABECERA  <- PAY-XXXXXX
+        idCobroAlt: 12,  // Memo/Nota Línea       (respaldo del PAY)
+        transId: 21      // ID de transacción NetSuite
       },
-      idHeaders: ['ID Transacción', 'ID Transaccion', 'Nombre', 'ID de Cobro', 'Pay ID', 'PAY ID'],
+      idHeaders: ['ID Transacción', 'ID Transaccion', 'Nombre', 'ID de Cobro', 'Memo', 'Memo/Nota', 'Pay ID', 'PAY ID'],
       analyze: 'BCI_analyze'
     },
 
