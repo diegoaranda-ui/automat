@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body { font-family: 'Google Sans', Roboto, Arial, sans-serif; margin: 0; padding: 14px; color: #202124; }
+    h2 { font-size: 15px; margin: 0 0 10px; color: #0B3D5C; }
+    label { display:block; font-size: 12px; font-weight: 600; margin: 12px 0 4px; }
+    select, textarea { width: 100%; box-sizing: border-box; border:1px solid #DADCE0; border-radius:6px; padding:8px; font-size:12px; }
+    textarea { height: 180px; font-family: 'Roboto Mono', monospace; resize: vertical; }
+    button { margin-top: 12px; width:100%; background:#0B3D5C; color:#fff; border:none; border-radius:6px; padding:10px; font-size:13px; font-weight:600; cursor:pointer; }
+    button:disabled { background:#9AA0A6; cursor:default; }
+    .hint { font-size: 11px; color:#5F6368; margin-top:4px; }
+    #result { margin-top:14px; font-size:12px; }
+    .card { border:1px solid #DADCE0; border-radius:8px; padding:10px; margin-top:8px; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:12px; font-weight:600; margin:2px 4px 2px 0; }
+    .nuevo{background:#E6F4EA;color:#137333;} .dup{background:#FCE8E6;color:#C5221F;}
+    .rev{background:#FEF7E0;color:#B06000;} .sin{background:#E8F0FE;color:#1A73E8;}
+    .msg{font-size:11px;color:#5F6368;margin:4px 0;}
+    .err{background:#FCE8E6;color:#C5221F;padding:8px;border-radius:6px;}
+    .spin{color:#5F6368;}
+  </style>
+</head>
+<body>
+  <h2>🏦 Cargar cartola del mayor</h2>
+
+  <label for="bank">Banco</label>
+  <select id="bank"></select>
+  <div class="hint" id="tipoHint"></div>
+
+  <label for="raw">Pega aquí la cartola del mayor</label>
+  <textarea id="raw" placeholder="Copia las filas desde Excel/Sheets o pega un CSV. Puedes incluir la fila de encabezados."></textarea>
+  <div class="hint">Detecta automáticamente separador (tab, ; o ,) y formato chileno de montos/fechas.</div>
+
+  <button id="go" onclick="run()">Analizar y generar “Mayor Nuevo”</button>
+
+  <div id="result"></div>
+
+  <script>
+    function loadBanks() {
+      google.script.run.withSuccessHandler(function (banks) {
+        var sel = document.getElementById('bank');
+        sel.innerHTML = '';
+        banks.forEach(function (b) {
+          var o = document.createElement('option');
+          o.value = b.key; o.textContent = b.label; o.dataset.tipo = b.tipo;
+          sel.appendChild(o);
+        });
+        updateHint();
+      }).ui_listBanks();
+    }
+    function updateHint() {
+      var sel = document.getElementById('bank');
+      var tipo = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].dataset.tipo : '';
+      document.getElementById('tipoHint').textContent = 'Operación típica: ' + tipo;
+    }
+    document.getElementById('bank').addEventListener('change', updateHint);
+
+    function run() {
+      var bank = document.getElementById('bank').value;
+      var raw = document.getElementById('raw').value;
+      if (!raw.trim()) { showErr('Pega la cartola antes de analizar.'); return; }
+      var btn = document.getElementById('go');
+      btn.disabled = true; btn.textContent = 'Procesando…';
+      document.getElementById('result').innerHTML = '<div class="spin">Analizando…</div>';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false; btn.textContent = 'Analizar y generar “Mayor Nuevo”';
+          if (!res.ok) { showErr(res.error); return; }
+          render(res.data);
+        })
+        .withFailureHandler(function (e) {
+          btn.disabled = false; btn.textContent = 'Analizar y generar “Mayor Nuevo”';
+          showErr(e.message || e);
+        })
+        .ui_procesarCartola(bank, raw);
+    }
+
+    function showErr(msg) {
+      document.getElementById('result').innerHTML = '<div class="err">' + msg + '</div>';
+    }
+
+    function render(d) {
+      var c = d.conteo;
+      var dup = (c['DUPLICADO'] || 0) + (c['DUP EN LOTE'] || 0);
+      var html = '<div class="card"><b>' + d.banco + '</b> — ' + d.totalFilas + ' movimientos<br>' +
+        '<span class="pill nuevo">Nuevos ' + (c['NUEVO'] || 0) + '</span>' +
+        '<span class="pill dup">Duplicados ' + dup + '</span>' +
+        '<span class="pill rev">Revisar ' + (c['REVISAR'] || 0) + '</span>' +
+        '<span class="pill sin">Sin ID ' + (c['SIN ID'] || 0) + '</span>';
+      if (d.analisis && d.analisis.mensajes) {
+        d.analisis.mensajes.forEach(function (m) { html += '<div class="msg">• ' + m + '</div>'; });
+      }
+      html += '<div class="msg">Hoja generada: <b>' + d.hoja + '</b></div></div>';
+      document.getElementById('result').innerHTML = html;
+    }
+
+    loadBanks();
+  </script>
+</body>
+</html>
