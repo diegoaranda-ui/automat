@@ -17,10 +17,11 @@
  *   - analyze        : nombre de la función de análisis específica del banco
  *                      (declarada en src/banks/<Banco>.gs).
  *
- * IMPORTANTE: BCI, Santander, Banco Internacional e ITAU están confirmados
- * contra cartolas reales (export NetSuite General Ledger). Sólo Scotiabank
- * queda con configuración inicial AJUSTABLE — corrige los índices de `columns`
- * cuando tengas una muestra real de su cartola.
+ * IMPORTANTE: los 5 bancos (BCI, Santander, Scotiabank, ITAU y Banco
+ * Internacional) están confirmados contra cartolas reales de junio 2026
+ * (export NetSuite "CL - General Ledger"). Todos comparten el mismo layout de
+ * columnas; cambian la estrategia de llave y, en ITAU/Scotiabank, el filtro
+ * de cuenta.
  * -----------------------------------------------------------------------------
  */
 
@@ -120,24 +121,36 @@ function getBankRegistry() {
     },
 
     // --------------------------------------------------------- Scotiabank ----
-    // AJUSTABLE. Caen los PAGOS de las RESERVAS / DLOCAL -> la llave es la
-    // referencia DLOCAL / id de reserva. Si su cartola también es export
-    // NetSuite, copia el bloque de columnas de BCI y ajusta keyStrategy.
+    // CONFIRMADO: export NetSuite "General Ledger". El archivo trae varias
+    // cuentas; sólo interesa la bancaria 1101-03 (accountFilter). Aquí caen los
+    // pagos de reservas / DLOCAL, pero como asientos AGREGADOS ("Dlocal a
+    // Scotiabank | 01-12 Junio"), no como pago individual con referencia. Por
+    // eso la llave de deduplicación es el N° de documento (JECL) y el análisis
+    // resalta aparte las líneas DLOCAL.
     Scotiabank: {
       key: 'Scotiabank',
       label: 'Scotiabank',
       tipoOperacion: 'pagos_reservas',
       requiereIdCobro: false,
-      keyStrategy: 'dlocal',
+      keyStrategy: 'auto',
+      format: 'netsuite_gl',
+      numberFormat: 'us',
+      accountFilter: '1101-03',
       columns: {
-        fecha: 0,
-        glosa: 1,
-        glosa2: 2,
-        importe: 3,
-        idCobro: 4,      // referencia DLOCAL / reserva
-        debitoCredito: null
+        accountCol: 0,
+        typeCol: 1,
+        fecha: 2,
+        docNumber: 3,   // JECL...  <- llave de deduplicación
+        glosa: 11,      // Memo/Nota CABECERA (describe el movimiento)
+        glosa2: 5,      // Name (suele venir vacío)
+        debit: 8,
+        credit: 9,
+        importe: 16,
+        idCobro: 11,
+        idCobroAlt: 12,
+        transId: 21
       },
-      idHeaders: ['Referencia', 'DLOCAL', 'DLocal', 'Reserva', 'ID Reserva', 'ID Transacción'],
+      idHeaders: ['Referencia', 'DLOCAL', 'DLocal', 'Reserva', 'ID Reserva', 'Documento', 'Document Number', 'Memo', 'Memo/Nota', 'ID Transacción'],
       analyze: 'Scotiabank_analyze'
     },
 
