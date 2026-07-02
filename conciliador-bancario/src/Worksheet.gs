@@ -76,7 +76,7 @@ function writeMayorNuevoSheet_(ss, cfg, rows, analysis) {
   // ---- Filas ----------------------------------------------------------------
   if (rows.length) {
     var data = rows.map(function (r) {
-      var glosa = r.glosa + (r.glosa2 ? ' — ' + r.glosa2 : '');
+      var glosa = (r.doc ? '[' + r.doc + '] ' : '') + r.glosa + (r.glosa2 ? ' — ' + r.glosa2 : '');
       return [r.estado, r.fecha, glosa, r.importe, r.key || '(sin ID)', r.nota || ''];
     });
     var start = headerRow + 1;

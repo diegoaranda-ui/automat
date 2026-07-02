@@ -32,8 +32,11 @@ function procesarCartola(bankKey, rawText) {
   if (!matrix.length) {
     throw new Error('No se detectaron filas en la cartola pegada.');
   }
-  // Descarta fila de encabezado si el usuario la incluyó.
-  if (looksLikeHeader_(matrix[0])) matrix = matrix.slice(1);
+  // Los formatos con filtro propio (NetSuite GL) descartan preámbulo/encabezado/
+  // subtotales por regla de columnas; el resto sólo quita la fila de títulos.
+  if (cfg.format !== 'netsuite_gl' && looksLikeHeader_(matrix[0])) {
+    matrix = matrix.slice(1);
+  }
   if (!matrix.length) {
     throw new Error('La cartola sólo contenía encabezados, sin movimientos.');
   }
@@ -61,19 +64,37 @@ function procesarCartola(bankKey, rawText) {
 /** Mapea la matriz cruda a filas normalizadas con su llave calculada. */
 function buildRows_(matrix, cfg) {
   var c = cfg.columns;
-  return matrix.map(function (cells, i) {
+  var fmt = cfg.numberFormat || 'auto';
+
+  // Filtrado por formato: en NetSuite GL sólo se conservan las filas de datos
+  // (Account vacío y Type con valor); se descartan preámbulo, encabezado,
+  // subcuentas y totales.
+  var data = matrix;
+  if (cfg.format === 'netsuite_gl') {
+    data = matrix.filter(function (cells) {
+      var acc = c.accountCol != null ? String(cells[c.accountCol] || '').trim() : '';
+      var typ = c.typeCol != null ? String(cells[c.typeCol] || '').trim() : '';
+      return !acc && typ;
+    });
+  }
+
+  return data.map(function (cells, i) {
     var rowText = cells.join(' ');
-    var idText = (c.idCobro != null ? cells[c.idCobro] : '') || '';
+    var idText = [
+      c.idCobro != null ? cells[c.idCobro] : '',
+      c.idCobroAlt != null ? cells[c.idCobroAlt] : ''
+    ].join(' ').trim();
     var glosa = (c.glosa != null ? cells[c.glosa] : '') || '';
     var glosa2 = (c.glosa2 != null ? cells[c.glosa2] : '') || '';
     var row = {
       idx: i,
       fecha: normalizeDate(c.fecha != null ? cells[c.fecha] : ''),
+      doc: (c.docNumber != null ? cells[c.docNumber] : '') || '',
       glosa: glosa,
       glosa2: glosa2,
-      importe: parseAmount(c.importe != null ? cells[c.importe] : ''),
+      importe: computeImporte_(cells, c, fmt),
       idText: idText,
-      dc: (c.debitoCredito != null ? cells[c.debitoCredito] : '') || '',
+      dc: dcLabel_(cells, c, fmt),
       raw: cells
     };
     var kk = keyForRow_(row, cfg, rowText);
@@ -81,6 +102,36 @@ function buildRows_(matrix, cfg) {
     row.keyType = kk.keyType;
     return row;
   });
+}
+
+/**
+ * Calcula el importe del movimiento. Si el banco expone columnas separadas
+ * Debit/Credit (NetSuite), usa la que tenga valor (crédito con signo negativo);
+ * si no, usa la columna `importe`.
+ */
+function computeImporte_(cells, c, fmt) {
+  if (c.debit != null || c.credit != null) {
+    var deb = c.debit != null ? parseAmount(cells[c.debit], fmt) : NaN;
+    var cre = c.credit != null ? parseAmount(cells[c.credit], fmt) : NaN;
+    if (!isNaN(deb) && deb !== 0) return deb;
+    if (!isNaN(cre) && cre !== 0) return -cre;
+    if (c.importe != null) {
+      var imp = parseAmount(cells[c.importe], fmt);
+      if (!isNaN(imp)) return imp;
+    }
+    if (!isNaN(deb)) return deb;
+    if (!isNaN(cre)) return -cre;
+    return NaN;
+  }
+  return c.importe != null ? parseAmount(cells[c.importe], fmt) : NaN;
+}
+
+/** Etiqueta Débito/Crédito derivada de qué columna trae el monto. */
+function dcLabel_(cells, c, fmt) {
+  if (c.debitoCredito != null) return String(cells[c.debitoCredito] || '');
+  if (c.debit != null && !isNaN(parseAmount(cells[c.debit], fmt)) && parseAmount(cells[c.debit], fmt) !== 0) return 'Débito';
+  if (c.credit != null && !isNaN(parseAmount(cells[c.credit], fmt)) && parseAmount(cells[c.credit], fmt) !== 0) return 'Crédito';
+  return '';
 }
 
 /**
@@ -251,7 +302,9 @@ function classifyRows_(rows, existingIndex) {
 
 function montosIguales_(a, b) {
   if (isNaN(a) || isNaN(b)) return false;
-  return Math.abs(a - b) < 1; // tolerancia de $1 por redondeo
+  // Compara magnitud: el mayor puede traer el signo (débito/crédito) y el
+  // extracto sólo el valor. Tolerancia de $1 por redondeo.
+  return Math.abs(Math.abs(a) - Math.abs(b)) < 1;
 }
 
 function countByEstado_(rows) {

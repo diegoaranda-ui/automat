@@ -14,7 +14,7 @@ módulo de análisis distinto por banco.
 
 | Banco | Cae principalmente | Llave de conciliación / dedup |
 |-------|--------------------|-------------------------------|
-| **BCI** | Cobros | **ID de Cobro** `PAY-XXXXXX` (col. *ID Transacción*) — layout confirmado |
+| **BCI** | Cobros | **ID de Cobro** `PAY-XXXXXX` (col. *Memo/Nota*) — layout NetSuite confirmado |
 | **Santander** | Cobros | ID de Cobro `PAY-XXXXXX` |
 | **Scotiabank** | Pagos de reservas / DLOCAL | Referencia **DLOCAL** / id de reserva |
 | **ITAU** | Remuneraciones | **RUT + período** (yyyy-mm) — detecta doble pago |
@@ -34,7 +34,7 @@ Estados que asigna el motor a cada fila de la cartola:
 appsscript.json          Manifiesto (zona horaria, scopes, V8)
 src/
   Config.gs              Registro de bancos + mapeo de columnas (config-driven)
-  Parser.gs              Texto→matriz, montos CLP, fechas, extracción de IDs
+  Parser.gs              Texto→matriz, montos CLP/US, fechas, extracción de IDs
   Engine.gs              Motor: índice de lo cargado, clasificación, dedup
   Worksheet.gs           Hoja "Mayor Nuevo" a color + "Hoja de Trabajo"
   Menu.gs                Menú 🏦 Conciliador + handlers de la sidebar
@@ -48,15 +48,31 @@ src/
 ```
 
 Para **ajustar** el layout de un banco (columnas de la cartola), edita
-`columns` del banco en `src/Config.gs`. Sólo BCI está confirmado contra la hoja
-real; el resto trae una configuración inicial marcada como *AJUSTABLE*.
+`columns` del banco en `src/Config.gs`. Sólo BCI está confirmado contra la
+cartola real; el resto trae una configuración inicial marcada como *AJUSTABLE*.
+
+### Formato de la cartola BCI (NetSuite General Ledger)
+
+BCI usa el export **"CL - General Ledger (Con filtro por Cuenta)"** de NetSuite
+(cuenta 1101-02). El parser ya lo entiende:
+
+- **Filtra** automáticamente preámbulo, encabezado, subcuentas y filas de total
+  (regla: conserva sólo filas con *Account* vacío y *Type* con valor).
+- **ID de Cobro**: lo toma de las columnas *Memo/Nota* (`PAY-XXXXXX`). Los
+  asientos tipo *Diario* sin PAY (ej. "Entre Cuenta", "ANTICIPO TANNER") quedan
+  como **SIN ID**.
+- **Montos** en formato US/científico (`7812548.0`, `5.6530906E7`): se controlan
+  con `numberFormat: 'us'` y se toman de *Debit/Credit* (respaldo *Amount FC*).
+
+Índices 0-based de la cartola NetSuite (ver `columns` de BCI en `Config.gs`):
+`0 Account · 1 Type · 2 Date · 3 Document Number · 5 Name · 8 Debit · 9 Credit ·
+11 Memo/Nota CABECERA · 12 Memo/Nota Línea · 15 SKU · 16 Amount(FC) · 21 ID de transacción`.
 
 ## Uso
 
 1. Menú **🏦 Conciliador → “Cargar cartola del mayor…”**.
 2. Elige el banco y **pega la cartola** (copiada desde Excel/Sheets, o CSV).
-   Se detecta solo el separador (tab/`;`/`,`) y el formato chileno de montos y
-   fechas (`4.711.920`, `dd/mm/yyyy`).
+   Se detecta solo el separador (tab/`;`/`,`) y el formato de montos y fechas.
 3. Se genera la hoja **“<Banco> · Mayor Nuevo”** con cada movimiento a
    color según su estado + un resumen y los mensajes del análisis del banco.
 4. **“Reconstruir Hoja de Trabajo”** arma una vista priorizada (primero lo
