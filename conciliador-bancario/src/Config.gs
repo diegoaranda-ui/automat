@@ -17,9 +17,9 @@
  *   - analyze        : nombre de la función de análisis específica del banco
  *                      (declarada en src/banks/<Banco>.gs).
  *
- * IMPORTANTE: sólo el layout de BCI está confirmado contra la hoja real
- * ("1101-02 | Banco BCI $"). Los demás bancos traen una configuración inicial
- * razonable y claramente marcada como AJUSTABLE — corrige los índices de
+ * IMPORTANTE: BCI y Santander están confirmados contra cartolas reales (export
+ * NetSuite General Ledger). Scotiabank, ITAU y Banco Internacional traen una
+ * configuración inicial marcada como AJUSTABLE — corrige los índices de
  * `columns` cuando tengas una muestra real de cada cartola.
  * -----------------------------------------------------------------------------
  */
@@ -89,28 +89,40 @@ function getBankRegistry() {
     },
 
     // ---------------------------------------------------------- Santander ----
-    // AJUSTABLE. También caen COBROS -> misma estrategia de ID de Cobro.
+    // CONFIRMADO: mismo export NetSuite "General Ledger" que BCI, cuenta 1101-01.
+    // También caen COBROS -> llave = ID de Cobro (PAY-XXXXXX) en Memo/Nota.
+    // Suele traer más movimientos sin PAY (addons, P-XXXX, devoluciones), que
+    // quedan como SIN ID para revisión manual.
     Santander: {
       key: 'Santander',
       label: 'Santander',
       tipoOperacion: 'cobros',
       requiereIdCobro: true,
       keyStrategy: 'payId',
+      format: 'netsuite_gl',
+      numberFormat: 'us',
       columns: {
-        fecha: 0,
-        glosa: 1,
-        glosa2: 2,
-        importe: 3,
-        idCobro: 4,
-        debitoCredito: null
+        accountCol: 0,
+        typeCol: 1,
+        fecha: 2,
+        docNumber: 3,
+        glosa: 5,
+        glosa2: 15,
+        debit: 8,
+        credit: 9,
+        importe: 16,
+        idCobro: 11,
+        idCobroAlt: 12,
+        transId: 21
       },
-      idHeaders: ['ID Transacción', 'ID Transaccion', 'ID de Cobro', 'Nombre', 'Pay ID'],
+      idHeaders: ['ID Transacción', 'ID Transaccion', 'ID de Cobro', 'Nombre', 'Memo', 'Memo/Nota', 'Pay ID'],
       analyze: 'Santander_analyze'
     },
 
     // --------------------------------------------------------- Scotiabank ----
     // AJUSTABLE. Caen los PAGOS de las RESERVAS / DLOCAL -> la llave es la
-    // referencia DLOCAL / id de reserva.
+    // referencia DLOCAL / id de reserva. Si su cartola también es export
+    // NetSuite, copia el bloque de columnas de BCI y cambia keyStrategy.
     Scotiabank: {
       key: 'Scotiabank',
       label: 'Scotiabank',
