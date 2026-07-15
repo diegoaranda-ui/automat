@@ -1372,12 +1372,14 @@ Responde ÚNICAMENTE con JSON válido:
   "resumen": "párrafo ejecutivo: cuántos proveedores recurrentes, cuántos meses FALTA, monto total a provisionar y qué proveedores concentran el riesgo"
 }
 
+Reglas de formato: JSON compacto sin saltos de línea innecesarios; "comentario" máximo 8 palabras (omítelo si no aporta); en proveedores NO recurrentes omite "meses" y "factura_promedio". Nada de texto fuera del JSON.
+
 DATOS:
 ${f.text}`;
 
   return callClaudeServer({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 16000,
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   }).then(function(resp) { return extractJSON(resp); });
 }
