@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Finance Suite — Kavak Supply</title>
+<title>Finance Suite — Kavak Finanzas</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -313,7 +313,7 @@ tr:hover td{background:var(--n50)}
         <div class="brand-mark">💰</div>
         <div>
           <div class="brand-wordmark">Finance Suite</div>
-          <div class="brand-sub">Kavak Supply Chile</div>
+          <div class="brand-sub">Kavak Finanzas Chile</div>
         </div>
       </div>
       <div class="brand-badge">v<?= VERSION ?></div>
@@ -354,6 +354,15 @@ tr:hover td{background:var(--n50)}
         <div class="nav-text">
           <div class="nav-name">Automatización</div>
           <div class="nav-desc">Asientos contables</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
+
+      <div class="nav-item" id="nav-provisiones" onclick="selectModule('provisiones')">
+        <div class="nav-icon" style="background:rgba(220,26,35,.15)">🧾</div>
+        <div class="nav-text">
+          <div class="nav-name">Provisiones</div>
+          <div class="nav-desc">Facturas vs provisiones NetSuite</div>
         </div>
         <div class="nav-badge">FINANZAS</div>
       </div>
@@ -573,6 +582,62 @@ tr:hover td{background:var(--n50)}
         </div>
       </div>
 
+      <!-- ══ VIEW: PROVISIONES ══ -->
+      <div class="view" id="view-provisiones">
+        <div class="content">
+          <div class="content-inner">
+            <div class="section-header">
+              <span class="section-title">🧾 Cuenta extraída de NetSuite</span>
+              <div class="section-line"></div>
+            </div>
+            <div class="upload-zone" id="zone-provisiones" ondragover="onDragOver(event,'zone-provisiones')" ondragleave="onDragLeave('zone-provisiones')" ondrop="onDrop(event,'prov-file-input','provisiones')">
+              <input type="file" id="prov-file-input" accept=".xlsx,.xls,.csv" onchange="handleFile('provisiones',this)">
+              <div class="upload-icon">🧾</div>
+              <div class="upload-title">Export General Ledger (NetSuite)</div>
+              <div class="upload-sub">CL - General Ledger con filtro por cuenta<br>Arrastra o haz clic para subir</div>
+              <div class="upload-kbd">XLS · XLSX · CSV</div>
+            </div>
+            <div class="file-preview" id="prev-provisiones">
+              <span id="prev-provisiones-icon">🧾</span>
+              <div style="flex:1;min-width:0">
+                <div class="file-name" id="prev-provisiones-name">—</div>
+                <div class="file-size" id="prev-provisiones-size">—</div>
+              </div>
+              <button class="file-remove" onclick="removeFile('provisiones')">✕</button>
+            </div>
+
+            <div style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap">
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Último mes cerrado
+                <select id="prov-mes-cierre" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+                  <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+                  <option value="4">Abril</option><option value="5">Mayo</option><option value="6" selected>Junio</option>
+                  <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+                  <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                </select>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Umbral recurrencia (meses con factura)
+                <input id="prov-umbral" type="number" min="2" max="12" value="3" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;width:100px">
+              </label>
+            </div>
+
+            <div id="results-provisiones">
+              <div class="empty-state">
+                <div class="empty-icon">🧾</div>
+                <div class="empty-title">Control de provisiones</div>
+                <div class="empty-sub">Sube el export del General Ledger de NetSuite. El sistema identifica los proveedores con factura mensual recurrente, detecta los meses donde no llegó la factura ni se registró la provisión, y sugiere el monto a provisionar según el promedio de facturas del proveedor.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Facturas mensuales · provisiones faltantes · monto sugerido</span>
+          <button class="btn-secondary" onclick="resetModule('provisiones')">Limpiar</button>
+          <button class="btn-primary" id="btn-provisiones" onclick="analyzeModule('provisiones')" disabled>🧾 Analizar provisiones</button>
+        </div>
+      </div>
+
     </div><!-- /views -->
   </main>
 </div>
@@ -598,7 +663,8 @@ const STATE = {
   conciliacion: { files: {} },   // files.cartola, files.libro
   reporteria:   { files: {} },   // files.reporteria
   gestion:      { files: [] },   // array of files
-  automatizacion:{ files: {} }   // files.automatizacion
+  automatizacion:{ files: {} },  // files.automatizacion
+  provisiones:  { files: {} }    // files.provisiones (GL NetSuite pre-agregado)
 };
 
 let currentModule = 'conciliacion';
@@ -616,7 +682,8 @@ const MODULE_META = {
   conciliacion:   { icon: '⚖️', title: 'Conciliación Bancaria' },
   reporteria:     { icon: '📊', title: 'Reportería Financiera' },
   gestion:        { icon: '📄', title: 'Gestión Documental' },
-  automatizacion: { icon: '⚙️', title: 'Automatización Contable' }
+  automatizacion: { icon: '⚙️', title: 'Automatización Contable' },
+  provisiones:    { icon: '🧾', title: 'Control de Provisiones' }
 };
 
 // ── INIT ──
@@ -647,7 +714,7 @@ function loadUserName() {
 
 // ── MODULE SELECTION ──
 function selectModule(mod) {
-  const mods = ['conciliacion','reporteria','gestion','automatizacion'];
+  const mods = ['conciliacion','reporteria','gestion','automatizacion','provisiones'];
   if (!mods.includes(mod)) mod = 'conciliacion';
   currentModule = mod;
 
@@ -692,9 +759,10 @@ function handleFile(key, input) {
   const file = input.files && input.files[0];
   if (!file) return;
 
-  processFile(file).then(function(fd) {
+  const proc = (key === 'provisiones') ? processProvisionesGL(file) : processFile(file);
+  proc.then(function(fd) {
     const mod = getModuleForKey(key);
-    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type };
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '' };
     showFilePreview(key, file);
     updateAnalyzeButton(mod);
   }).catch(function(err) {
@@ -863,6 +931,109 @@ function csvToText(file) {
   });
 }
 
+/**
+ * Parser del export "CL - General Ledger (Con filtro por Cuenta)" de NetSuite.
+ * Lee el workbook (SheetJS también soporta el XML SpreadsheetML de NetSuite),
+ * localiza la fila de encabezados, clasifica cada movimiento como
+ * FACTURA / PROVISION / REVERSO y agrega por proveedor+mes.
+ * Devuelve texto compacto para enviar a la IA (evita respuestas truncadas).
+ */
+function processProvisionesGL(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const grid = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, raw: true });
+
+        // Localizar fila de encabezados (contiene Account y Type)
+        let hIdx = -1;
+        for (let i = 0; i < Math.min(grid.length, 30); i++) {
+          const row = (grid[i] || []).map(function(c){ return String(c || '').trim(); });
+          if (row.indexOf('Account') !== -1 && row.indexOf('Type') !== -1) hIdx = i; // usa la última (NetSuite la repite)
+        }
+        if (hIdx === -1) throw new Error('No se encontró la fila de encabezados (Account/Type). ¿Es un export de General Ledger de NetSuite?');
+
+        const head = grid[hIdx].map(function(c){ return String(c || '').trim(); });
+        function col(name) { return head.findIndex(function(h){ return h.toLowerCase().indexOf(name.toLowerCase()) !== -1; }); }
+        const cAcc  = col('Account');
+        const cType = col('Type');
+        const cDate = col('Date');
+        const cPer  = col('Período');
+        const cNameD= col('Name (Diario)');
+        const cName = head.indexOf('Name');
+        const cDeb  = col('Debit');
+        const cCre  = col('Credit');
+        const cMemoH= col('Memo/Nota a nivel');
+        const cMemoL= col('Memo/Nota (Linea)');
+
+        const MES_ABBR = {ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+        function parseMes(row) {
+          const per = String(row[cPer] || '');
+          const m = per.toLowerCase().match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
+          if (m) return { mes: MES_ABBR[m[1]], anio: parseInt(m[2],10) };
+          const d = String(row[cDate] || '').match(/(\d{4})-(\d{2})/);
+          if (d) return { mes: parseInt(d[2],10), anio: parseInt(d[1],10) };
+          return null;
+        }
+
+        let cuenta = '';
+        const agg = {}; // proveedor|mes|clas -> {monto, n}
+        let anioDetectado = null;
+
+        for (let i = hIdx + 1; i < grid.length; i++) {
+          const row = grid[i] || [];
+          const accCell = String(row[cAcc] || '').trim();
+          const type = String(row[cType] || '').trim();
+          if (accCell && !type) {
+            // Fila de subtítulo de cuenta, ej. "5401-22 - Servicio de ..."
+            if (/^\d{4}-\d+/.test(accCell)) cuenta = accCell;
+            continue;
+          }
+          if (!type) continue;
+
+          const pm = parseMes(row);
+          if (!pm) continue;
+          anioDetectado = anioDetectado || pm.anio;
+
+          const prov = String(row[cNameD] || row[cName] || '').trim() || '(sin nombre)';
+          const debit  = parseFloat(row[cDeb])  || 0;
+          const credit = parseFloat(row[cCre]) || 0;
+          const monto  = debit - credit;
+          const memo = (String(row[cMemoH] || '') + ' ' + String(row[cMemoL] || '')).toLowerCase();
+
+          let clas;
+          if (/diario/i.test(type)) {
+            clas = memo.indexOf('reverso') !== -1 ? 'REVERSO' : 'PROVISION';
+          } else {
+            clas = 'FACTURA';
+          }
+
+          const key = prov + '|' + pm.mes + '|' + clas;
+          if (!agg[key]) agg[key] = { prov: prov, mes: pm.mes, clas: clas, monto: 0, n: 0 };
+          agg[key].monto += monto;
+          agg[key].n++;
+        }
+
+        const keys = Object.keys(agg);
+        if (!keys.length) throw new Error('No se encontraron movimientos en el archivo.');
+
+        let text = 'CUENTA: ' + (cuenta || 'no detectada') + '\nAÑO: ' + (anioDetectado || '') + '\n';
+        text += 'proveedor|mes|clasificacion|monto_total|n_movimientos\n';
+        keys.sort().forEach(function(k) {
+          const a = agg[k];
+          text += a.prov + '|' + a.mes + '|' + a.clas + '|' + Math.round(a.monto) + '|' + a.n + '\n';
+        });
+
+        resolve({ b64: null, isText: true, text: text, cuenta: cuenta });
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
 function showFilePreview(key, file) {
   const prev = document.getElementById('prev-' + key);
   if (!prev) return;
@@ -963,7 +1134,8 @@ function showEmptyState(mod) {
     conciliacion: '<div class="empty-state"><div class="empty-icon">⚖️</div><div class="empty-title">Conciliación lista</div><div class="empty-sub">Sube la cartola bancaria y los registros contables, luego presiona Conciliar.</div></div>',
     reporteria:   '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Análisis financiero</div><div class="empty-sub">Sube un balance, estado de resultados o flujo de caja para obtener métricas y ratios clave.</div></div>',
     gestion:      '<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-title">Extracción documental</div><div class="empty-sub">Sube facturas, boletas, notas de crédito o contratos para extraer y validar los datos.</div></div>',
-    automatizacion:'<div class="empty-state"><div class="empty-icon">⚙️</div><div class="empty-title">Asiento automático</div><div class="empty-sub">Sube cualquier documento fuente y el sistema generará el asiento contable según el Plan de Cuentas chileno.</div></div>'
+    automatizacion:'<div class="empty-state"><div class="empty-icon">⚙️</div><div class="empty-title">Asiento automático</div><div class="empty-sub">Sube cualquier documento fuente y el sistema generará el asiento contable según el Plan de Cuentas chileno.</div></div>',
+    provisiones:  '<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Control de provisiones</div><div class="empty-sub">Sube el export del General Ledger de NetSuite para detectar meses sin factura ni provisión.</div></div>'
   };
   r.innerHTML = empties[mod] || '';
 }
@@ -1017,7 +1189,8 @@ function analyzeModule(mod) {
     conciliacion:   analyzeConciliacion,
     reporteria:     analyzeReporteria,
     gestion:        analyzeGestion,
-    automatizacion: analyzeAutomatizacion
+    automatizacion: analyzeAutomatizacion,
+    provisiones:    analyzeProvisiones
   };
 
   handlers[mod]().then(function(result) {
@@ -1027,6 +1200,9 @@ function analyzeModule(mod) {
     saveHistory(mod, result);
     if (mod === 'conciliacion') {
       saveDesgloseConciliacion(result);
+    }
+    if (mod === 'provisiones') {
+      saveProvisionesToSheet(result);
     }
   }).catch(function(err) {
     showProgress(false);
@@ -1167,6 +1343,45 @@ Responde ÚNICAMENTE con JSON válido:
   }).then(function(resp) { return extractJSON(resp); });
 }
 
+// ── PROVISIONES ──
+function analyzeProvisiones() {
+  const f = STATE.provisiones.files.provisiones;
+  const mesCierre = parseInt(document.getElementById('prov-mes-cierre').value, 10) || 6;
+  const umbral = parseInt(document.getElementById('prov-umbral').value, 10) || 3;
+
+  const prompt = `Eres analista contable senior de Kavak Chile. Recibes movimientos del General Ledger de NetSuite YA AGREGADOS por proveedor, mes y clasificación (formato pipe-separated). Clasificaciones: FACTURA (recepción de artículo/factura), PROVISION (asiento de diario de provisión), REVERSO (reverso de provisión — anula una PROVISION del mismo proveedor/monto).
+
+Tu tarea (meses 1 a ${mesCierre} del año indicado):
+1. Identifica los proveedores RECURRENTES: con FACTURA en al menos ${umbral} meses distintos.
+2. Para cada proveedor recurrente, marca cada mes: "F" (llegó factura), "P" (solo provisión vigente, neteando reversos), "F+P" (ambas), "FALTA" (ni factura ni provisión vigente → hay que provisionar).
+3. Calcula factura_promedio = promedio de los montos mensuales de FACTURA del proveedor (redondeado).
+4. Para cada mes FALTA, la provisión sugerida mensual = factura_promedio.
+5. total_provision_sugerida = suma de todas las provisiones sugeridas de todos los meses FALTA.
+
+Incluye también los proveedores NO recurrentes en la lista (recurrente:false, sin meses_falta) para visibilidad.
+El proveedor "(sin nombre)" corresponde a provisiones de diario sin proveedor asignado: NO lo trates como proveedor; menciónalo solo en el resumen como provisiones globales del mes que podrían cubrir parte de las faltas.
+Los montos negativos en PROVISION son reversos netos (provisión ya anulada): un mes con provisión neta ≤ 0 NO cuenta como "P".
+
+Responde ÚNICAMENTE con JSON válido:
+{
+  "cuenta": "código y nombre de la cuenta",
+  "periodo": "Ene–${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][mesCierre-1]} <año>",
+  "mes_cierre": ${mesCierre},
+  "proveedores": [{"nombre":"...","recurrente":true,"meses":{"1":"F","2":"FALTA"},"factura_promedio":0,"meses_falta":[2],"provision_sugerida_mensual":0,"comentario":"breve"}],
+  "total_provision_sugerida": 0,
+  "resumen": "párrafo ejecutivo: cuántos proveedores recurrentes, cuántos meses FALTA, monto total a provisionar y qué proveedores concentran el riesgo"
+}
+
+DATOS:
+${f.text}`;
+
+  return callClaudeServer({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+  }).then(function(resp) { return extractJSON(resp); });
+}
+
 function extractJSON(resp) {
   if (resp.stop_reason === 'max_tokens') {
     throw new Error('El documento es muy grande para procesar de una vez. Intenta subir una sola hoja del Excel o un PDF más corto.');
@@ -1189,7 +1404,8 @@ function renderResult(mod, data) {
     conciliacion:   renderConciliacion,
     reporteria:     renderReporteria,
     gestion:        renderGestion,
-    automatizacion: renderAutomatizacion
+    automatizacion: renderAutomatizacion,
+    provisiones:    renderProvisiones
   };
   r.innerHTML = renders[mod](data);
 }
@@ -1611,6 +1827,114 @@ function saveAutoToSheets(d) {
     .appendToSheet(payload);
 }
 
+// ── RENDER PROVISIONES ──
+function renderProvisiones(d) {
+  const provs = d.proveedores || [];
+  const recurrentes = provs.filter(function(p){ return p.recurrente; });
+  const conFalta = recurrentes.filter(function(p){ return (p.meses_falta || []).length > 0; });
+  const totalFalta = recurrentes.reduce(function(a,p){ return a + (p.meses_falta || []).length; }, 0);
+  const mesCierre = d.mes_cierre || 6;
+  const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // KPIs
+  html += '<div class="summary-row result-section">';
+  html += '<div class="summary-item green"><div class="si-val">' + recurrentes.length + '</div><div class="si-lbl">Proveedores recurrentes</div></div>';
+  html += '<div class="summary-item amber"><div class="si-val">' + conFalta.length + '</div><div class="si-lbl">Con meses sin cubrir</div></div>';
+  html += '<div class="summary-item red"><div class="si-val">' + totalFalta + '</div><div class="si-lbl">Meses FALTA</div></div>';
+  html += '<div class="summary-item ' + (d.total_provision_sugerida > 0 ? 'red' : 'green') + '"><div class="si-val">' + fmtMoney(d.total_provision_sugerida || 0) + '</div><div class="si-lbl">Provisión sugerida</div></div>';
+  html += '</div>';
+
+  // Banner cuenta/periodo
+  html += '<div class="result-section" style="display:flex;gap:10px;align-items:center;padding:10px 14px;background:#fff;border:1px solid var(--n200);border-radius:10px;font-size:12px">';
+  html += '<strong>Cuenta:</strong> ' + esc(d.cuenta || '—') + ' &nbsp;·&nbsp; <strong>Período:</strong> ' + esc(d.periodo || '—') + '</div>';
+
+  // Matriz
+  html += '<div class="card result-section">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--red-l)">🧾</div><div class="card-title">Matriz mensual — F factura · P provisión · FALTA provisionar</div></div>';
+  html += '<div class="tbl-wrap"><table>';
+  html += '<tr><th>Proveedor</th><th>Rec.</th>';
+  for (let m = 1; m <= mesCierre; m++) html += '<th style="text-align:center">' + MESES[m-1] + '</th>';
+  html += '<th style="text-align:right">Fact. promedio</th></tr>';
+  provs.forEach(function(p) {
+    html += '<tr' + (p.recurrente && (p.meses_falta||[]).length ? ' class="row-amber"' : '') + '>';
+    html += '<td style="font-weight:600">' + esc(p.nombre) + '</td>';
+    html += '<td>' + (p.recurrente ? 'Sí' : 'No') + '</td>';
+    for (let m = 1; m <= mesCierre; m++) {
+      const v = (p.meses && p.meses[String(m)]) || '';
+      let style = 'text-align:center;font-weight:700;';
+      if (v === 'FALTA') style += 'background:var(--red-l);color:var(--red-d)';
+      else if (v === 'F' || v === 'F+P') style += 'color:var(--green-d)';
+      else if (v === 'P') style += 'color:var(--amber)';
+      html += '<td style="' + style + '">' + esc(v || '·') + '</td>';
+    }
+    html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(p.factura_promedio || 0) + '</td>';
+    html += '</tr>';
+  });
+  html += '</table></div></div>';
+
+  // Provisiones pendientes
+  const pend = [];
+  recurrentes.forEach(function(p) {
+    (p.meses_falta || []).forEach(function(m) {
+      pend.push({ nombre: p.nombre, mes: MESES[m-1], monto: p.provision_sugerida_mensual || 0, comentario: p.comentario || '' });
+    });
+  });
+  if (pend.length) {
+    html += '<div class="card result-section">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--amber-l)">⚠️</div><div class="card-title">Provisiones pendientes de registrar (' + pend.length + ')</div></div>';
+    html += '<div class="tbl-wrap"><table>';
+    html += '<tr><th>Proveedor</th><th>Mes</th><th style="text-align:right">Monto estimado</th><th>Comentario</th></tr>';
+    pend.forEach(function(x) {
+      html += '<tr class="row-amber"><td style="font-weight:600">' + esc(x.nombre) + '</td><td>' + x.mes + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-weight:700">' + fmtMoney(x.monto) + '</td>';
+      html += '<td style="font-size:11px;color:var(--n500)">' + esc(x.comentario) + '</td></tr>';
+    });
+    html += '</table></div></div>';
+  }
+
+  // Resumen
+  if (d.resumen) {
+    html += '<div class="card result-section"><div class="card-header"><div class="card-icon" style="background:var(--n100)">📝</div><div class="card-title">Resumen</div></div>';
+    html += '<div style="padding:4px 14px 14px;font-size:12px;line-height:1.7;color:var(--n600)">' + esc(d.resumen) + '</div></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ── PROVISIONES → SHEETS ──
+function saveProvisionesToSheet(d) {
+  if (!(window.google && google.script && google.script.run)) return;
+  const now = new Date();
+  const payload = Object.assign({}, d, {
+    analista: document.getElementById('userInput').value || 'Anónimo',
+    fecha: now.toLocaleDateString('es-CL'),
+    hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' })
+  });
+  showToast('Escribiendo en planilla de Provisiones…', 'info');
+  google.script.run
+    .withSuccessHandler(function(url) {
+      const r = document.getElementById('results-provisiones');
+      if (r) {
+        const old = r.querySelector('.desglose-link-bar');
+        if (old) old.remove();
+        const bar = document.createElement('div');
+        bar.className = 'desglose-link-bar';
+        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:#e6f7f0;border:1px solid #b3e8d3;border-radius:10px;margin-bottom:8px;font-size:12px;color:#0b6b3a';
+        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Resultados escritos en la planilla de Provisiones</span>' +
+          '<a href="' + url + '" target="_blank" style="margin-left:auto;font-size:11px;font-weight:700;color:#007a4a;text-decoration:none;padding:4px 10px;background:#fff;border:1px solid #b3e8d3;border-radius:6px">Abrir Sheets →</a>';
+        r.insertBefore(bar, r.firstChild);
+      }
+      showToast('Provisiones guardadas en Sheets ✓', 'success');
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error al escribir en Sheets: ' + e.message, 'error');
+    })
+    .writeProvisionesSheet(JSON.stringify(payload));
+}
+
 // ── CONCILIACION → SHEETS DESGLOSE ──
 function saveDesgloseConciliacion(d) {
   if (!(window.google && google.script && google.script.run)) return;
@@ -1677,7 +2001,8 @@ function saveHistory(mod, data) {
     conciliacion:   (data.conciliados || []).length + ' conciliados · Dif: ' + fmtMoney(Math.abs(data.diferencia_total || 0)),
     reporteria:     (data.tipo || 'financiero') + ' · ' + (data.periodo || ''),
     gestion:        (data.tipo_documento || 'doc') + ' N°' + (data.numero || '') + ' · ' + fmtMoney(data.total || 0),
-    automatizacion: (data.tipo_operacion || 'asiento') + ' · ' + fmtMoney(data.total_debe || 0)
+    automatizacion: (data.tipo_operacion || 'asiento') + ' · ' + fmtMoney(data.total_debe || 0),
+    provisiones:    (data.proveedores || []).length + ' proveedores · Sugerido: ' + fmtMoney(data.total_provision_sugerida || 0)
   };
   const item = {
     id: Date.now(),

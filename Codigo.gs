@@ -1,5 +1,5 @@
 /**
- * Kavak Supply Tools — Apps Script Web App
+ * Kavak Finanzas Tools — Apps Script Web App
  */
 
 function doGet(e) {
@@ -15,7 +15,7 @@ function buildPage(name) {
   template.ACTIVE_PAGE = name;
   template.BASE_URL    = ScriptApp.getService().getUrl();
   return template.evaluate()
-    .setTitle('Kavak Supply Tools')
+    .setTitle('Kavak Finanzas Tools')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
@@ -58,6 +58,167 @@ var DEFAULT_SHEET_ID = '1aUPadOFLivxi7u-IeSSACJsCJDPkRAi-04KxrCkm7tk';
 // Planilla de papel de trabajo de conciliaciones
 var CONCIL_SHEET_ID = '1p3TYuzbwMw1Iijd07lTpsJMM_e73VUmnIlBkeM57Txc';
 
+// Planilla de Control de Provisiones (facturas de proveedores vs provisiones)
+var PROVISIONES_SHEET_ID = '1oOWGLYN7X28lennVGvp58n1LXmjU8-MoltVj7GeSIaU';
+
+/**
+ * Escribe (sobreescribe) la hoja "Provisiones" de la planilla de Control de
+ * Provisiones con el resultado del análisis del módulo Provisiones.
+ * Llamado desde finanzas.html.
+ *
+ * payload: {
+ *   analista, fecha, hora, cuenta, periodo, mes_cierre,
+ *   proveedores: [{nombre, recurrente, meses:{"1":"F"|"P"|"F+P"|"FALTA"|""},
+ *                  factura_promedio, meses_falta:[n], provision_sugerida_mensual, comentario}],
+ *   total_provision_sugerida, resumen
+ * }
+ */
+function writeProvisionesSheet(payload) {
+  const p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+
+  const ssId = PropertiesService.getScriptProperties().getProperty('PROVISIONES_SHEET_ID') || PROVISIONES_SHEET_ID;
+  const ss   = SpreadsheetApp.openById(ssId);
+
+  let sh = ss.getSheetByName('Provisiones');
+  if (!sh) sh = ss.insertSheet('Provisiones');
+  else {
+    sh.clearContents();
+    sh.clearFormats();
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+
+  const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const provs = p.proveedores || [];
+  const mesCierre = parseInt(p.mes_cierre, 10) || 6;
+
+  const header = ['Proveedor', 'Recurrente'];
+  for (var m = 1; m <= mesCierre; m++) header.push(MESES[m-1]);
+  header.push('Fact. promedio', 'Prov. sugerida/mes', 'Comentario');
+  const REAL_COLS = header.length;
+
+  function fmtMoney(v) {
+    const n = parseFloat(v) || 0;
+    return n.toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 });
+  }
+  function pad(arr, len) { while (arr.length < len) arr.push(''); return arr; }
+
+  const rows = [];
+
+  // Fila 1 — Título
+  rows.push(pad(['CONTROL DE PROVISIONES — Facturas de Proveedores  ·  Kavak Finanzas Chile'], REAL_COLS));
+  // Fila 2 — Metadata
+  rows.push(pad([
+    'Analista: ' + (p.analista || 'Anónimo'),
+    'Fecha análisis: ' + (p.fecha || '') + ' ' + (p.hora || ''),
+    'Cuenta: ' + (p.cuenta || '—'),
+    'Período: ' + (p.periodo || '—'),
+    'Provisión total sugerida: ' + fmtMoney(p.total_provision_sugerida)
+  ], REAL_COLS));
+  rows.push(pad([''], REAL_COLS));
+
+  // ── Matriz mensual ──
+  rows.push(pad(['MATRIZ MENSUAL  ·  F = factura · P = provisión · F+P = ambas · FALTA = provisionar'], REAL_COLS));
+  rows.push(header.slice());
+
+  provs.forEach(function(pr) {
+    const r = [pr.nombre || '', pr.recurrente ? 'Sí' : 'No'];
+    for (var m = 1; m <= mesCierre; m++) {
+      r.push((pr.meses && pr.meses[String(m)]) || '');
+    }
+    r.push(parseFloat(pr.factura_promedio) || 0);
+    r.push((pr.meses_falta && pr.meses_falta.length) ? (parseFloat(pr.provision_sugerida_mensual) || 0) : '');
+    r.push(pr.comentario || '');
+    rows.push(pad(r, REAL_COLS));
+  });
+  rows.push(pad([''], REAL_COLS));
+
+  // ── Provisiones pendientes ──
+  const pend = [];
+  provs.forEach(function(pr) {
+    (pr.meses_falta || []).forEach(function(m) {
+      pend.push({ prov: pr.nombre, mes: MESES[m-1], monto: parseFloat(pr.provision_sugerida_mensual) || 0 });
+    });
+  });
+  rows.push(pad(['PROVISIONES PENDIENTES DE REGISTRAR (' + pend.length + ')'], REAL_COLS));
+  rows.push(pad(['Proveedor', 'Mes', 'Monto estimado', 'Registrada (Sí/No)', 'Nº asiento', 'Notas'], REAL_COLS));
+  pend.forEach(function(x) {
+    rows.push(pad([x.prov, x.mes, x.monto, '', '', ''], REAL_COLS));
+  });
+  rows.push(pad([''], REAL_COLS));
+
+  // ── Resumen ──
+  rows.push(pad(['RESUMEN'], REAL_COLS));
+  rows.push(pad([p.resumen || ''], REAL_COLS));
+
+  sh.getRange(1, 1, rows.length, REAL_COLS).setValues(rows);
+
+  // ══ Formato ══
+  sh.getRange(1, 1, 1, REAL_COLS).merge().setBackground('#1c1c1e').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+  sh.setRowHeight(1, 38);
+  sh.getRange(2, 1, 1, REAL_COLS).setBackground('#f1f5f9').setFontColor('#475569').setFontSize(10);
+
+  // Matriz
+  const matHead = 4;
+  sh.getRange(matHead, 1, 1, REAL_COLS).merge().setBackground('#dc1a23').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(11);
+  sh.getRange(matHead + 1, 1, 1, REAL_COLS).setBackground('#0f172a').setFontColor('#e2e8f0')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+
+  if (provs.length > 0) {
+    const dataR = sh.getRange(matHead + 2, 1, provs.length, REAL_COLS);
+    dataR.setFontSize(10);
+    // Formato moneda en columnas de montos
+    sh.getRange(matHead + 2, 2 + mesCierre + 1, provs.length, 2)
+      .setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+    // Semáforo en celdas de meses
+    const mesRange = sh.getRange(matHead + 2, 3, provs.length, mesCierre);
+    mesRange.setHorizontalAlignment('center').setFontWeight('bold');
+    const rules = sh.getConditionalFormatRules();
+    rules.push(
+      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('FALTA')
+        .setBackground('#fde2e1').setFontColor('#b3261e').setRanges([mesRange]).build(),
+      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('F')
+        .setBackground('#d6f5e3').setFontColor('#0b6b3a').setRanges([mesRange]).build(),
+      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('F+P')
+        .setBackground('#d6f5e3').setFontColor('#0b6b3a').setRanges([mesRange]).build(),
+      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('P')
+        .setBackground('#fff1d6').setFontColor('#9a6700').setRanges([mesRange]).build()
+    );
+    sh.setConditionalFormatRules(rules);
+  }
+
+  // Pendientes
+  const pendHead = matHead + 2 + provs.length + 1;
+  sh.getRange(pendHead, 1, 1, REAL_COLS).merge().setBackground('#d97706').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(11);
+  sh.getRange(pendHead + 1, 1, 1, REAL_COLS).setBackground('#0f172a').setFontColor('#e2e8f0')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  if (pend.length > 0) {
+    sh.getRange(pendHead + 2, 1, pend.length, 6).setBackground('#fffbeb').setFontColor('#92400e');
+    sh.getRange(pendHead + 2, 3, pend.length, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+  }
+
+  // Resumen
+  const resHead = pendHead + 2 + pend.length + 1;
+  sh.getRange(resHead, 1, 1, REAL_COLS).merge().setBackground('#f1f5f9').setFontColor('#334155')
+    .setFontWeight('bold').setFontSize(11);
+  sh.getRange(resHead + 1, 1, 1, REAL_COLS).merge().setWrap(true).setFontColor('#475569').setFontSize(10);
+  sh.setRowHeight(resHead + 1, 80);
+
+  // Anchos
+  sh.setColumnWidth(1, 230);
+  sh.setColumnWidth(2, 84);
+  for (var c = 3; c < 3 + mesCierre; c++) sh.setColumnWidth(c, 62);
+  sh.setColumnWidth(3 + mesCierre, 115);
+  sh.setColumnWidth(4 + mesCierre, 125);
+  sh.setColumnWidth(5 + mesCierre, 260);
+  sh.setFrozenRows(1);
+
+  return ss.getUrl() + '#gid=' + sh.getSheetId();
+}
+
 /**
  * Ejecutar UNA vez desde el editor de Apps Script (▶ Run → setupDesgloseTemplate).
  * Deja la hoja "Desglose" con estructura, headers y formato listos.
@@ -83,7 +244,7 @@ function setupDesgloseTemplate() {
   var rows = [];
 
   // Fila 1 — Título principal
-  rows.push(['CONCILIACIÓN BANCARIA — Papel de Trabajo  ·  Kavak Supply Chile', '', '', '', '', '', '']);
+  rows.push(['CONCILIACIÓN BANCARIA — Papel de Trabajo  ·  Kavak Finanzas Chile', '', '', '', '', '', '']);
 
   // Fila 2 — Metadata (se llenará con cada análisis)
   rows.push(['Analista: —', 'Fecha: —', 'Hora: —', '', 'Saldo Cartola: —', 'Saldo Libro: —', 'Diferencia Total: —']);
@@ -240,7 +401,7 @@ function writeConciliacionDesglose(payload) {
   const rows = [];
 
   // ── Título ──
-  rows.push(['CONCILIACIÓN BANCARIA — Papel de Trabajo Kavak Supply Chile', '', '', '', '', '', '']);
+  rows.push(['CONCILIACIÓN BANCARIA — Papel de Trabajo Kavak Finanzas Chile', '', '', '', '', '', '']);
   rows.push([
     'Analista: ' + (p.analista || 'Anónimo'),
     'Fecha: ' + (p.fecha || ''),
@@ -440,7 +601,7 @@ function setupKavakSheet() {
   db.setColumnWidth(1, 30);
   [2,3,4,5].forEach(function(c){ db.setColumnWidth(c, 150); });
 
-  db.getRange('B2').setValue('KAVAK SUPPLY · Panel de Inspecciones')
+  db.getRange('B2').setValue('KAVAK FINANZAS · Panel de Inspecciones')
     .setFontSize(18).setFontWeight('bold').setFontColor('#1c1c1e');
   db.getRange('B3').setValue('Resumen en vivo de DocScan y B2B Scan')
     .setFontSize(11).setFontColor('#8e8e93');
