@@ -70,7 +70,7 @@ var PROVISIONES_SHEET_ID = '1oOWGLYN7X28lennVGvp58n1LXmjU8-MoltVj7GeSIaU';
  *   analista, fecha, hora, cuenta, periodo, mes_cierre,
  *   proveedores: [{nombre, recurrente, meses:{"1":"F"|"P"|"F+P"|"FALTA"|""},
  *                  factura_promedio, meses_falta:[n], provision_sugerida_mensual, comentario}],
- *   total_provision_sugerida, resumen
+ *   total_provision_sugerida, resumen, notas_auditoria: [str]
  * }
  */
 function writeProvisionesSheet(payload) {
@@ -147,6 +147,14 @@ function writeProvisionesSheet(payload) {
   });
   rows.push(pad([''], REAL_COLS));
 
+  // ── Notas para auditoría ──
+  const notas = p.notas_auditoria || [];
+  rows.push(pad(['NOTAS PARA AUDITORÍA — variaciones y justificaciones (' + notas.length + ')'], REAL_COLS));
+  notas.forEach(function(n, i) {
+    rows.push(pad([(i + 1) + '. ' + n], REAL_COLS));
+  });
+  rows.push(pad([''], REAL_COLS));
+
   // ── Resumen ──
   rows.push(pad(['RESUMEN'], REAL_COLS));
   rows.push(pad([p.resumen || ''], REAL_COLS));
@@ -200,8 +208,18 @@ function writeProvisionesSheet(payload) {
     sh.getRange(pendHead + 2, 3, pend.length, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
   }
 
+  // Notas para auditoría
+  const notasHead = pendHead + 2 + pend.length + 1;
+  sh.getRange(notasHead, 1, 1, REAL_COLS).merge().setBackground('#7c3aed').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(11);
+  for (var ni = 0; ni < notas.length; ni++) {
+    sh.getRange(notasHead + 1 + ni, 1, 1, REAL_COLS).merge().setWrap(true)
+      .setBackground('#f5f3ff').setFontColor('#4c1d95').setFontSize(10).setVerticalAlignment('middle');
+    sh.setRowHeight(notasHead + 1 + ni, 34);
+  }
+
   // Resumen
-  const resHead = pendHead + 2 + pend.length + 1;
+  const resHead = notasHead + 1 + notas.length + 1;
   sh.getRange(resHead, 1, 1, REAL_COLS).merge().setBackground('#f1f5f9').setFontColor('#334155')
     .setFontWeight('bold').setFontSize(11);
   sh.getRange(resHead + 1, 1, 1, REAL_COLS).merge().setWrap(true).setFontColor('#475569').setFontSize(10);

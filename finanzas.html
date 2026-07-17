@@ -1376,8 +1376,18 @@ Responde ÚNICAMENTE con JSON válido:
   "mes_cierre": ${mesCierre},
   "proveedores": [{"nombre":"...","recurrente":true,"meses":{"1":"F","2":"FALTA"},"factura_promedio":0,"meses_falta":[2],"provision_sugerida_mensual":0,"comentario":"breve"}],
   "total_provision_sugerida": 0,
-  "resumen": "párrafo ejecutivo: cuántos proveedores recurrentes, cuántos meses FALTA, monto total a provisionar y qué proveedores concentran el riesgo"
+  "resumen": "párrafo ejecutivo: cuántos proveedores recurrentes, cuántos meses FALTA, monto total a provisionar y qué proveedores concentran el riesgo",
+  "notas_auditoria": ["observación 1", "observación 2"]
 }
+
+"notas_auditoria" es CLAVE — son las justificaciones que el analista presentará a auditores y jefaturas. Escribe de 3 a 8 observaciones concretas y verificables contra los datos, priorizando:
+- Concentración del monto sugerido (qué proveedor concentra qué % del total y en qué meses).
+- Patrones de facturación NO mensual detectados (ej. montos idénticos en meses separados que sugieren facturación trimestral o por período — indica que quizás no corresponde provisión mensual y conviene confirmar el contrato).
+- Fluctuaciones atípicas de monto entre meses de un mismo proveedor (dobles facturaciones, saltos > 50%).
+- Reversos relevantes y a qué provisión previa corresponden probablemente.
+- Sensibilidad al umbral: qué proveedores entran/salen del cálculo si el umbral de recurrencia cambia, y cuánto varía el total.
+- Provisiones de diario sin proveedor asignado que podrían cubrir parte de las faltas.
+Cada nota debe citar cifras exactas de los datos (montos y meses).
 
 Reglas de formato: JSON compacto sin saltos de línea innecesarios; "comentario" máximo 8 palabras (omítelo si no aporta); en proveedores NO recurrentes omite "meses" y "factura_promedio". Nada de texto fuera del JSON.
 
@@ -1954,6 +1964,19 @@ function renderProvisiones(d) {
     html += '</table></div></div>';
   }
 
+  // Notas para auditoría
+  const notas = d.notas_auditoria || [];
+  if (notas.length) {
+    html += '<div class="card result-section" style="border-left:3px solid var(--purple)">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--purple-l)">🔎</div><div class="card-title">Notas para auditoría — variaciones y justificaciones</div>';
+    html += '<button class="copy-btn" style="margin-left:auto;font-size:14px" onclick="copyNotasAuditoria(this)" title="Copiar notas">📋</button></div>';
+    html += '<div id="notas-auditoria-list" style="padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px">';
+    notas.forEach(function(n) {
+      html += '<div style="display:flex;gap:8px;font-size:12px;line-height:1.6;color:var(--n600)"><span style="color:var(--purple);flex-shrink:0">▸</span><span>' + esc(n) + '</span></div>';
+    });
+    html += '</div></div>';
+  }
+
   // Resumen
   if (d.resumen) {
     html += '<div class="card result-section"><div class="card-header"><div class="card-icon" style="background:var(--n100)">📝</div><div class="card-title">Resumen</div></div>';
@@ -1962,6 +1985,17 @@ function renderProvisiones(d) {
 
   html += '</div>';
   return html;
+}
+
+function copyNotasAuditoria(btn) {
+  const list = document.getElementById('notas-auditoria-list');
+  if (!list) return;
+  const text = Array.from(list.querySelectorAll('span:last-child')).map(function(s, i) {
+    return (i + 1) + '. ' + s.textContent;
+  }).join('\n');
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('Notas copiadas ✓', 'success');
+  });
 }
 
 // ── PROVISIONES → SHEETS ──
