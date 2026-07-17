@@ -76,8 +76,11 @@ var PROVISIONES_SHEET_ID = '1oOWGLYN7X28lennVGvp58n1LXmjU8-MoltVj7GeSIaU';
  *   analista, fecha, hora, cuenta, periodo, mes_cierre,
  *   proveedores: [{nombre, recurrente, meses:{"1":"F"|"P"|"F+P"|"FALTA"|""},
  *                  factura_promedio, meses_falta:[n], provision_sugerida_mensual, comentario}],
- *   total_provision_sugerida, resumen, notas_auditoria: [str]
+ *   total_provision_sugerida, resumen, notas_auditoria: [str],
+ *   comparativa: {filas:[{prov,montos:[],delta}], totFact:[], totProv:[]},
+ *   otros: [{cuenta,tipo,prov,mes,monto,n}], cuentas: [str]
  * }
+ * Escribe la pestaña "Provisiones" y delega tablas/gráficos en "Dashboard".
  */
 function writeProvisionesSheet(payload) {
   const p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
@@ -169,33 +172,6 @@ function writeProvisionesSheet(payload) {
     push(r, 'row-matriz');
   });
   push([]);
-
-  // ── Comparativa mensual (facturación por proveedor y variaciones) ──
-  const comp = p.comparativa || null;
-  var compDataStart = -1;
-  if (comp && comp.filas && comp.filas.length) {
-    push(['COMPARATIVA MENSUAL — facturación (IR) por proveedor · Δ ' + mesNombre + ' vs mes anterior'], 'sec-dark');
-    const ch = ['Proveedor'];
-    for (var m = 1; m <= mesCierre; m++) ch.push(MESES[m-1]);
-    ch.push('Δ %');
-    push(ch, 'colhead');
-    compDataStart = rows.length + 1;
-    comp.filas.forEach(function(fRow) {
-      const r = [fRow.prov];
-      for (var m = 0; m < mesCierre; m++) r.push(fRow.montos[m] || '');
-      r.push(fRow.delta || '');
-      push(r, 'row-comp');
-    });
-    const tf = ['TOTAL FACTURADO'];
-    for (var m = 0; m < mesCierre; m++) tf.push(comp.totFact[m] || 0);
-    tf.push('');
-    push(tf, 'row-comp-total');
-    const tp = ['Provisiones (Diario) del mes'];
-    for (var m = 0; m < mesCierre; m++) tp.push(comp.totProv[m] || '');
-    tp.push('');
-    push(tp, 'row-comp-prov');
-    push([]);
-  }
 
   // ── Referencia: meses anteriores ──
   if (pendPrevios.length) {
@@ -299,7 +275,135 @@ function writeProvisionesSheet(payload) {
   sh.setColumnWidth(REAL_COLS, 240);
   sh.setFrozenRows(1);
 
+  // Tablas y gráficos en su propia hoja
+  writeProvisionesDashboard_(ss, p, mesCierre, MESES);
+
   return ss.getUrl() + '#gid=' + sh.getSheetId();
+}
+
+/**
+ * Hoja "Dashboard" de la planilla de Provisiones: comparativa mensual por
+ * proveedor, gráfico de facturación por mes y desglose de otros movimientos.
+ * Se reconstruye completa en cada análisis.
+ */
+function writeProvisionesDashboard_(ss, p, mesCierre, MESES) {
+  let sh = ss.getSheetByName('Dashboard');
+  if (!sh) sh = ss.insertSheet('Dashboard');
+  else {
+    sh.clearContents();
+    sh.clearFormats();
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.getCharts().forEach(function(c) { sh.removeChart(c); });
+    sh.getBandings().forEach(function(b){ b.remove(); });
+  }
+
+  const mesNombre = MESES[mesCierre - 1];
+  const comp = p.comparativa || { filas: [], totFact: [], totProv: [] };
+  const otros = p.otros || [];
+  const NCOLS = Math.max(mesCierre + 2, 7);
+
+  function pad(arr, len) { while (arr.length < len) arr.push(''); return arr; }
+  const rows = [];
+  const marks = [];
+  function push(arr, kind) {
+    rows.push(pad(arr, NCOLS));
+    if (kind) marks.push({ r: rows.length, kind: kind });
+  }
+
+  push(['DASHBOARD PROVISIONES — comparativas y desgloses  ·  ' + (p.periodo || '')], 'title');
+  push(['Analista: ' + (p.analista || 'Anónimo'), 'Fecha análisis: ' + (p.fecha || '') + ' ' + (p.hora || ''), 'Cuentas: ' + ((p.cuentas || []).join(' · ') || p.cuenta || '—')], 'meta');
+  push([]);
+
+  // ── Tabla base del gráfico: total facturado y provisiones por mes ──
+  push(['FACTURACIÓN (IR) Y PROVISIONES (DIARIO) POR MES'], 'sec-dark');
+  push(['Mes', 'Total facturado', 'Provisiones'], 'colhead');
+  var chartDataStart = rows.length + 1;
+  for (var m = 0; m < mesCierre; m++) {
+    push([MESES[m], comp.totFact[m] || 0, comp.totProv[m] || 0], 'row-money2');
+  }
+  var chartDataEnd = rows.length;
+  push([]);
+
+  // ── Comparativa por proveedor ──
+  if (comp.filas && comp.filas.length) {
+    push(['COMPARATIVA MENSUAL POR PROVEEDOR — Δ ' + mesNombre + ' vs mes anterior · ⚠ = ±50% o sin factura'], 'sec-dark');
+    const ch = ['Proveedor'];
+    for (var m = 1; m <= mesCierre; m++) ch.push(MESES[m-1]);
+    ch.push('Δ %');
+    push(ch, 'colhead');
+    comp.filas.forEach(function(fRow) {
+      const r = [fRow.prov];
+      for (var m = 0; m < mesCierre; m++) r.push(fRow.montos[m] || '');
+      r.push(fRow.delta || '');
+      push(r, 'row-comp');
+    });
+    push([]);
+  }
+
+  // ── Otros movimientos (sin IR ni Diario) ──
+  push(['OTROS MOVIMIENTOS DEL ARCHIVO — fuera de la lógica de provisiones (' + otros.length + ' líneas)'], 'sec-gray');
+  push(['Cuenta', 'Tipo (NetSuite)', 'Proveedor', 'Mes', 'Monto neto', 'N° movs'], 'colhead');
+  if (otros.length) {
+    otros.forEach(function(x) {
+      push([x.cuenta || '', x.tipo || '', x.prov || '', MESES[(x.mes || 1) - 1] || x.mes, parseFloat(x.monto) || 0, x.n || ''], 'row-otro');
+    });
+  } else {
+    push(['— El archivo no trae movimientos fuera de la regla IR/Diario —'], 'row-empty');
+  }
+
+  sh.getRange(1, 1, rows.length, NCOLS).setValues(rows);
+
+  // ══ Formato ══
+  marks.forEach(function(mk) {
+    const R = sh.getRange(mk.r, 1, 1, NCOLS);
+    switch (mk.kind) {
+      case 'title':
+        R.merge().setBackground('#000000').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 38); break;
+      case 'meta':
+        R.setBackground('#f4f4f5').setFontColor('#3f3f46').setFontSize(10); break;
+      case 'sec-dark':
+        R.merge().setBackground('#18181b').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-gray':
+        R.merge().setBackground('#e4e4e7').setFontColor('#3f3f46').setFontWeight('bold').setFontSize(11); break;
+      case 'colhead':
+        R.setBackground('#27272a').setFontColor('#e4e4e7').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center'); break;
+      case 'row-money2':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 2, 1, 2).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-comp':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 2 + mesCierre, 1, 1).setHorizontalAlignment('right').setFontWeight('bold'); break;
+      case 'row-otro':
+        R.setFontSize(10).setFontColor('#52525b');
+        sh.getRange(mk.r, 5, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-empty':
+        R.merge().setFontColor('#a1a1aa').setFontStyle('italic'); break;
+    }
+  });
+
+  // ── Gráfico de columnas: facturación y provisiones por mes ──
+  const chart = sh.newChart()
+    .setChartType(Charts.ChartType.COLUMN)
+    .addRange(sh.getRange(chartDataStart - 1, 1, chartDataEnd - chartDataStart + 2, 3))
+    .setPosition(4, Math.min(NCOLS, 5), 0, 0)
+    .setOption('title', 'Facturación (IR) vs Provisiones (Diario) por mes')
+    .setOption('titleTextStyle', { color: '#18181b', fontSize: 13, bold: true })
+    .setOption('colors', ['#18181b', '#dc1a23'])
+    .setOption('backgroundColor', { fill: '#ffffff' })
+    .setOption('legend', { position: 'bottom' })
+    .setOption('hAxis', { textStyle: { color: '#52525b', fontSize: 10 } })
+    .setOption('vAxis', { textStyle: { color: '#52525b', fontSize: 10 }, minValue: 0, format: 'short' })
+    .setOption('width', 560)
+    .setOption('height', 300);
+  sh.insertChart(chart.build());
+
+  // Anchos
+  sh.setColumnWidth(1, 230);
+  for (var c = 2; c <= NCOLS; c++) sh.setColumnWidth(c, 105);
+  sh.setFrozenRows(1);
 }
 
 /**

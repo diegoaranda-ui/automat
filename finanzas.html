@@ -804,7 +804,7 @@ function handleFile(key, input) {
   const proc = (key === 'provisiones') ? processProvisionesGL(file) : processFile(file);
   proc.then(function(fd) {
     const mod = getModuleForKey(key);
-    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', anio: fd.anio || null, movs: fd.movs || null };
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [] };
     showFilePreview(key, file);
     updateAnalyzeButton(mod);
   }).catch(function(err) {
@@ -1032,18 +1032,22 @@ function processProvisionesGL(file) {
         }
 
         let cuenta = '';
-        const agg = {}; // proveedor|mes|clas -> {monto, n}
+        const cuentas = [];   // todas las cuentas detectadas (archivo multi-cuenta)
+        const agg = {};       // cuenta|proveedor|mes|clas -> {monto, n}
+        const aggOtros = {};  // movimientos que no son factura IR ni diario: desglose informativo
         let anioDetectado = null;
-        let omitidas = 0;  // movimientos sin período legible
-        let excluidos = 0; // movimientos que no son factura IR ni diario (pagos, NC, etc.)
+        let omitidas = 0;     // movimientos sin período legible
 
         for (let i = hIdx + 1; i < grid.length; i++) {
           const row = grid[i] || [];
           const accCell = String(row[cAcc] || '').trim();
           const type = String(row[cType] || '').trim();
           if (accCell && !type) {
-            // Fila de subtítulo de cuenta, ej. "5401-22 - Servicio de ..."
-            if (/^\d{4}-\d+/.test(accCell)) cuenta = accCell;
+            // Subtítulo de cuenta, ej. "5401-22 - Servicio de ..." (se ignoran los "Total - ...")
+            if (/^\d{4}-\d+/.test(accCell)) {
+              cuenta = accCell;
+              if (cuentas.indexOf(cuenta) === -1) cuentas.push(cuenta);
+            }
             continue;
           }
           if (!type) continue;
@@ -1063,38 +1067,46 @@ function processProvisionesGL(file) {
           //  · FACTURA recepcionada = Document Number empieza con "IR"
           //  · PROVISION = Type "Diario" (asiento manual de NetSuite); negativo o
           //    memo "reverso" = REVERSO (anulación de provisión anterior)
-          //  · Todo lo demás (pagos, NC, otros) se excluye para no contaminar
+          //  · Todo lo demás (Factura de compra sin IR, pagos, NC) NO entra a la
+          //    lógica de provisiones, pero se desglosa aparte para visibilidad
           let clas;
           if (/diario/i.test(type)) {
             clas = (memo.indexOf('reverso') !== -1 || monto < 0) ? 'REVERSO' : 'PROVISION';
           } else if (docNum.indexOf('IR') === 0) {
             clas = 'FACTURA';
           } else {
-            excluidos++;
+            const ko = cuenta + '|' + type + '|' + prov + '|' + pm.mes;
+            if (!aggOtros[ko]) aggOtros[ko] = { cuenta: cuenta, tipo: type, prov: prov, mes: pm.mes, monto: 0, n: 0 };
+            aggOtros[ko].monto += monto;
+            aggOtros[ko].n++;
             continue;
           }
 
-          const key = prov + '|' + pm.mes + '|' + clas;
-          if (!agg[key]) agg[key] = { prov: prov, mes: pm.mes, clas: clas, monto: 0, n: 0 };
+          const key = cuenta + '|' + prov + '|' + pm.mes + '|' + clas;
+          if (!agg[key]) agg[key] = { cuenta: cuenta, prov: prov, mes: pm.mes, clas: clas, monto: 0, n: 0 };
           agg[key].monto += monto;
           agg[key].n++;
         }
 
         const keys = Object.keys(agg);
-        if (!keys.length) throw new Error('No se encontraron movimientos con período legible. ¿Es el reporte "CL - General Ledger con filtro por Cuenta" de NetSuite?');
+        const otros = Object.keys(aggOtros).sort().map(function(k) {
+          const a = aggOtros[k];
+          return { cuenta: a.cuenta, tipo: a.tipo, prov: a.prov, mes: a.mes, monto: Math.round(a.monto), n: a.n };
+        });
+        if (!keys.length && !otros.length) throw new Error('No se encontraron movimientos con período legible. ¿Es el reporte "CL - General Ledger con filtro por Cuenta" de NetSuite?');
         if (omitidas > 0) {
           showToast('⚠ ' + omitidas + ' movimiento(s) sin período legible fueron omitidos del análisis', 'error');
         }
-        if (excluidos > 0) {
-          showToast('ℹ ' + excluidos + ' movimiento(s) que no son factura IR ni diario (pagos, NC, otros) quedaron fuera del análisis', 'info');
+        if (otros.length > 0) {
+          showToast('ℹ ' + otros.reduce(function(a,x){ return a + x.n; }, 0) + ' movimiento(s) sin "IR" ni Diario se desglosan aparte (no entran a la lógica de provisiones)', 'info');
         }
 
         const movs = keys.sort().map(function(k) {
           const a = agg[k];
-          return { prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n };
+          return { cuenta: a.cuenta, prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n };
         });
 
-        resolve({ b64: null, isText: true, text: null, cuenta: cuenta, anio: anioDetectado, movs: movs, omitidas: omitidas });
+        resolve({ b64: null, isText: true, text: null, cuenta: cuentas.join('  ·  ') || cuenta, cuentas: cuentas, anio: anioDetectado, movs: movs, otros: otros, omitidas: omitidas });
       } catch(err) { reject(err); }
     };
     reader.onerror = reject;
@@ -1451,18 +1463,20 @@ function analyzeProvisiones() {
   const umbral = parseInt(document.getElementById('prov-umbral').value, 10) || 3;
 
   // Reconstruir la tabla compacta desde los movimientos pre-agregados (determinístico)
-  let datos = 'CUENTA: ' + (f.cuenta || 'no detectada') + '\nAÑO: ' + (f.anio || '') + '\n';
-  datos += 'proveedor|mes|clasificacion|monto_total|n_movimientos\n';
+  let datos = 'CUENTAS ANALIZADAS: ' + ((f.cuentas && f.cuentas.length) ? f.cuentas.join(' ; ') : (f.cuenta || 'no detectada')) + '\nAÑO: ' + (f.anio || '') + '\n';
+  datos += 'cuenta|proveedor|mes|clasificacion|monto_total|n_movimientos\n';
   (f.movs || []).forEach(function(a) {
-    datos += a.prov + '|' + a.mes + '|' + a.clas + '|' + a.monto + '|' + a.n + '\n';
+    datos += (a.cuenta || '') + '|' + a.prov + '|' + a.mes + '|' + a.clas + '|' + a.monto + '|' + a.n + '\n';
   });
 
   const prompt = `Eres analista contable senior de Kavak Chile. Recibes movimientos del General Ledger de NetSuite YA AGREGADOS por proveedor, mes y clasificación (formato pipe-separated). Clasificaciones (ya depuradas por código): FACTURA (recepción con Document Number "IR..." — factura recepcionada real), PROVISION (asiento de Diario de NetSuite con monto positivo), REVERSO (anulación de una provisión anterior — monto negativo). Pagos, notas de crédito y otros movimientos ya fueron excluidos.
 
 FOCO ACCIONABLE: el equipo contable solo puede accionar sobre el ÚLTIMO mes del análisis (mes ${mesCierre}); los meses anteriores ya están cerrados y sirven de referencia/contexto. En "resumen" y "notas_auditoria" prioriza SIEMPRE lo que hay que provisionar en el mes ${mesCierre}.
 
+El archivo puede traer VARIAS cuentas contables: analiza cada cuenta por separado (un proveedor pertenece a la cuenta donde registra sus movimientos) e incluye el campo "cuenta" en cada proveedor de tu respuesta.
+
 Tu tarea (meses 1 a ${mesCierre} del año indicado). Trabaja EXCLUSIVAMENTE con los datos entregados; no inventes proveedores, meses ni montos:
-1. Identifica los proveedores RECURRENTES: con FACTURA (monto neto > 0) en al menos ${umbral} meses distintos.
+1. Identifica los proveedores RECURRENTES: con FACTURA (monto neto > 0) en al menos ${umbral} meses distintos dentro de su cuenta.
 2. Para cada proveedor recurrente, marca cada mes: "F" (llegó factura ese mes), "P" (sin factura pero con PROVISION registrada ese mes), "F+P" (ambas), "FALTA" (ni factura ni PROVISION ese mes → hay que provisionar).
 3. REGLA CRÍTICA — REVERSO es solo informativo: un REVERSO registrado en el mes M anula una provisión de un mes ANTERIOR (ciclo normal: se provisiona en M, llega la factura y se reversa en M+1). Por lo tanto: (a) un REVERSO NUNCA cambia el estado del mes donde aparece; (b) los montos de REVERSO y de PROVISION NUNCA se usan para calcular la provisión sugerida.
 4. factura_promedio = promedio aritmético de los montos mensuales netos de FACTURA (solo meses con factura > 0), redondeado a entero. Si un mes tiene monto atípico (ej. doble facturación o factura que cubre varios meses), úsalo igual en el promedio pero coméntalo.
@@ -1477,7 +1491,7 @@ Responde ÚNICAMENTE con JSON válido:
   "cuenta": "código y nombre de la cuenta",
   "periodo": "Ene–${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][mesCierre-1]} <año>",
   "mes_cierre": ${mesCierre},
-  "proveedores": [{"nombre":"...","recurrente":true,"meses":{"1":"F","2":"FALTA"},"factura_promedio":0,"meses_falta":[2],"provision_sugerida_mensual":0,"comentario":"breve"}],
+  "proveedores": [{"nombre":"...","cuenta":"código de la cuenta (ej. 5401-14)","recurrente":true,"meses":{"1":"F","2":"FALTA"},"factura_promedio":0,"meses_falta":[2],"provision_sugerida_mensual":0,"comentario":"breve"}],
   "total_provision_sugerida": 0,
   "resumen": "párrafo ejecutivo: cuántos proveedores recurrentes, cuántos meses FALTA, monto total a provisionar y qué proveedores concentran el riesgo",
   "notas_auditoria": ["observación 1", "observación 2"]
@@ -1518,19 +1532,27 @@ function reconcileProvisiones(d, movs, mesCierre) {
   // Factura promedio real por proveedor, calculada desde el archivo.
   // Nombres normalizados (espacios/mayúsculas) para que una variación menor
   // devuelta por la IA no haga caer el match hacia su propio número.
-  const factsPorProv = {};
+  const byBoth = {}, byProv = {};
   (movs || []).forEach(function(a) {
     if (a.clas !== 'FACTURA' || a.mes > mesCierre) return;
-    const k = normName(a.prov);
-    if (!factsPorProv[k]) factsPorProv[k] = {};
-    factsPorProv[k][a.mes] = (factsPorProv[k][a.mes] || 0) + a.monto;
+    const kp = normName(a.prov);
+    const kb = normCuenta(a.cuenta) + '|' + kp;
+    if (!byBoth[kb]) byBoth[kb] = {};
+    byBoth[kb][a.mes] = (byBoth[kb][a.mes] || 0) + a.monto;
+    if (!byProv[kp]) byProv[kp] = {};
+    byProv[kp][a.mes] = (byProv[kp][a.mes] || 0) + a.monto;
   });
-  function promedioReal(nombre) {
-    const meses = factsPorProv[normName(nombre)];
+  function promedioDe(meses) {
     if (!meses) return null;
     const montos = Object.keys(meses).map(function(m){ return meses[m]; }).filter(function(v){ return v > 0; });
     if (!montos.length) return null;
     return Math.round(montos.reduce(function(a,b){ return a+b; }, 0) / montos.length);
+  }
+  function promedioReal(nombre, cta) {
+    // Primero match cuenta+proveedor (archivo multi-cuenta); si no, por proveedor
+    const exacto = promedioDe(byBoth[normCuenta(cta) + '|' + normName(nombre)]);
+    if (exacto !== null) return exacto;
+    return promedioDe(byProv[normName(nombre)]);
   }
 
   let total = 0;
@@ -1547,7 +1569,7 @@ function reconcileProvisiones(d, movs, mesCierre) {
     } else {
       p.meses_falta = p.meses_falta || [];
     }
-    const real = promedioReal(p.nombre);
+    const real = promedioReal(p.nombre, p.cuenta || '');
     if (real === null && (movs || []).length) {
       // Sin match en el archivo: se usa el número de la IA pero queda marcado
       p.comentario = ((p.comentario ? p.comentario + ' · ' : '') + '⚠ sin match exacto en archivo — promedio según IA');
@@ -2103,29 +2125,46 @@ function renderProvisiones(d) {
   html += '<tr><th>Proveedor</th><th>Rec.</th>';
   for (let m = 1; m <= mesCierre; m++) html += '<th style="text-align:center">' + MESES[m-1] + '</th>';
   html += '<th style="text-align:right">Fact. promedio</th></tr>';
-  provs.forEach(function(p, pi) {
-    html += '<tr class="prov-row' + (p.recurrente && (p.meses_falta||[]).length ? ' row-amber' : '') + '" onclick="toggleProvDetail(' + pi + ')" title="Ver movimientos del proveedor">';
-    html += '<td style="font-weight:600">' + esc(p.nombre) + '</td>';
-    html += '<td>' + (p.recurrente ? 'Sí' : 'No') + '</td>';
-    for (let m = 1; m <= mesCierre; m++) {
-      const v = (p.meses && p.meses[String(m)]) || '';
-      let style = 'text-align:center;font-weight:700;';
-      if (v === 'FALTA') style += 'background:var(--red-l);color:var(--red-d)';
-      else if (v === 'F' || v === 'F+P') style += 'color:var(--green-d)';
-      else if (v === 'P') style += 'color:var(--amber)';
-      html += '<td style="' + style + '">' + esc(v || '·') + '</td>';
+  // Agrupar por cuenta cuando el archivo trae varias
+  const ctasOrden = [];
+  provs.forEach(function(p) {
+    const c = normCuenta(p.cuenta || '');
+    if (ctasOrden.indexOf(c) === -1) ctasOrden.push(c);
+  });
+  const multiCta = ctasOrden.length > 1;
+
+  ctasOrden.forEach(function(cta) {
+    if (multiCta) {
+      html += '<tr><td colspan="' + (mesCierre + 3) + '" style="background:#0a0a0a;color:#fff;font-weight:800;font-size:11px;letter-spacing:.4px;padding:7px 12px">📁 CUENTA ' + esc(cta) + '</td></tr>';
     }
-    html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(p.factura_promedio || 0) + '</td>';
-    html += '</tr>';
-    html += '<tr class="prov-detail" id="provdet-' + pi + '" style="display:none"><td colspan="' + (mesCierre + 3) + '"></td></tr>';
+    provs.forEach(function(p, pi) {
+      if (normCuenta(p.cuenta || '') !== cta) return;
+      html += '<tr class="prov-row' + (p.recurrente && (p.meses_falta||[]).length ? ' row-amber' : '') + '" onclick="toggleProvDetail(' + pi + ')" title="Ver movimientos del proveedor">';
+      html += '<td style="font-weight:600">' + esc(p.nombre) + '</td>';
+      html += '<td>' + (p.recurrente ? 'Sí' : 'No') + '</td>';
+      for (let m = 1; m <= mesCierre; m++) {
+        const v = (p.meses && p.meses[String(m)]) || '';
+        let style = 'text-align:center;font-weight:700;';
+        if (v === 'FALTA') style += 'background:var(--red-l);color:var(--red-d)';
+        else if (v === 'F' || v === 'F+P') style += 'color:var(--green-d)';
+        else if (v === 'P') style += 'color:var(--amber)';
+        html += '<td style="' + style + '">' + esc(v || '·') + '</td>';
+      }
+      html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(p.factura_promedio || 0) + '</td>';
+      html += '</tr>';
+      html += '<tr class="prov-detail" id="provdet-' + pi + '" style="display:none"><td colspan="' + (mesCierre + 3) + '"></td></tr>';
+    });
   });
   html += '</table></div></div>';
+
+  // Desglose de otros movimientos (sin "IR" ni Diario) — visibilidad total del archivo
+  html += buildOtrosDesglose(mesCierre);
 
   // Provisiones pendientes: ACCIONABLES (mes de cierre) vs referencia (meses previos)
   const pendCierre = [], pendPrevios = [];
   recurrentes.forEach(function(p) {
     (p.meses_falta || []).forEach(function(m) {
-      const item = { nombre: p.nombre, mesNum: m, mes: MESES[m-1], monto: p.provision_sugerida_mensual || 0, comentario: p.comentario || '' };
+      const item = { nombre: p.nombre, cuenta: normCuenta(p.cuenta || ''), mesNum: m, mes: MESES[m-1], monto: p.provision_sugerida_mensual || 0, comentario: p.comentario || '' };
       (m === mesCierre ? pendCierre : pendPrevios).push(item);
     });
   });
@@ -2135,9 +2174,10 @@ function renderProvisiones(d) {
     html += '<div class="card-header"><div class="card-icon" style="background:var(--red-l)">🎯</div><div class="card-title">ACCIONABLE — Provisionar en ' + MESES[mesCierre-1] + ' (' + pendCierre.length + ')</div>';
     html += '<span style="margin-left:auto;font-weight:800;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(accionable) + '</span></div>';
     html += '<div class="tbl-wrap"><table>';
-    html += '<tr><th>Proveedor</th><th style="text-align:right">Monto a provisionar</th><th>Base del cálculo</th><th>Comentario</th></tr>';
+    html += '<tr><th>Proveedor</th><th>Cuenta</th><th style="text-align:right">Monto a provisionar</th><th>Base del cálculo</th><th>Comentario</th></tr>';
     pendCierre.forEach(function(x) {
       html += '<tr class="row-amber"><td style="font-weight:700">' + esc(x.nombre) + '</td>';
+      html += '<td style="font-family:var(--mono);font-size:10px">' + esc(x.cuenta) + '</td>';
       html += '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--red-d)">' + fmtMoney(x.monto) + '</td>';
       html += '<td style="font-size:11px;color:var(--n500)">Factura promedio del proveedor</td>';
       html += '<td style="font-size:11px;color:var(--n500)">' + esc(x.comentario) + '</td></tr>';
@@ -2152,9 +2192,9 @@ function renderProvisiones(d) {
     html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">🕓</div><div class="card-title">Referencia — meses anteriores ya cerrados (' + pendPrevios.length + ')</div>';
     html += '<span style="margin-left:auto;font-size:10px;color:var(--n400)">no accionable · contexto para auditoría</span></div>';
     html += '<div class="tbl-wrap"><table>';
-    html += '<tr><th>Proveedor</th><th>Mes</th><th style="text-align:right">Monto de referencia</th><th>Comentario</th></tr>';
+    html += '<tr><th>Proveedor</th><th>Cuenta</th><th>Mes</th><th style="text-align:right">Monto de referencia</th><th>Comentario</th></tr>';
     pendPrevios.forEach(function(x) {
-      html += '<tr><td>' + esc(x.nombre) + '</td><td>' + x.mes + '</td>';
+      html += '<tr><td>' + esc(x.nombre) + '</td><td style="font-family:var(--mono);font-size:10px">' + esc(x.cuenta) + '</td><td>' + x.mes + '</td>';
       html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(x.monto) + '</td>';
       html += '<td style="font-size:11px;color:var(--n500)">' + esc(x.comentario) + '</td></tr>';
     });
@@ -2199,7 +2239,8 @@ function toggleProvDetail(idx) {
     const p = (d.proveedores || [])[idx] || {};
     const f = STATE.provisiones.files.provisiones;
     const movs = ((f && f.movs) || []).filter(function(a) {
-      return normName(a.prov) === normName(p.nombre);
+      if (normName(a.prov) !== normName(p.nombre)) return false;
+      return !p.cuenta || normCuenta(a.cuenta) === normCuenta(p.cuenta);
     });
     let inner;
     if (!movs.length) {
@@ -2222,6 +2263,39 @@ function toggleProvDetail(idx) {
   det.style.display = '';
 }
 
+// Desglose de movimientos que NO entran a la lógica de provisiones
+// (Type sin "Diario" y Document Number sin "IR": facturas de compra, pagos, NC).
+// Se muestran para que el analista vea TODO lo que trajo el archivo.
+function buildOtrosDesglose(mesCierre) {
+  const f = STATE.provisiones.files.provisiones;
+  const otros = (f && f.otros) || [];
+  if (!otros.length) return '';
+  const total = otros.reduce(function(a, x) { return a + x.monto; }, 0);
+  const nMovs = otros.reduce(function(a, x) { return a + x.n; }, 0);
+
+  let html = '<div class="card result-section" style="border-left:3px solid var(--n400)">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">📂</div>';
+  html += '<div class="card-title">Otros movimientos del archivo — fuera de la lógica de provisiones (' + nMovs + ')</div>';
+  html += '<span style="margin-left:auto;font-family:var(--mono);font-weight:700;color:var(--n500)">' + fmtMoney(total) + '</span></div>';
+  html += '<div style="padding:2px 14px 8px;font-size:11px;color:var(--n500)">Documentos sin "IR" (facturas de compra, pagos, notas de crédito, etc.). No cuentan como factura recepcionada ni como provisión — se listan para que sepas exactamente qué cargaste.</div>';
+  html += '<div class="tbl-wrap"><table>';
+  html += '<tr><th>Cuenta</th><th>Tipo (NetSuite)</th><th>Proveedor</th><th>Mes</th><th style="text-align:right">Monto neto</th><th style="text-align:right">N° movs</th></tr>';
+  otros.slice().sort(function(a, b) {
+    return normCuenta(a.cuenta).localeCompare(normCuenta(b.cuenta)) || a.prov.localeCompare(b.prov) || a.mes - b.mes;
+  }).forEach(function(x) {
+    html += '<tr>';
+    html += '<td style="font-family:var(--mono);font-size:10px">' + esc(normCuenta(x.cuenta)) + '</td>';
+    html += '<td><span class="badge b-gray">' + esc(x.tipo) + '</span></td>';
+    html += '<td style="font-weight:600">' + esc(x.prov) + '</td>';
+    html += '<td>' + (MESES_G[x.mes - 1] || x.mes) + '</td>';
+    html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(x.monto) + '</td>';
+    html += '<td style="text-align:right">' + x.n + '</td>';
+    html += '</tr>';
+  });
+  html += '</table></div></div>';
+  return html;
+}
+
 // Dashboard comparativo mensual para auditoría: totales por mes (barras),
 // evolución por proveedor y variaciones vs mes anterior. Todo calculado en
 // código desde el archivo cargado — cifras exactas y reproducibles.
@@ -2230,14 +2304,16 @@ function buildComparativaMensual(mesCierre) {
   const movs = (f && f.movs) || [];
   if (!movs.length) return '';
 
-  // Totales por mes y matriz proveedor×mes de facturas
+  // Totales por mes y matriz proveedor×mes de facturas (por cuenta si hay varias)
+  const multiCta = (f.cuentas || []).length > 1;
   const totFact = {}, totProv = {}, porProv = {};
   movs.forEach(function(a) {
     if (a.mes > mesCierre || a.prov === '(sin nombre)') return;
     if (a.clas === 'FACTURA') {
       totFact[a.mes] = (totFact[a.mes] || 0) + a.monto;
-      if (!porProv[a.prov]) porProv[a.prov] = {};
-      porProv[a.prov][a.mes] = (porProv[a.prov][a.mes] || 0) + a.monto;
+      const label = multiCta ? a.prov + '  ·  ' + normCuenta(a.cuenta) : a.prov;
+      if (!porProv[label]) porProv[label] = {};
+      porProv[label][a.mes] = (porProv[label][a.mes] || 0) + a.monto;
     }
     if (a.clas === 'PROVISION') totProv[a.mes] = (totProv[a.mes] || 0) + a.monto;
   });
@@ -2327,14 +2403,16 @@ function computeComparativaData(mesCierre) {
   const f = STATE.provisiones.files.provisiones;
   const movs = (f && f.movs) || [];
   if (!movs.length) return null;
+  const multiCta = (f.cuentas || []).length > 1;
   const totFact = [], totProv = [], porProv = {};
   for (let m = 0; m < mesCierre; m++) { totFact.push(0); totProv.push(0); }
   movs.forEach(function(a) {
     if (a.mes > mesCierre || a.prov === '(sin nombre)') return;
     if (a.clas === 'FACTURA') {
       totFact[a.mes - 1] += a.monto;
-      if (!porProv[a.prov]) porProv[a.prov] = [];
-      porProv[a.prov][a.mes - 1] = (porProv[a.prov][a.mes - 1] || 0) + a.monto;
+      const label = multiCta ? a.prov + ' · ' + normCuenta(a.cuenta) : a.prov;
+      if (!porProv[label]) porProv[label] = [];
+      porProv[label][a.mes - 1] = (porProv[label][a.mes - 1] || 0) + a.monto;
     }
     if (a.clas === 'PROVISION') totProv[a.mes - 1] += a.monto;
   });
@@ -2361,7 +2439,9 @@ function saveProvisionesToSheet(d) {
     analista: document.getElementById('userInput').value || 'Anónimo',
     fecha: now.toLocaleDateString('es-CL'),
     hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }),
-    comparativa: computeComparativaData(d.mes_cierre || 6)
+    comparativa: computeComparativaData(d.mes_cierre || 6),
+    otros: (STATE.provisiones.files.provisiones || {}).otros || [],
+    cuentas: (STATE.provisiones.files.provisiones || {}).cuentas || []
   });
   showToast('Escribiendo en planilla de Provisiones…', 'info');
   google.script.run
@@ -2616,6 +2696,12 @@ function confCls(v, def) {
 // Normaliza nombres de proveedor para matching (espacios, mayúsculas)
 function normName(s) {
   return String(s || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+// Código de cuenta normalizado: '5401-14 - Internet' y '5401-14' → '5401-14'
+function normCuenta(s) {
+  const m = String(s || '').match(/\d{4}-\d+/);
+  return m ? m[0] : String(s || '').trim().toUpperCase();
 }
 </script>
 </body>
