@@ -301,6 +301,35 @@ tr:hover td{background:var(--n50)}
   .upload-grid.two-col{grid-template-columns:1fr}
   .party-grid{grid-template-columns:1fr}
 }
+
+/* ── PAPEL DE TRABAJO: trazabilidad ── */
+.wp-header{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:linear-gradient(135deg,#fafafa,#f1f5f9);border:1px solid var(--n200);border-left:3px solid var(--n800);border-radius:12px}
+.wp-grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+.wp-cell{min-width:0}
+.wp-k{font-size:9px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.6px}
+.wp-v{font-size:12px;font-weight:600;color:var(--n700);word-break:break-word}
+.wp-print{flex-shrink:0;white-space:nowrap}
+
+/* Filas de proveedor clicables (drill-down) */
+tr.prov-row{cursor:pointer}
+tr.prov-row:hover td{background:rgba(37,99,235,.05)}
+tr.prov-detail>td{padding:0 8px 8px}
+
+/* ── IMPRESIÓN: solo el papel de trabajo ── */
+@media print{
+  html,body{overflow:visible !important;height:auto !important;background:#fff !important}
+  .sidebar,.topbar,.prog,.action-bar,#toast,.upload-grid,.upload-zone,.file-preview,.files-list,.add-more,.section-header,.no-print,.wp-print{display:none !important}
+  .shell{display:block !important;height:auto !important}
+  .main{overflow:visible !important;display:block !important}
+  .views{overflow:visible !important;position:static !important}
+  .view{display:none !important}
+  .view.active{display:block !important;position:static !important;overflow:visible !important}
+  .content{overflow:visible !important;height:auto !important;padding:0 !important}
+  .content-inner{max-width:100% !important}
+  .tbl-wrap{overflow:visible !important}
+  .card,.summary-row,.wp-header,.kpi-grid{break-inside:avoid;box-shadow:none !important}
+  .wp-header{border:1.5px solid #333}
+}
 </style>
 </head>
 <body>
@@ -606,7 +635,7 @@ tr:hover td{background:var(--n50)}
               <button class="file-remove" onclick="removeFile('provisiones')">✕</button>
             </div>
 
-            <div style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap">
+            <div class="no-print" style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap">
               <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
                 Último mes cerrado
                 <select id="prov-mes-cierre" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
@@ -668,7 +697,10 @@ const STATE = {
 };
 
 let currentModule = 'conciliacion';
-let spinMsgInterval = null;
+const LAST_RESULT = {};    // último resultado por módulo (para botones y drill-down)
+const ANALYSIS_META = {};  // trazabilidad del papel de trabajo por módulo
+const spinIntervals = {};  // spinner por módulo (evita colisiones entre análisis)
+let inFlightCount = 0;     // análisis en curso (barra de progreso compartida)
 
 const SPIN_MSGS = [
   'Analizando documento con IA…',
@@ -692,14 +724,22 @@ const MODULE_META = {
   loadUserName();
   renderHistory();
 
-  // Tab from URL
+  // Tab activo: inyectado server-side (el sandbox de HtmlService no expone
+  // la query string al cliente), con fallback a URL por si se sirve directo.
+  const SERVER_TAB = '<?= ACTIVE_TAB ?>';
   const urlParams = new URLSearchParams(window.location.search);
-  const tab = urlParams.get('tab') || 'conciliacion';
+  const tab = SERVER_TAB || urlParams.get('tab') || 'conciliacion';
   selectModule(tab);
 
-  // postMessage from parent
+  // Cambio de módulo pedido desde el hub: postMessage (si llega) y el canal
+  // 'storage' de localStorage (mismo origen de sandbox — siempre llega).
   window.addEventListener('message', function(e) {
     if (e.data && e.data.tab) selectModule(e.data.tab);
+  });
+  window.addEventListener('storage', function(e) {
+    if (e.key === 'finz_tab_req' && e.newValue) {
+      selectModule(String(e.newValue).split('@')[0]);
+    }
   });
 
   document.getElementById('userInput').addEventListener('input', function() {
@@ -758,6 +798,8 @@ function onDropMulti(e, inputId, key) {
 function handleFile(key, input) {
   const file = input.files && input.files[0];
   if (!file) return;
+  // Limpiar el input: permite volver a elegir el mismo archivo tras Limpiar/✕
+  if (input.value !== undefined) { try { input.value = ''; } catch(e) {} }
 
   const proc = (key === 'provisiones') ? processProvisionesGL(file) : processFile(file);
   proc.then(function(fd) {
@@ -773,6 +815,7 @@ function handleFile(key, input) {
 function handleFileMulti(mod, input) {
   const files = Array.from(input.files || []);
   if (!files.length) return;
+  if (input.value !== undefined) { try { input.value = ''; } catch(e) {} }
 
   Promise.all(files.map(function(f) {
     return processFile(f).then(function(fd) {
@@ -825,7 +868,7 @@ function compressImage(file) {
         const dataUrl = canvas.toDataURL('image/jpeg', IMG_QUALITY);
         resolve({ b64: dataUrl.split(',')[1], isText: false, text: null });
       };
-      img.onerror = reject;
+      img.onerror = function() { reject(new Error('No se pudo leer la imagen (¿archivo dañado?)')); };
       img.src = e.target.result;
     };
     reader.onerror = reject;
@@ -879,8 +922,8 @@ function pdfToBase64(file) {
             page.render({ canvasContext: ctx, viewport: vp }).promise.then(function() {
               canvasArr.push(canvas);
               renderPage(i + 1);
-            });
-          });
+            }).catch(reject);
+          }).catch(reject);
         }
         renderPage(1);
       }).catch(reject);
@@ -959,7 +1002,8 @@ function processProvisionesGL(file) {
         function col(name) { return head.findIndex(function(h){ return h.toLowerCase().indexOf(name.toLowerCase()) !== -1; }); }
         const cAcc  = col('Account');
         const cType = col('Type');
-        const cDate = col('Date');
+        // Preferir match exacto: 'Due Date' u otras columnas también contienen 'Date'
+        const cDate = head.indexOf('Date') !== -1 ? head.indexOf('Date') : col('Date');
         const cPer  = col('Período');
         const cNameD= col('Name (Diario)');
         const cName = head.indexOf('Name');
@@ -973,14 +1017,23 @@ function processProvisionesGL(file) {
           const per = String(row[cPer] || '');
           const m = per.toLowerCase().match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
           if (m) return { mes: MES_ABBR[m[1]], anio: parseInt(m[2],10) };
-          const d = String(row[cDate] || '').match(/(\d{4})-(\d{2})/);
+          const dstr = String(row[cDate] || '');
+          let d = dstr.match(/(\d{4})-(\d{1,2})/);                    // ISO YYYY-MM-DD
           if (d) return { mes: parseInt(d[2],10), anio: parseInt(d[1],10) };
+          d = dstr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);   // DD/MM/YYYY o DD-MM-YYYY
+          if (d) return { mes: parseInt(d[2],10), anio: parseInt(d[3],10) };
+          const serial = parseFloat(dstr);                             // serial de Excel
+          if (isFinite(serial) && serial > 25569 && serial < 80000) {
+            const dt = new Date(Math.round((serial - 25569) * 86400 * 1000));
+            return { mes: dt.getUTCMonth() + 1, anio: dt.getUTCFullYear() };
+          }
           return null;
         }
 
         let cuenta = '';
         const agg = {}; // proveedor|mes|clas -> {monto, n}
         let anioDetectado = null;
+        let omitidas = 0; // movimientos sin período legible
 
         for (let i = hIdx + 1; i < grid.length; i++) {
           const row = grid[i] || [];
@@ -994,7 +1047,7 @@ function processProvisionesGL(file) {
           if (!type) continue;
 
           const pm = parseMes(row);
-          if (!pm) continue;
+          if (!pm) { omitidas++; continue; }
           anioDetectado = anioDetectado || pm.anio;
 
           const prov = String(row[cNameD] || row[cName] || '').trim() || '(sin nombre)';
@@ -1019,14 +1072,17 @@ function processProvisionesGL(file) {
         }
 
         const keys = Object.keys(agg);
-        if (!keys.length) throw new Error('No se encontraron movimientos en el archivo.');
+        if (!keys.length) throw new Error('No se encontraron movimientos con período legible. ¿Es el export "CL - General Ledger con filtro por Cuenta" de NetSuite?');
+        if (omitidas > 0) {
+          showToast('⚠ ' + omitidas + ' movimiento(s) sin período legible fueron omitidos del análisis', 'error');
+        }
 
         const movs = keys.sort().map(function(k) {
           const a = agg[k];
           return { prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n };
         });
 
-        resolve({ b64: null, isText: true, text: null, cuenta: cuenta, anio: anioDetectado, movs: movs });
+        resolve({ b64: null, isText: true, text: null, cuenta: cuenta, anio: anioDetectado, movs: movs, omitidas: omitidas });
       } catch(err) { reject(err); }
     };
     reader.onerror = reject;
@@ -1184,6 +1240,7 @@ function analyzeModule(mod) {
   btn.disabled = true;
   showProgress(true);
   showSpinner(mod);
+  captureAnalysisMeta(mod);
 
   const handlers = {
     conciliacion:   analyzeConciliacion,
@@ -1195,7 +1252,7 @@ function analyzeModule(mod) {
 
   handlers[mod]().then(function(result) {
     showProgress(false);
-    stopSpinMsg();
+    stopSpinMsg(mod);
     renderResult(mod, result);
     saveHistory(mod, result);
     if (mod === 'conciliacion') {
@@ -1206,12 +1263,37 @@ function analyzeModule(mod) {
     }
   }).catch(function(err) {
     showProgress(false);
-    stopSpinMsg();
+    stopSpinMsg(mod);
     btn.disabled = false;
-    renderError(mod, err.message);
+    renderError(mod, (err && err.message) || String(err));
   }).finally(function() {
     updateAnalyzeButton(mod);
   });
+}
+
+// Trazabilidad: se captura en el momento de ejecutar el análisis
+function captureAnalysisMeta(mod) {
+  const st = STATE[mod].files;
+  const archivos = [];
+  if (Array.isArray(st)) {
+    st.forEach(function(f) { if (f) archivos.push(f.name + ' (' + formatBytes(f.size) + ')'); });
+  } else {
+    Object.keys(st).forEach(function(k) { const f = st[k]; if (f) archivos.push(f.name + ' (' + formatBytes(f.size) + ')'); });
+  }
+  let params = '';
+  if (mod === 'provisiones') {
+    const sel = document.getElementById('prov-mes-cierre');
+    const mesTxt = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : sel.value;
+    params = 'Período: Enero–' + mesTxt + ' · Umbral recurrencia: ' + (document.getElementById('prov-umbral').value || 3) + ' meses con factura';
+    const f = st.provisiones;
+    if (f && f.cuenta) params += ' · Cuenta: ' + f.cuenta;
+  }
+  ANALYSIS_META[mod] = {
+    analista: document.getElementById('userInput').value || 'Anónimo',
+    cuando: new Date().toLocaleString('es-CL'),
+    archivos: archivos,
+    params: params
+  };
 }
 
 // ── CONCILIACION ──
@@ -1280,8 +1362,10 @@ Responde ÚNICAMENTE con JSON válido:
 // ── GESTION ──
 function analyzeGestion() {
   const files = STATE.gestion.files;
-  const prompt = `Extrae todos los datos de este documento financiero chileno.
-Responde ÚNICAMENTE con JSON válido:
+  const prompt = `Extrae todos los datos de los documentos financieros chilenos adjuntos.
+Si los adjuntos son páginas/imágenes de UN MISMO documento, responde UN solo objeto.
+Si son DOCUMENTOS DISTINTOS, responde {"documentos": [un objeto por documento]}.
+Esquema de cada documento — responde ÚNICAMENTE con JSON válido:
 {
   "tipo_documento": "factura|boleta|nota_credito|nota_debito|contrato|otro",
   "numero": "...",
@@ -1308,7 +1392,12 @@ Responde ÚNICAMENTE con JSON válido:
     model: 'claude-sonnet-4-6',
     max_tokens: 4096,
     messages: [{ role: 'user', content: content }]
-  }).then(function(resp) { return extractJSON(resp); });
+  }).then(function(resp) {
+    const d = extractJSON(resp);
+    // Normalizar: array suelto → {documentos:[...]}
+    if (Array.isArray(d)) return { documentos: d };
+    return d;
+  });
 }
 
 // ── AUTOMATIZACION ──
@@ -1412,15 +1501,18 @@ ${datos}`;
  * total se recalcula exacto — mismo archivo, mismo monto, siempre.
  */
 function reconcileProvisiones(d, movs, mesCierre) {
-  // Factura promedio real por proveedor, calculada desde el archivo
+  // Factura promedio real por proveedor, calculada desde el archivo.
+  // Nombres normalizados (espacios/mayúsculas) para que una variación menor
+  // devuelta por la IA no haga caer el match hacia su propio número.
   const factsPorProv = {};
   (movs || []).forEach(function(a) {
     if (a.clas !== 'FACTURA' || a.mes > mesCierre) return;
-    if (!factsPorProv[a.prov]) factsPorProv[a.prov] = {};
-    factsPorProv[a.prov][a.mes] = (factsPorProv[a.prov][a.mes] || 0) + a.monto;
+    const k = normName(a.prov);
+    if (!factsPorProv[k]) factsPorProv[k] = {};
+    factsPorProv[k][a.mes] = (factsPorProv[k][a.mes] || 0) + a.monto;
   });
   function promedioReal(nombre) {
-    const meses = factsPorProv[nombre];
+    const meses = factsPorProv[normName(nombre)];
     if (!meses) return null;
     const montos = Object.keys(meses).map(function(m){ return meses[m]; }).filter(function(v){ return v > 0; });
     if (!montos.length) return null;
@@ -1442,6 +1534,10 @@ function reconcileProvisiones(d, movs, mesCierre) {
       p.meses_falta = p.meses_falta || [];
     }
     const real = promedioReal(p.nombre);
+    if (real === null && (movs || []).length) {
+      // Sin match en el archivo: se usa el número de la IA pero queda marcado
+      p.comentario = ((p.comentario ? p.comentario + ' · ' : '') + '⚠ sin match exacto en archivo — promedio según IA');
+    }
     p.factura_promedio = (real !== null) ? real : Math.round(parseFloat(p.factura_promedio) || 0);
     // La sugerencia SIEMPRE es la factura promedio del proveedor: los montos de
     // provisiones (vigentes o reversadas) jamás entran al cálculo.
@@ -1457,19 +1553,31 @@ function extractJSON(resp) {
     throw new Error('El documento es muy grande para procesar de una vez. Intenta subir una sola hoja del Excel o un PDF más corto.');
   }
   const text = resp.content && resp.content[0] && resp.content[0].text || '';
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('No se encontró JSON en la respuesta de la IA.');
-  try {
-    return JSON.parse(match[0]);
-  } catch(e) {
-    throw new Error('La respuesta fue cortada. Intenta con un archivo más pequeño o una sola hoja del Excel.');
+  // Acepta tanto un objeto {...} como un array [...] de nivel superior:
+  // se intenta el que aparezca primero en la respuesta.
+  const candidates = [];
+  const iObj = text.indexOf('{'), iArr = text.indexOf('[');
+  const mObj = text.match(/\{[\s\S]*\}/);
+  const mArr = text.match(/\[[\s\S]*\]/);
+  if (iArr !== -1 && (iObj === -1 || iArr < iObj)) {
+    if (mArr) candidates.push(mArr[0]);
+    if (mObj) candidates.push(mObj[0]);
+  } else {
+    if (mObj) candidates.push(mObj[0]);
+    if (mArr) candidates.push(mArr[0]);
   }
+  if (!candidates.length) throw new Error('No se encontró JSON en la respuesta de la IA.');
+  for (let i = 0; i < candidates.length; i++) {
+    try { return JSON.parse(candidates[i]); } catch(e) { /* probar siguiente */ }
+  }
+  throw new Error('La respuesta fue cortada o llegó malformada. Intenta con un archivo más pequeño o una sola hoja del Excel.');
 }
 
 // ── RENDER RESULTS ──
 function renderResult(mod, data) {
   const r = document.getElementById('results-' + mod);
   if (!r) return;
+  LAST_RESULT[mod] = data;
   const renders = {
     conciliacion:   renderConciliacion,
     reporteria:     renderReporteria,
@@ -1477,7 +1585,34 @@ function renderResult(mod, data) {
     automatizacion: renderAutomatizacion,
     provisiones:    renderProvisiones
   };
-  r.innerHTML = renders[mod](data);
+  r.innerHTML = buildTrazabilidad(mod) + renders[mod](data);
+}
+
+// Cabecera de trazabilidad del papel de trabajo: quién, cuándo, con qué
+// archivo(s) y con qué parámetros — exigible ante auditores.
+function buildTrazabilidad(mod) {
+  const m = ANALYSIS_META[mod];
+  if (!m) return '';
+  let html = '<div class="wp-header result-section">';
+  html += '<div class="wp-grid">';
+  html += '<div class="wp-cell"><div class="wp-k">Analista</div><div class="wp-v">' + esc(m.analista) + '</div></div>';
+  html += '<div class="wp-cell"><div class="wp-k">Fecha y hora</div><div class="wp-v">' + esc(m.cuando) + '</div></div>';
+  html += '<div class="wp-cell" style="grid-column:span 2"><div class="wp-k">Documento(s) fuente</div><div class="wp-v">' + esc(m.archivos.join('  ·  ') || '—') + '</div></div>';
+  if (m.params) html += '<div class="wp-cell" style="grid-column:span 2"><div class="wp-k">Parámetros del análisis</div><div class="wp-v">' + esc(m.params) + '</div></div>';
+  html += '<div class="wp-cell" style="grid-column:span 2"><div class="wp-k">Herramienta</div><div class="wp-v">' + esc((MODULE_META[mod] || {}).title || mod) + ' · Finance Suite v<?= VERSION ?> · análisis asistido por IA, sujeto a revisión</div></div>';
+  html += '</div>';
+  html += '<button class="btn-secondary wp-print no-print" onclick="printWorkingPaper(\'' + mod + '\')">🖨 Imprimir papel de trabajo</button>';
+  html += '</div>';
+  return html;
+}
+
+function printWorkingPaper(mod) {
+  selectModule(mod);
+  document.body.classList.add('printing');
+  setTimeout(function() {
+    window.print();
+    setTimeout(function() { document.body.classList.remove('printing'); }, 500);
+  }, 80);
 }
 
 function renderError(mod, msg) {
@@ -1532,7 +1667,7 @@ function renderConciliacion(d) {
     html += '<td class="num" style="text-align:right">' + fmtMoney(ct.monto || lb.monto || 0) + '</td>';
     html += '<td>' + esc(lb.referencia || '—') + '</td>';
     html += '<td><span class="badge b-green">✓ Conciliado</span></td>';
-    html += '<td><span class="conf-badge conf-' + (c.confianza || 'alta') + '">' + (c.confianza || 'alta') + '</span></td>';
+    html += '<td><span class="conf-badge conf-' + confCls(c.confianza, 'alta') + '">' + confCls(c.confianza, 'alta') + '</span></td>';
     html += '</tr>';
   });
 
@@ -1597,8 +1732,8 @@ function renderReporteria(d) {
   html += '<div class="doc-type-icon" style="background:var(--blue-l)">📊</div>';
   html += '<div style="flex:1">';
   html += '<div style="display:flex;align-items:center;gap:8px">';
-  html += '<span class="badge ' + (tipoColors[d.tipo] || 'b-gray') + '">' + (tipoLabels[d.tipo] || d.tipo || 'Financiero') + '</span>';
-  html += '<span class="conf-badge conf-' + (d.confianza || 'media') + '">' + (d.confianza || 'media') + '</span>';
+  html += '<span class="badge ' + (tipoColors[d.tipo] || 'b-gray') + '">' + (tipoLabels[d.tipo] || esc(d.tipo) || 'Financiero') + '</span>';
+  html += '<span class="conf-badge conf-' + confCls(d.confianza) + '">' + confCls(d.confianza) + '</span>';
   html += '</div>';
   html += '<div class="doc-number" style="font-size:14px;margin-top:6px">' + esc(d.periodo || 'Período no especificado') + '</div>';
   html += '<div class="doc-date">Moneda: ' + esc(d.moneda || 'CLP') + '</div>';
@@ -1635,7 +1770,7 @@ function renderReporteria(d) {
       const badgeCls = r.interpretacion === 'bueno' ? 'b-green' : r.interpretacion === 'alerta' ? 'b-red' : 'b-gray';
       html += '<tr class="' + cls + '">';
       html += '<td><strong>' + esc(r.nombre || '') + '</strong></td>';
-      html += '<td class="num" style="text-align:right">' + (r.valor !== undefined ? r.valor : '—') + '</td>';
+      html += '<td class="num" style="text-align:right">' + (r.valor !== undefined ? esc(String(r.valor)) : '—') + '</td>';
       html += '<td style="color:var(--n400);font-size:10px;font-family:var(--mono)">' + esc(r.formula || '') + '</td>';
       html += '<td><span class="badge ' + badgeCls + '">' + esc(r.interpretacion || 'neutro') + '</span></td>';
       html += '</tr>';
@@ -1681,6 +1816,24 @@ function renderReporteria(d) {
 
 // ── RENDER GESTION ──
 function renderGestion(d) {
+  // Varios documentos distintos → una ficha por documento
+  if (d && d.documentos && d.documentos.length) {
+    return d.documentos.map(function(doc, i) {
+      const sep = i > 0 ? '<div style="height:4px;border-top:2px dashed var(--n200);margin:16px 0 12px"></div>' : '';
+      return sep + '<div style="font-size:11px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Documento ' + (i + 1) + ' de ' + d.documentos.length + '</div>' + renderGestionSingle(doc, i);
+    }).join('');
+  }
+  return renderGestionSingle(d, -1);
+}
+
+// Devuelve el documento i del último resultado de gestión (o el único)
+function gestionDocAt(i) {
+  const d = LAST_RESULT.gestion || {};
+  if (d.documentos && d.documentos.length) return d.documentos[i] || {};
+  return d;
+}
+
+function renderGestionSingle(d, docIdx) {
   const tipoIcons = { factura: '🧾', boleta: '🏪', nota_credito: '📉', nota_debito: '📈', contrato: '📋', otro: '📄' };
   const estadoClass = { vigente: 'st-vigente', pagado: 'st-pagado', pendiente: 'st-pendiente', anulado: 'st-anulado' };
 
@@ -1693,7 +1846,7 @@ function renderGestion(d) {
   html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
   html += '<span class="badge b-purple">' + esc((d.tipo_documento || 'documento').toUpperCase()) + '</span>';
   html += '<span class="st-badge ' + (estadoClass[d.estado] || 'st-pendiente') + '">' + esc(d.estado || 'pendiente') + '</span>';
-  html += '<span class="conf-badge conf-' + (d.confianza || 'media') + '">' + (d.confianza || 'media') + '</span>';
+  html += '<span class="conf-badge conf-' + confCls(d.confianza) + '">' + confCls(d.confianza) + '</span>';
   html += '</div>';
   html += '<div class="doc-number">N° ' + esc(d.numero || '—') + '</div>';
   html += '<div class="doc-date">Fecha: ' + esc(d.fecha || '—') + ' &nbsp;·&nbsp; Moneda: ' + esc(d.moneda || 'CLP') + '</div>';
@@ -1757,7 +1910,7 @@ function renderGestion(d) {
   html += '<div class="total-label">TOTAL</div>';
   html += '<div style="display:flex;align-items:center;gap:6px">';
   html += '<div class="total-value">' + fmtMoney(d.total || 0) + '</div>';
-  html += '<button class="btn-icon" onclick="copyText(\'' + (d.total || 0) + '\')" title="Copiar total">📋</button>';
+  html += '<button class="btn-icon" onclick="copyText(\'' + esc(String(d.total || 0)) + '\')" title="Copiar total">📋</button>';
   html += '</div></div>';
   html += '</div>';
 
@@ -1768,7 +1921,7 @@ function renderGestion(d) {
 
   // Save to Sheets
   html += '<div style="display:flex;gap:8px;padding-top:4px" class="result-section">';
-  html += '<button class="btn-secondary" onclick="saveGestionToSheets(' + JSON.stringify(d).replace(/'/g,"&#39;").replace(/</g,"&lt;") + ')">📊 Guardar en Sheets</button>';
+  html += '<button class="btn-secondary" onclick="saveGestionToSheets(gestionDocAt(' + docIdx + '))">📊 Guardar en Sheets</button>';
   html += '</div>';
 
   html += '</div>';
@@ -1794,7 +1947,7 @@ function renderAutomatizacion(d) {
   html += '<div class="card-header">';
   html += '<div class="card-icon" style="background:var(--amber-l)">⚙️</div>';
   html += '<div class="card-title">Asiento Contable</div>';
-  html += '<span class="conf-badge conf-' + (d.confianza || 'media') + '" style="margin-left:auto">' + (d.confianza || 'media') + '</span>';
+  html += '<span class="conf-badge conf-' + confCls(d.confianza) + '" style="margin-left:auto">' + confCls(d.confianza) + '</span>';
   html += '</div>';
   html += '<div class="tbl-wrap"><table>';
   html += '<tr><th>Código</th><th>Cuenta</th><th>Centro Costo</th><th style="text-align:right">Debe</th><th style="text-align:right">Haber</th></tr>';
@@ -1832,8 +1985,8 @@ function renderAutomatizacion(d) {
 
   // Actions
   html += '<div style="display:flex;gap:8px;padding-top:4px" class="result-section">';
-  html += '<button class="btn-secondary" onclick="exportAsientoCSV(' + JSON.stringify(d).replace(/</g,'&lt;').replace(/'/g,"&#39;") + ')">⬇️ Exportar CSV</button>';
-  html += '<button class="btn-secondary" onclick="saveAutoToSheets(' + JSON.stringify(d).replace(/</g,'&lt;').replace(/'/g,"&#39;") + ')">📊 Guardar en Sheets</button>';
+  html += '<button class="btn-secondary" onclick="exportAsientoCSV(LAST_RESULT.automatizacion)">⬇️ Exportar CSV</button>';
+  html += '<button class="btn-secondary" onclick="saveAutoToSheets(LAST_RESULT.automatizacion)">📊 Guardar en Sheets</button>';
   html += '</div>';
 
   html += '</div>';
@@ -1852,18 +2005,17 @@ function saveGestionToSheets(d) {
     fecha: now.toLocaleDateString('es-CL'),
     hora: now.toLocaleTimeString('es-CL'),
     analista: analista,
-    herramienta: 'finanzas',
+    herramienta: 'Finanzas · Gestión',
     tipo_doc: d.tipo_documento || '',
-    numero: d.numero || '',
-    emisor_rut: (d.emisor || {}).rut || '',
-    emisor_nombre: (d.emisor || {}).nombre || '',
-    receptor_rut: (d.receptor || {}).rut || '',
-    receptor_nombre: (d.receptor || {}).nombre || '',
-    subtotal: d.subtotal || 0,
-    iva: d.iva || 0,
-    total: d.total || 0,
-    estado: d.estado || '',
-    confianza: d.confianza || ''
+    // Mapeo al esquema de appendToSheet (SHEET_HEADERS): rut/nombre = emisor,
+    // el detalle del documento va en observaciones.
+    rut: (d.emisor || {}).rut || '',
+    nombre: (d.emisor || {}).nombre || '',
+    vigencia: d.estado || '',
+    confianza: d.confianza || '',
+    observaciones: 'N° ' + (d.numero || '—') +
+      ' · Receptor: ' + ((d.receptor || {}).nombre || '—') + ' (' + ((d.receptor || {}).rut || '—') + ')' +
+      ' · Neto: ' + (d.subtotal || 0) + ' · IVA: ' + (d.iva || 0) + ' · Total: ' + (d.total || 0)
   };
   google.script.run
     .withSuccessHandler(function() { showToast('Guardado en Sheets ✓', 'success'); })
@@ -1882,14 +2034,14 @@ function saveAutoToSheets(d) {
     fecha: now.toLocaleDateString('es-CL'),
     hora: now.toLocaleTimeString('es-CL'),
     analista: analista,
-    herramienta: 'finanzas',
+    herramienta: 'Finanzas · Automatización',
     tipo_doc: 'asiento_contable',
-    numero: d.numero_documento || '',
-    glosa: d.glosa || '',
-    total_debe: d.total_debe || 0,
-    total_haber: d.total_haber || 0,
-    cuadrado: d.cuadrado ? 'SI' : 'NO',
-    confianza: d.confianza || ''
+    nombre: d.glosa || '',
+    vigencia: d.cuadrado ? '' : 'Revisar',
+    confianza: d.confianza || '',
+    observaciones: 'N° ' + (d.numero_documento || '—') +
+      ' · Debe: ' + (d.total_debe || 0) + ' · Haber: ' + (d.total_haber || 0) +
+      ' · ' + (d.cuadrado ? 'Cuadrado' : 'DESCUADRADO')
   };
   google.script.run
     .withSuccessHandler(function() { showToast('Guardado en Sheets ✓', 'success'); })
@@ -1920,15 +2072,16 @@ function renderProvisiones(d) {
   html += '<div class="result-section" style="display:flex;gap:10px;align-items:center;padding:10px 14px;background:#fff;border:1px solid var(--n200);border-radius:10px;font-size:12px">';
   html += '<strong>Cuenta:</strong> ' + esc(d.cuenta || '—') + ' &nbsp;·&nbsp; <strong>Período:</strong> ' + esc(d.periodo || '—') + '</div>';
 
-  // Matriz
+  // Matriz (filas clicables: drill-down a los movimientos del proveedor)
   html += '<div class="card result-section">';
-  html += '<div class="card-header"><div class="card-icon" style="background:var(--red-l)">🧾</div><div class="card-title">Matriz mensual — F factura · P provisión · FALTA provisionar</div></div>';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--red-l)">🧾</div><div class="card-title">Matriz mensual — F factura · P provisión · FALTA provisionar</div>';
+  html += '<span class="no-print" style="margin-left:auto;font-size:10px;color:var(--n400)">clic en un proveedor = ver sus movimientos</span></div>';
   html += '<div class="tbl-wrap"><table>';
   html += '<tr><th>Proveedor</th><th>Rec.</th>';
   for (let m = 1; m <= mesCierre; m++) html += '<th style="text-align:center">' + MESES[m-1] + '</th>';
   html += '<th style="text-align:right">Fact. promedio</th></tr>';
-  provs.forEach(function(p) {
-    html += '<tr' + (p.recurrente && (p.meses_falta||[]).length ? ' class="row-amber"' : '') + '>';
+  provs.forEach(function(p, pi) {
+    html += '<tr class="prov-row' + (p.recurrente && (p.meses_falta||[]).length ? ' row-amber' : '') + '" onclick="toggleProvDetail(' + pi + ')" title="Ver movimientos del proveedor">';
     html += '<td style="font-weight:600">' + esc(p.nombre) + '</td>';
     html += '<td>' + (p.recurrente ? 'Sí' : 'No') + '</td>';
     for (let m = 1; m <= mesCierre; m++) {
@@ -1941,6 +2094,7 @@ function renderProvisiones(d) {
     }
     html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(p.factura_promedio || 0) + '</td>';
     html += '</tr>';
+    html += '<tr class="prov-detail" id="provdet-' + pi + '" style="display:none"><td colspan="' + (mesCierre + 3) + '"></td></tr>';
   });
   html += '</table></div></div>';
 
@@ -1985,6 +2139,41 @@ function renderProvisiones(d) {
 
   html += '</div>';
   return html;
+}
+
+// Drill-down: movimientos del proveedor (desde el archivo parseado en memoria)
+const MESES_G = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function toggleProvDetail(idx) {
+  const det = document.getElementById('provdet-' + idx);
+  if (!det) return;
+  if (det.style.display !== 'none') { det.style.display = 'none'; return; }
+
+  if (!det.dataset.filled) {
+    const d = LAST_RESULT.provisiones || {};
+    const p = (d.proveedores || [])[idx] || {};
+    const f = STATE.provisiones.files.provisiones;
+    const movs = ((f && f.movs) || []).filter(function(a) {
+      return normName(a.prov) === normName(p.nombre);
+    });
+    let inner;
+    if (!movs.length) {
+      inner = '<div style="padding:10px;color:var(--n400);font-size:11px">Sin movimientos disponibles: el archivo original no está cargado (análisis restaurado del historial) o el nombre no coincide con el archivo.</div>';
+    } else {
+      inner = '<table style="width:100%"><tr><th>Mes</th><th>Clasificación</th><th style="text-align:right">Monto neto</th><th style="text-align:right">N° movs</th></tr>';
+      movs.sort(function(a, b) { return a.mes - b.mes || a.clas.localeCompare(b.clas); }).forEach(function(a) {
+        const color = a.clas === 'FACTURA' ? 'var(--green-d)' : (a.clas === 'PROVISION' ? 'var(--amber)' : 'var(--n400)');
+        inner += '<tr><td>' + (MESES_G[a.mes - 1] || a.mes) + '</td>';
+        inner += '<td style="color:' + color + ';font-weight:600">' + esc(a.clas) + '</td>';
+        inner += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(a.monto) + '</td>';
+        inner += '<td style="text-align:right">' + a.n + '</td></tr>';
+      });
+      inner += '</table>';
+    }
+    det.querySelector('td').innerHTML = '<div style="padding:6px 10px;background:var(--n50);border:1px solid var(--n200);border-radius:8px;margin:2px 0 6px">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px;padding:4px 0 6px">Movimientos de ' + esc(p.nombre) + ' según el General Ledger</div>' + inner + '</div>';
+    det.dataset.filled = '1';
+  }
+  det.style.display = '';
 }
 
 function copyNotasAuditoria(btn) {
@@ -2104,11 +2293,20 @@ function saveHistory(mod, data) {
     timestamp: new Date().toISOString(),
     resumen: resumenes[mod] || 'Análisis completado',
     analista: analista,
+    meta: ANALYSIS_META[mod] || null,
     data: data
   };
   hist.unshift(item);
   if (hist.length > MAX_HIST) hist.length = MAX_HIST;
-  localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+  try {
+    localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+  } catch (e) {
+    // Cuota de localStorage llena: recortar y reintentar sin romper el render
+    try {
+      hist.length = Math.min(hist.length, 10);
+      localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+    } catch (e2) { /* historial no disponible; el análisis en pantalla no se pierde */ }
+  }
   renderHistory();
 }
 
@@ -2127,18 +2325,30 @@ function renderHistory() {
     return;
   }
 
-  const modIcons = { conciliacion: '⚖️', reporteria: '📊', gestion: '📄', automatizacion: '⚙️' };
+  const modIcons = { conciliacion: '⚖️', reporteria: '📊', gestion: '📄', automatizacion: '⚙️', provisiones: '🧾' };
 
   list.innerHTML = hist.map(function(h) {
     const ts = new Date(h.timestamp);
     const tsStr = ts.toLocaleDateString('es-CL') + ' ' + ts.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-    return '<div class="hi" onclick="selectModule(\'' + h.modulo + '\')">' +
+    return '<div class="hi" onclick="restoreHistory(' + h.id + ')" title="Clic para restaurar este análisis">' +
       '<div class="hi-mod">' + (modIcons[h.modulo] || '') + ' ' + h.modulo + '</div>' +
       '<div class="hi-title">' + esc(h.resumen) + '</div>' +
       (h.analista ? '<div class="hi-ts">' + esc(h.analista) + '</div>' : '') +
       '<div class="hi-ts">' + tsStr + '</div>' +
       '</div>';
   }).join('');
+}
+
+// Restaura un análisis guardado: cambia al módulo y re-renderiza el resultado
+function restoreHistory(id) {
+  const item = getHistory().find(function(h) { return h.id === id; });
+  if (!item) return;
+  selectModule(item.modulo);
+  if (item.data) {
+    if (item.meta) ANALYSIS_META[item.modulo] = item.meta;
+    renderResult(item.modulo, item.data);
+    showToast('Análisis restaurado del historial', 'success');
+  }
 }
 
 function clearHistory() {
@@ -2149,25 +2359,35 @@ function clearHistory() {
 }
 
 // ── UI HELPERS ──
+// Barra de progreso compartida con conteo de análisis en curso: se oculta
+// solo cuando el último termina (dos módulos pueden analizar a la vez).
 function showProgress(show) {
-  const bar = document.getElementById('progBar');
-  bar.classList.toggle('hidden', !show);
+  inFlightCount = Math.max(0, inFlightCount + (show ? 1 : -1));
+  document.getElementById('progBar').classList.toggle('hidden', inFlightCount === 0);
 }
 
 function showSpinner(mod) {
   const r = document.getElementById('results-' + mod);
   if (!r) return;
+  stopSpinMsg(mod);
   let msgIdx = 0;
-  r.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><div class="spin-msg" id="spinMsg">' + SPIN_MSGS[0] + '</div></div>';
-  spinMsgInterval = setInterval(function() {
+  r.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><div class="spin-msg" id="spinMsg-' + mod + '">' + SPIN_MSGS[0] + '</div></div>';
+  spinIntervals[mod] = setInterval(function() {
     msgIdx = (msgIdx + 1) % SPIN_MSGS.length;
-    const el = document.getElementById('spinMsg');
+    const el = document.getElementById('spinMsg-' + mod);
     if (el) el.textContent = SPIN_MSGS[msgIdx];
+    else stopSpinMsg(mod);
   }, 2500);
 }
 
-function stopSpinMsg() {
-  if (spinMsgInterval) { clearInterval(spinMsgInterval); spinMsgInterval = null; }
+function stopSpinMsg(mod) {
+  if (mod) {
+    if (spinIntervals[mod]) { clearInterval(spinIntervals[mod]); spinIntervals[mod] = null; }
+    return;
+  }
+  Object.keys(spinIntervals).forEach(function(k) {
+    if (spinIntervals[k]) { clearInterval(spinIntervals[k]); spinIntervals[k] = null; }
+  });
 }
 
 let toastTimer = null;
@@ -2216,8 +2436,19 @@ function fmtMetricVal(val, unit) {
 }
 
 function esc(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  if (s === undefined || s === null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Clase de confianza segura: solo valores conocidos llegan al className
+function confCls(v, def) {
+  const val = String(v || def || 'media').toLowerCase();
+  return ['alta','media','baja'].indexOf(val) !== -1 ? val : (def || 'media');
+}
+
+// Normaliza nombres de proveedor para matching (espacios, mayúsculas)
+function normName(s) {
+  return String(s || '').trim().replace(/\s+/g, ' ').toUpperCase();
 }
 </script>
 </body>

@@ -317,7 +317,7 @@ function selectTool(id){
 }
 
 /* ── openFinanzas ── */
-var _loadedFinanzasTabs = {};
+var _finanzasLoaded = false;
 function openFinanzas(tab){
   hideHome();
   showPanel('finanzas');
@@ -332,12 +332,17 @@ function openFinanzas(tab){
   document.getElementById('finanzas-breadcrumb').textContent = labels[tab] || tab;
 
   const frame = document.getElementById('frame-finanzas');
-  const url   = BASE_URL + '?page=finanzas&tab=' + tab;
 
-  /* lazy: only reload if tab changed */
-  if(!_loadedFinanzasTabs[tab]){
-    frame.src = url;
-    _loadedFinanzasTabs[tab] = true;
+  if(!_finanzasLoaded){
+    /* primera vez: cargar el iframe con el tab pedido (lo inyecta el server) */
+    frame.src = BASE_URL + '?page=finanzas&tab=' + encodeURIComponent(tab);
+    _finanzasLoaded = true;
+  } else {
+    /* ya cargado: cambiar de módulo sin recargar (no se pierden archivos subidos).
+       postMessage no cruza el wrapper de Apps Script, pero el evento 'storage'
+       de localStorage sí llega a los frames del mismo origen de sandbox. */
+    try { frame.contentWindow.postMessage({ tab: tab }, '*'); } catch(e) {}
+    try { localStorage.setItem('finz_tab_req', tab + '@' + Date.now()); } catch(e) {}
   }
 }
 

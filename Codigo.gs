@@ -6,14 +6,18 @@ function doGet(e) {
   const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'hub';
   const validPages = ['hub', 'docscan', 'b2bscan', 'validador', 'finanzas'];
   const target = validPages.includes(page) ? page : 'hub';
-  return buildPage(target);
+  const tab = (e && e.parameter && e.parameter.tab) ? String(e.parameter.tab) : '';
+  return buildPage(target, tab);
 }
 
-function buildPage(name) {
+function buildPage(name, tab) {
   const template = HtmlService.createTemplateFromFile(name);
   template.VERSION     = '1.1.0';
   template.ACTIVE_PAGE = name;
   template.BASE_URL    = ScriptApp.getService().getUrl();
+  // El sandbox de HtmlService no expone la query string al JS del cliente,
+  // así que el tab activo se inyecta server-side (solo minúsculas, anti-inyección).
+  template.ACTIVE_TAB  = /^[a-z]{1,30}$/.test(tab || '') ? tab : '';
   return template.evaluate()
     .setTitle('Kavak Finanzas Tools')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
@@ -37,14 +41,20 @@ function callClaude(payload) {
   if (!key) {
     return JSON.stringify({ status: 500, body: JSON.stringify({ error: { message: 'Falta ANTHROPIC_KEY en Propiedades del script.' } }) });
   }
-  const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
-  return JSON.stringify({ status: res.getResponseCode(), body: res.getContentText() });
+  try {
+    const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    return JSON.stringify({ status: res.getResponseCode(), body: res.getContentText() });
+  } catch (err) {
+    // Errores de transporte (red, timeout, payload demasiado grande) también
+    // vuelven en el sobre {status, body} para que el cliente los muestre/reintente.
+    return JSON.stringify({ status: 529, body: JSON.stringify({ error: { type: 'fetch_error', message: 'Error de red al llamar a la API: ' + String(err) } }) });
+  }
 }
 
 /* ============================================================
@@ -84,13 +94,17 @@ function writeProvisionesSheet(payload) {
   else {
     sh.clearContents();
     sh.clearFormats();
+    // clearFormats() NO deshace merges ni borra reglas condicionales:
+    // sin esto, los merges de la corrida anterior ocultan datos o rompen merge().
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.setConditionalFormatRules([]);
     sh.getBandings().forEach(function(b){ b.remove(); });
     if (sh.getFilter()) sh.getFilter().remove();
   }
 
   const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const provs = p.proveedores || [];
-  const mesCierre = parseInt(p.mes_cierre, 10) || 6;
+  const mesCierre = Math.min(12, Math.max(1, parseInt(p.mes_cierre, 10) || 6));
 
   const header = ['Proveedor', 'Recurrente'];
   for (var m = 1; m <= mesCierre; m++) header.push(MESES[m-1]);
@@ -183,7 +197,8 @@ function writeProvisionesSheet(payload) {
     // Semáforo en celdas de meses
     const mesRange = sh.getRange(matHead + 2, 3, provs.length, mesCierre);
     mesRange.setHorizontalAlignment('center').setFontWeight('bold');
-    const rules = sh.getConditionalFormatRules();
+    // Reglas SIEMPRE desde cero (la hoja se reconstruye completa en cada corrida)
+    const rules = [];
     rules.push(
       SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('FALTA')
         .setBackground('#fde2e1').setFontColor('#b3261e').setRanges([mesRange]).build(),
@@ -251,6 +266,7 @@ function setupDesgloseTemplate() {
   else {
     sh.clearContents();
     sh.clearFormats();
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
     sh.getBandings().forEach(function(b){ b.remove(); });
     if (sh.getFilter()) sh.getFilter().remove();
   }
@@ -301,10 +317,9 @@ function setupDesgloseTemplate() {
   sh.getRange(1, 1, rows.length, 7).setValues(rows);
 
   // ── Formato fila 1: Título ──
-  var r1 = sh.getRange(1, 1, 1, 7);
-  r1.merge().setBackground('#1c1c1e').setFontColor('#ffffff')
+  sh.getRange(1, 1, 1, 7).merge().setBackground('#1c1c1e').setFontColor('#ffffff')
     .setFontWeight('bold').setFontSize(14).setHorizontalAlignment('left')
-    .setVerticalAlignment('middle').setPaddingLeft && r1.setPaddingLeft(12);
+    .setVerticalAlignment('middle');
   sh.setRowHeight(1, 40);
 
   // ── Formato fila 2: Metadata ──
@@ -401,6 +416,8 @@ function writeConciliacionDesglose(payload) {
   } else {
     sh.clearContents();
     sh.clearFormats();
+    // clearFormats() no deshace merges: romperlos evita filas de datos ocultas
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
     sh.getBandings().forEach(function(b){ b.remove(); });
     if (sh.getFilter()) sh.getFilter().remove();
   }
@@ -541,7 +558,14 @@ function getSheetId_() {
 
 function getRegistros_() {
   const ss = SpreadsheetApp.openById(getSheetId_());
-  return ss.getSheetByName('Registros') || ss.getSheets()[0];
+  let sh = ss.getSheetByName('Registros');
+  if (!sh) {
+    // Nunca caer al primer sheet (puede ser el Dashboard): crear la pestaña.
+    sh = ss.insertSheet('Registros');
+    sh.getRange(1, 1, 1, SHEET_HEADERS.length).setValues([SHEET_HEADERS]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
 }
 
 /**
@@ -588,7 +612,8 @@ function setupKavakSheet() {
 
   // Banding (alternar filas) — limpiar previos para evitar duplicados
   sh.getBandings().forEach(function(b){ b.remove(); });
-  const lastRow = Math.max(sh.getMaxRows(), 200);
+  if (sh.getMaxRows() < 200) sh.insertRowsAfter(sh.getMaxRows(), 200 - sh.getMaxRows());
+  const lastRow = sh.getMaxRows();
   sh.getRange(2, 1, lastRow - 1, SHEET_HEADERS.length)
     .applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, false, false);
 

@@ -1,7 +1,7 @@
-# Finance Suite — Kavak Supply Chile
+# Finance Suite — Kavak Finanzas Chile
 
 **Resumen ejecutivo, manual de uso y roadmap de fiabilidad**
-Versión 1.0 · Junio 2026
+Versión 1.1 · Julio 2026
 
 ---
 
@@ -20,6 +20,7 @@ El área de Finanzas dedica horas a leer documentos (cartolas, facturas, estados
 | 📊 **Reportería Financiera** | Lectura de estados financieros | 1 documento (balance/P&L/flujo) | KPIs, ratios, resumen ejecutivo, alertas |
 | 📄 **Gestión Documental** | Extracción de datos de documentos tributarios | 1+ documentos (factura/boleta/contrato) | Emisor, receptor, ítems, totales, IVA |
 | ⚙️ **Automatización Contable** | Generación de asientos contables | 1 documento fuente | Asiento debe/haber, validación de cuadre, export CSV |
+| 🧾 **Control de Provisiones** | Facturas mensuales vs provisiones (NetSuite) | Export General Ledger (.xls/.xlsx/.csv) | Matriz F/P/FALTA, provisiones pendientes con monto sugerido, notas de auditoría |
 
 ### Beneficios clave
 - **Velocidad**: un análisis que tomaba 10–15 min se reduce a ~30 segundos.
@@ -124,6 +125,31 @@ El área de Finanzas dedica horas a leer documentos (cartolas, facturas, estados
 - **Exportar CSV** y **Copiar asiento** para llevar a tu ERP/planilla.
 
 **Cómo interpretarlo:** el asiento es una **propuesta** que debe revisar un contador. Si aparece "Descuadrado", revisa montos antes de usarlo. Las cuentas sugeridas pueden requerir ajuste al plan de cuentas específico de Kavak.
+
+---
+
+### 🧾 Módulo 5 — Control de Provisiones
+
+**Para qué sirve:** responder la pregunta de cierre mensual: *¿a qué proveedores de factura mensual recurrente les falta la factura del mes y no tienen provisión registrada?* — y cuánto provisionar.
+
+**Pasos:**
+1. Exporta desde NetSuite el reporte **"CL - General Ledger (Con filtro por Cuenta)"** del período (ej. enero a junio).
+2. Súbelo al módulo (acepta el .xls tal cual sale de NetSuite).
+3. Ajusta **Último mes cerrado** y el **Umbral de recurrencia** (meses con factura para considerar recurrente a un proveedor).
+4. Pulsa **🧾 Analizar provisiones**.
+
+**Qué obtienes:**
+- **Cabecera de trazabilidad**: analista, fecha/hora, archivo fuente, cuenta y parámetros — el encabezado del papel de trabajo.
+- **KPIs**: proveedores recurrentes, con meses sin cubrir, meses FALTA, provisión total sugerida.
+- **Matriz mensual** por proveedor: `F` factura / `P` provisión / `F+P` / `FALTA`. **Clic en un proveedor** abre sus movimientos reales del General Ledger (facturas, provisiones y reversos por mes).
+- **Provisiones pendientes**: proveedor, mes y monto estimado (= factura promedio del proveedor).
+- **Notas para auditoría**: observaciones con cifras exactas (concentración del monto, patrones de facturación no mensual, reversos relevantes, sensibilidad al umbral) para justificar el análisis ante jefaturas y auditores.
+- Escritura automática en la planilla **Control Provisiones** (pestaña `Provisiones`) con semáforo y columnas de seguimiento (Registrada / N° asiento).
+- **🖨 Imprimir papel de trabajo**: versión imprimible del resultado completo.
+
+**Cómo se calcula (fiabilidad):** la IA clasifica y comenta, pero los números son deterministas: la factura promedio se recalcula en el navegador desde las facturas reales del archivo, el monto sugerido es siempre esa factura promedio (los montos de provisiones o reversos jamás entran al cálculo), y el total es la suma exacta de meses FALTA × promedio. El mismo archivo produce siempre el mismo resultado.
+
+**Cómo interpretarlo:** un proveedor con montos idénticos en meses separados puede facturar por trimestre — confirma el contrato antes de provisionar mensual (las notas de auditoría lo señalan). Subir el umbral de recurrencia excluye proveedores de facturación esporádica.
 
 ---
 
