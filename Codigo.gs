@@ -4,7 +4,7 @@
 
 function doGet(e) {
   const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'hub';
-  const validPages = ['hub', 'docscan', 'b2bscan', 'validador', 'finanzas'];
+  const validPages = ['hub', 'finanzas'];
   const target = validPages.includes(page) ? page : 'hub';
   const tab = (e && e.parameter && e.parameter.tab) ? String(e.parameter.tab) : '';
   return buildPage(target, tab);
@@ -22,10 +22,6 @@ function buildPage(name, tab) {
     .setTitle('Kavak Finanzas Tools')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
-
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 /**
@@ -105,11 +101,12 @@ function writeProvisionesSheet(payload) {
   const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const provs = p.proveedores || [];
   const mesCierre = Math.min(12, Math.max(1, parseInt(p.mes_cierre, 10) || 6));
+  const mesNombre = MESES[mesCierre - 1];
 
   const header = ['Proveedor', 'Recurrente'];
   for (var m = 1; m <= mesCierre; m++) header.push(MESES[m-1]);
   header.push('Fact. promedio', 'Prov. sugerida/mes', 'Comentario');
-  const REAL_COLS = header.length;
+  const REAL_COLS = Math.max(header.length, mesCierre + 2); // matriz y comparativa caben
 
   function fmtMoney(v) {
     const n = parseFloat(v) || 0;
@@ -117,89 +114,169 @@ function writeProvisionesSheet(payload) {
   }
   function pad(arr, len) { while (arr.length < len) arr.push(''); return arr; }
 
+  // Filas + marcas de formato: cada push registra qué tipo de fila es,
+  // así el formateo no depende de aritmética manual de offsets.
   const rows = [];
+  const marks = [];
+  function push(arr, kind) {
+    rows.push(pad(arr, REAL_COLS));
+    if (kind) marks.push({ r: rows.length, kind: kind });
+  }
 
-  // Fila 1 — Título
-  rows.push(pad(['CONTROL DE PROVISIONES — Facturas de Proveedores  ·  Kavak Finanzas Chile'], REAL_COLS));
-  // Fila 2 — Metadata
-  rows.push(pad([
+  // Pendientes: accionables (mes de cierre) vs referencia (meses anteriores)
+  const pendCierre = [], pendPrevios = [];
+  provs.forEach(function(pr) {
+    (pr.meses_falta || []).forEach(function(m) {
+      const item = { prov: pr.nombre, mesNum: m, mes: MESES[m-1], monto: parseFloat(pr.provision_sugerida_mensual) || 0 };
+      (m === mesCierre ? pendCierre : pendPrevios).push(item);
+    });
+  });
+  var totalAccionable = pendCierre.reduce(function(a, x) { return a + x.monto; }, 0);
+
+  // ── Título y metadata ──
+  push(['CONTROL DE PROVISIONES — ' + mesNombre + '  ·  Kavak Finanzas Chile'], 'title');
+  push([
     'Analista: ' + (p.analista || 'Anónimo'),
     'Fecha análisis: ' + (p.fecha || '') + ' ' + (p.hora || ''),
     'Cuenta: ' + (p.cuenta || '—'),
     'Período: ' + (p.periodo || '—'),
-    'Provisión total sugerida: ' + fmtMoney(p.total_provision_sugerida)
-  ], REAL_COLS));
-  rows.push(pad([''], REAL_COLS));
+    'ACCIONABLE ' + mesNombre + ': ' + fmtMoney(totalAccionable)
+  ], 'meta');
+  push([]);
+
+  // ── ACCIONABLE: provisionar en el mes de cierre ──
+  push(['🎯 PROVISIONAR EN ' + mesNombre.toUpperCase() + ' (ACCIONABLE) — ' + pendCierre.length + ' proveedor(es) · ' + fmtMoney(totalAccionable)], 'sec-red');
+  push(['Proveedor', 'Monto a provisionar', 'Base del cálculo', 'Registrada (Sí/No)', 'Nº asiento', 'Notas'], 'colhead');
+  if (pendCierre.length) {
+    pendCierre.forEach(function(x) {
+      push([x.prov, x.monto, 'Factura promedio del proveedor', '', '', ''], 'row-accionable');
+    });
+  } else {
+    push(['✓ ' + mesNombre + ' al día: todos los recurrentes tienen factura o provisión.'], 'row-ok');
+  }
+  push([]);
 
   // ── Matriz mensual ──
-  rows.push(pad(['MATRIZ MENSUAL  ·  F = factura · P = provisión · F+P = ambas · FALTA = provisionar'], REAL_COLS));
-  rows.push(header.slice());
-
+  push(['MATRIZ MENSUAL  ·  F = factura (IR) · P = provisión (Diario) · FALTA = provisionar'], 'sec-dark');
+  push(header.slice(), 'colhead');
+  var matDataStart = rows.length + 1;
   provs.forEach(function(pr) {
     const r = [pr.nombre || '', pr.recurrente ? 'Sí' : 'No'];
-    for (var m = 1; m <= mesCierre; m++) {
-      r.push((pr.meses && pr.meses[String(m)]) || '');
-    }
+    for (var m = 1; m <= mesCierre; m++) r.push((pr.meses && pr.meses[String(m)]) || '');
     r.push(parseFloat(pr.factura_promedio) || 0);
     r.push((pr.meses_falta && pr.meses_falta.length) ? (parseFloat(pr.provision_sugerida_mensual) || 0) : '');
     r.push(pr.comentario || '');
-    rows.push(pad(r, REAL_COLS));
+    push(r, 'row-matriz');
   });
-  rows.push(pad([''], REAL_COLS));
+  push([]);
 
-  // ── Provisiones pendientes ──
-  const pend = [];
-  provs.forEach(function(pr) {
-    (pr.meses_falta || []).forEach(function(m) {
-      pend.push({ prov: pr.nombre, mes: MESES[m-1], monto: parseFloat(pr.provision_sugerida_mensual) || 0 });
+  // ── Comparativa mensual (facturación por proveedor y variaciones) ──
+  const comp = p.comparativa || null;
+  var compDataStart = -1;
+  if (comp && comp.filas && comp.filas.length) {
+    push(['COMPARATIVA MENSUAL — facturación (IR) por proveedor · Δ ' + mesNombre + ' vs mes anterior'], 'sec-dark');
+    const ch = ['Proveedor'];
+    for (var m = 1; m <= mesCierre; m++) ch.push(MESES[m-1]);
+    ch.push('Δ %');
+    push(ch, 'colhead');
+    compDataStart = rows.length + 1;
+    comp.filas.forEach(function(fRow) {
+      const r = [fRow.prov];
+      for (var m = 0; m < mesCierre; m++) r.push(fRow.montos[m] || '');
+      r.push(fRow.delta || '');
+      push(r, 'row-comp');
     });
-  });
-  rows.push(pad(['PROVISIONES PENDIENTES DE REGISTRAR (' + pend.length + ')'], REAL_COLS));
-  rows.push(pad(['Proveedor', 'Mes', 'Monto estimado', 'Registrada (Sí/No)', 'Nº asiento', 'Notas'], REAL_COLS));
-  pend.forEach(function(x) {
-    rows.push(pad([x.prov, x.mes, x.monto, '', '', ''], REAL_COLS));
-  });
-  rows.push(pad([''], REAL_COLS));
+    const tf = ['TOTAL FACTURADO'];
+    for (var m = 0; m < mesCierre; m++) tf.push(comp.totFact[m] || 0);
+    tf.push('');
+    push(tf, 'row-comp-total');
+    const tp = ['Provisiones (Diario) del mes'];
+    for (var m = 0; m < mesCierre; m++) tp.push(comp.totProv[m] || '');
+    tp.push('');
+    push(tp, 'row-comp-prov');
+    push([]);
+  }
+
+  // ── Referencia: meses anteriores ──
+  if (pendPrevios.length) {
+    push(['REFERENCIA — meses anteriores ya cerrados (' + pendPrevios.length + ') · no accionable, contexto para auditoría'], 'sec-gray');
+    push(['Proveedor', 'Mes', 'Monto de referencia', '', '', ''], 'colhead');
+    pendPrevios.forEach(function(x) {
+      push([x.prov, x.mes, x.monto, '', '', ''], 'row-ref');
+    });
+    push([]);
+  }
 
   // ── Notas para auditoría ──
   const notas = p.notas_auditoria || [];
-  rows.push(pad(['NOTAS PARA AUDITORÍA — variaciones y justificaciones (' + notas.length + ')'], REAL_COLS));
+  push(['NOTAS PARA AUDITORÍA — variaciones y justificaciones (' + notas.length + ')'], 'sec-purple');
   notas.forEach(function(n, i) {
-    rows.push(pad([(i + 1) + '. ' + n], REAL_COLS));
+    push([(i + 1) + '. ' + n], 'row-nota');
   });
-  rows.push(pad([''], REAL_COLS));
+  push([]);
 
   // ── Resumen ──
-  rows.push(pad(['RESUMEN'], REAL_COLS));
-  rows.push(pad([p.resumen || ''], REAL_COLS));
+  push(['RESUMEN'], 'sec-gray');
+  push([p.resumen || ''], 'row-resumen');
 
   sh.getRange(1, 1, rows.length, REAL_COLS).setValues(rows);
 
-  // ══ Formato ══
-  sh.getRange(1, 1, 1, REAL_COLS).merge().setBackground('#1c1c1e').setFontColor('#ffffff')
-    .setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
-  sh.setRowHeight(1, 38);
-  sh.getRange(2, 1, 1, REAL_COLS).setBackground('#f1f5f9').setFontColor('#475569').setFontSize(10);
+  // ══ Formato por tipo de fila ══
+  marks.forEach(function(mk) {
+    const R = sh.getRange(mk.r, 1, 1, REAL_COLS);
+    switch (mk.kind) {
+      case 'title':
+        R.merge().setBackground('#000000').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 38); break;
+      case 'meta':
+        R.setBackground('#f4f4f5').setFontColor('#3f3f46').setFontSize(10); break;
+      case 'sec-red':
+        R.merge().setBackground('#dc1a23').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-dark':
+        R.merge().setBackground('#18181b').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-gray':
+        R.merge().setBackground('#e4e4e7').setFontColor('#3f3f46').setFontWeight('bold').setFontSize(11); break;
+      case 'sec-purple':
+        R.merge().setBackground('#7c3aed').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11); break;
+      case 'colhead':
+        R.setBackground('#27272a').setFontColor('#e4e4e7').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center'); break;
+      case 'row-accionable':
+        R.setBackground('#fde8e9').setFontSize(10);
+        sh.getRange(mk.r, 2, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right').setFontWeight('bold').setFontColor('#b01019'); break;
+      case 'row-ok':
+        R.merge().setBackground('#e6f7f0').setFontColor('#0b6b3a').setFontWeight('bold'); break;
+      case 'row-matriz':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 3 + mesCierre, 1, 2).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 3, 1, mesCierre).setHorizontalAlignment('center').setFontWeight('bold'); break;
+      case 'row-comp':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 2 + mesCierre, 1, 1).setHorizontalAlignment('right').setFontWeight('bold'); break;
+      case 'row-comp-total':
+        R.setFontWeight('bold').setBackground('#f4f4f5').setFontSize(10);
+        sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-comp-prov':
+        R.setFontColor('#71717a').setFontSize(10);
+        sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-ref':
+        R.setFontColor('#52525b').setFontSize(10);
+        sh.getRange(mk.r, 3, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-nota':
+        R.merge().setWrap(true).setBackground('#f5f3ff').setFontColor('#4c1d95').setFontSize(10).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 34); break;
+      case 'row-resumen':
+        R.merge().setWrap(true).setFontColor('#3f3f46').setFontSize(10);
+        sh.setRowHeight(mk.r, 80); break;
+    }
+  });
 
-  // Matriz
-  const matHead = 4;
-  sh.getRange(matHead, 1, 1, REAL_COLS).merge().setBackground('#dc1a23').setFontColor('#ffffff')
-    .setFontWeight('bold').setFontSize(11);
-  sh.getRange(matHead + 1, 1, 1, REAL_COLS).setBackground('#0f172a').setFontColor('#e2e8f0')
-    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
-
+  // Semáforo F/P/FALTA en la matriz y resalte de la columna del mes de cierre
   if (provs.length > 0) {
-    const dataR = sh.getRange(matHead + 2, 1, provs.length, REAL_COLS);
-    dataR.setFontSize(10);
-    // Formato moneda en columnas de montos
-    sh.getRange(matHead + 2, 2 + mesCierre + 1, provs.length, 2)
-      .setNumberFormat('$ #,##0').setHorizontalAlignment('right');
-    // Semáforo en celdas de meses
-    const mesRange = sh.getRange(matHead + 2, 3, provs.length, mesCierre);
-    mesRange.setHorizontalAlignment('center').setFontWeight('bold');
-    // Reglas SIEMPRE desde cero (la hoja se reconstruye completa en cada corrida)
-    const rules = [];
-    rules.push(
+    const mesRange = sh.getRange(matDataStart, 3, provs.length, mesCierre);
+    const rules = [
       SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('FALTA')
         .setBackground('#fde2e1').setFontColor('#b3261e').setRanges([mesRange]).build(),
       SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('F')
@@ -208,45 +285,18 @@ function writeProvisionesSheet(payload) {
         .setBackground('#d6f5e3').setFontColor('#0b6b3a').setRanges([mesRange]).build(),
       SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('P')
         .setBackground('#fff1d6').setFontColor('#9a6700').setRanges([mesRange]).build()
-    );
+    ];
     sh.setConditionalFormatRules(rules);
+    // Borde en la columna del mes accionable
+    sh.getRange(matDataStart - 1, 2 + mesCierre, provs.length + 1, 1)
+      .setBorder(true, true, true, true, false, false, '#dc1a23', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   }
-
-  // Pendientes
-  const pendHead = matHead + 2 + provs.length + 1;
-  sh.getRange(pendHead, 1, 1, REAL_COLS).merge().setBackground('#d97706').setFontColor('#ffffff')
-    .setFontWeight('bold').setFontSize(11);
-  sh.getRange(pendHead + 1, 1, 1, REAL_COLS).setBackground('#0f172a').setFontColor('#e2e8f0')
-    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
-  if (pend.length > 0) {
-    sh.getRange(pendHead + 2, 1, pend.length, 6).setBackground('#fffbeb').setFontColor('#92400e');
-    sh.getRange(pendHead + 2, 3, pend.length, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
-  }
-
-  // Notas para auditoría
-  const notasHead = pendHead + 2 + pend.length + 1;
-  sh.getRange(notasHead, 1, 1, REAL_COLS).merge().setBackground('#7c3aed').setFontColor('#ffffff')
-    .setFontWeight('bold').setFontSize(11);
-  for (var ni = 0; ni < notas.length; ni++) {
-    sh.getRange(notasHead + 1 + ni, 1, 1, REAL_COLS).merge().setWrap(true)
-      .setBackground('#f5f3ff').setFontColor('#4c1d95').setFontSize(10).setVerticalAlignment('middle');
-    sh.setRowHeight(notasHead + 1 + ni, 34);
-  }
-
-  // Resumen
-  const resHead = notasHead + 1 + notas.length + 1;
-  sh.getRange(resHead, 1, 1, REAL_COLS).merge().setBackground('#f1f5f9').setFontColor('#334155')
-    .setFontWeight('bold').setFontSize(11);
-  sh.getRange(resHead + 1, 1, 1, REAL_COLS).merge().setWrap(true).setFontColor('#475569').setFontSize(10);
-  sh.setRowHeight(resHead + 1, 80);
 
   // Anchos
   sh.setColumnWidth(1, 230);
-  sh.setColumnWidth(2, 84);
-  for (var c = 3; c < 3 + mesCierre; c++) sh.setColumnWidth(c, 62);
-  sh.setColumnWidth(3 + mesCierre, 115);
-  sh.setColumnWidth(4 + mesCierre, 125);
-  sh.setColumnWidth(5 + mesCierre, 260);
+  sh.setColumnWidth(2, 110);
+  for (var c = 3; c <= REAL_COLS; c++) sh.setColumnWidth(c, 84);
+  sh.setColumnWidth(REAL_COLS, 240);
   sh.setFrozenRows(1);
 
   return ss.getUrl() + '#gid=' + sh.getSheetId();
@@ -576,7 +626,7 @@ function appendToSheet(payload) {
   const p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
   const sh = getRegistros_();
   sh.appendRow([
-    p.fecha || '', p.hora || '', p.analista || 'Anónimo', p.herramienta || 'DocScan',
+    p.fecha || '', p.hora || '', p.analista || 'Anónimo', p.herramienta || 'Finanzas',
     p.tipo_doc || '', p.patente || '', p.rut || '', p.nombre || '', p.municipio || '',
     p.vigencia || '', p.confianza || '', p.tiempo_fmt || '', p.observaciones || ''
   ]);
@@ -644,14 +694,14 @@ function setupKavakSheet() {
   db.setColumnWidth(1, 30);
   [2,3,4,5].forEach(function(c){ db.setColumnWidth(c, 150); });
 
-  db.getRange('B2').setValue('KAVAK FINANZAS · Panel de Inspecciones')
+  db.getRange('B2').setValue('KAVAK FINANZAS · Panel de Registros')
     .setFontSize(18).setFontWeight('bold').setFontColor('#1c1c1e');
-  db.getRange('B3').setValue('Resumen en vivo de DocScan y B2B Scan')
+  db.getRange('B3').setValue('Resumen en vivo de los registros de la Finance Suite')
     .setFontSize(11).setFontColor('#8e8e93');
 
   // Tarjetas KPI (fila 5-7), valores por fórmula
   const cards = [
-    { col: 'B', label: 'Total inspecciones', formula: '=COUNTA(Registros!A2:A)', bg: '#1c1c1e', fg: '#ffffff' },
+    { col: 'B', label: 'Total registros', formula: '=COUNTA(Registros!A2:A)', bg: '#1c1c1e', fg: '#ffffff' },
     { col: 'C', label: 'Hoy',                formula: '=COUNTIF(Registros!A2:A, TEXT(TODAY(),"dd-mm-yyyy"))', bg: '#00a060', fg: '#ffffff' },
     { col: 'D', label: 'Vigentes',           formula: '=COUNTIF(Registros!J2:J,"Vigente")', bg: '#e6f7ef', fg: '#0b6b3a' },
     { col: 'E', label: 'Vencidos',           formula: '=COUNTIF(Registros!J2:J,"Vencido")', bg: '#fde2e1', fg: '#b3261e' }
@@ -678,7 +728,7 @@ function setupKavakSheet() {
 
   // ── Tabla auxiliar para el gráfico de inspecciones por día ──
   // Colocada a partir de B14 (debajo de las tablas QUERY)
-  db.getRange('B14').setValue('Inspecciones por día').setFontWeight('bold').setFontColor('#1c1c1e');
+  db.getRange('B14').setValue('Registros por día').setFontWeight('bold').setFontColor('#1c1c1e');
   // Fórmula: genera la serie de fechas únicas con su conteo
   db.getRange('B15').setFormula(
     '=IFERROR(QUERY(Registros!A2:A,"select A, count(A) where A is not null group by A order by A label A \'Fecha\', count(A) \'Cantidad\'"),"Sin datos")'
@@ -692,7 +742,7 @@ function setupKavakSheet() {
     .setChartType(Charts.ChartType.COLUMN)
     .addRange(db.getRange('B15:C65'))
     .setPosition(14, 5, 0, 0)
-    .setOption('title', 'Inspecciones por día')
+    .setOption('title', 'Registros por día')
     .setOption('titleTextStyle', {color: '#1c1c1e', fontSize: 13, bold: true})
     .setOption('colors', ['#00a060'])
     .setOption('backgroundColor', {fill: '#ffffff'})

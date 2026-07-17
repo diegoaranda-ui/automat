@@ -3,101 +3,92 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kavak · Operations Center</title>
+<title>KAVAK · Finanzas</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;background:#f5f5f7;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5;color:#1d1d1f}
+html,body{height:100%;overflow:hidden;background:#000;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5;color:#fafafa}
 :root{
-  --bg:#f5f5f7;--surface:#ffffff;--border:rgba(0,0,0,.07);--border2:rgba(0,0,0,.11);
-  --text:#1d1d1f;--text2:#3d3d3f;--text3:#6e6e73;--text4:#aeaeb2;
-  --red:#dc1a23;--blue:#0071e3;--green:#1a9e5c;--purple:#7c3aed;--amber:#d97706;--coral:#e5533d;
-  --shadow-card:0 2px 8px rgba(0,0,0,.06),0 12px 32px rgba(0,0,0,.05);
-  --shadow-hover:0 8px 24px rgba(0,0,0,.10),0 24px 56px rgba(0,0,0,.08);
-  --shadow-sm:0 1px 4px rgba(0,0,0,.06);
-  --r:16px;--r-lg:20px;--r-xl:24px;
+  --black:#000000;--ink:#0a0a0a;--ink2:#141414;--ink3:#1e1e1e;
+  --line:rgba(255,255,255,.09);--line2:rgba(255,255,255,.16);
+  --txt:#fafafa;--txt2:#d4d4d8;--txt3:#8b8b92;--txt4:#5b5b63;
+  --red:#dc1a23;--red-d:#b01019;
+  --shadow-card:0 2px 10px rgba(0,0,0,.5),0 16px 42px rgba(0,0,0,.45);
+  --shadow-hover:0 6px 22px rgba(220,26,35,.14),0 26px 64px rgba(0,0,0,.6);
+  --r-lg:20px;--r-xl:24px;
   --t:all .22s cubic-bezier(.4,0,.2,1);
   --t-spring:all .36s cubic-bezier(.34,1.56,.64,1);
-  --blur:blur(20px) saturate(180%);
-  --sidebar-w:220px;
+  --blur:blur(20px) saturate(160%);
 }
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12);border-radius:3px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:3px}
 
 /* ── PANELS ── */
 .oc-root{height:100vh;overflow:hidden;position:relative}
-.oc-panel{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity .28s cubic-bezier(.4,0,.2,1),transform .28s cubic-bezier(.4,0,.2,1)}
+.oc-panel{position:absolute;inset:0;background:var(--black);display:flex;flex-direction:column;opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity .28s cubic-bezier(.4,0,.2,1),transform .28s cubic-bezier(.4,0,.2,1)}
 .oc-panel.visible{opacity:1;pointer-events:all;transform:translateY(0)}
 
 /* ── HOME ── */
-#oc-home{position:absolute;inset:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:56px 24px 64px;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .28s cubic-bezier(.4,0,.2,1),transform .28s cubic-bezier(.4,0,.2,1)}
+#oc-home{position:absolute;inset:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:52px 24px 64px;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .28s cubic-bezier(.4,0,.2,1),transform .28s cubic-bezier(.4,0,.2,1);
+  background:radial-gradient(1100px 500px at 50% -10%, rgba(220,26,35,.10), transparent 60%), #000}
 #oc-home.visible{opacity:1;pointer-events:all;transform:translateY(0)}
 
+/* wordmark KAVAK */
+.kv-wordmark{font-size:clamp(40px,6vw,58px);font-weight:900;letter-spacing:6px;color:#fff;line-height:1;user-select:none;font-stretch:condensed;transform:skewX(-4deg)}
+.kv-wordmark .kv-cut{color:var(--red)}
+.kv-sub{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:4px;color:var(--txt3);text-transform:uppercase;margin-top:10px;margin-bottom:26px}
+
 /* badge */
-.oc-badge{display:inline-flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:1.2px;color:#6e6e73;text-transform:uppercase;margin-bottom:28px}
+.oc-badge{display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--txt3);text-transform:uppercase;margin-bottom:22px;padding:6px 16px;border:1px solid var(--line);border-radius:30px;background:rgba(255,255,255,.03)}
 .oc-badge-dot{width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0;animation:pulse-dot 2.4s ease-in-out infinite}
-@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.85)}}
 
 /* headline */
-.oc-title{font-size:clamp(52px,8vw,80px);font-weight:800;letter-spacing:-3px;line-height:1.02;text-align:center;color:var(--text);margin-bottom:14px}
-.oc-title em{display:block;color:var(--red);font-style:normal}
+.oc-title{font-size:clamp(30px,4.6vw,44px);font-weight:800;letter-spacing:-1.4px;line-height:1.06;text-align:center;color:var(--txt);margin-bottom:10px}
+.oc-title em{color:var(--red);font-style:normal}
 
 /* date */
-.oc-date{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3);letter-spacing:.2px;margin-bottom:20px;text-align:center}
+.oc-date{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt3);letter-spacing:.2px;margin-bottom:16px;text-align:center;text-transform:capitalize}
 
 /* sheets status */
-.oc-status{display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:40px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-sm);font-size:12px;font-weight:500;color:var(--text3);margin-bottom:48px;transition:var(--t)}
-.oc-status.ok{color:var(--green);border-color:rgba(26,158,92,.25);background:rgba(26,158,92,.05)}
-.oc-status.err{color:#e5533d;border-color:rgba(229,83,61,.2)}
-.oc-spinner{width:14px;height:14px;border:2px solid rgba(0,0,0,.1);border-top-color:var(--text3);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.oc-status{display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:40px;background:var(--ink2);border:1px solid var(--line);font-size:12px;font-weight:500;color:var(--txt3);margin-bottom:44px;transition:var(--t)}
+.oc-status.ok{color:#4ade80;border-color:rgba(74,222,128,.3)}
+.oc-status.err{color:#f87171;border-color:rgba(248,113,113,.3)}
+.oc-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.14);border-top-color:var(--txt3);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 .oc-status.ok .oc-spinner,.oc-status.err .oc-spinner{display:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* cards */
-.cards-wrap{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;max-width:840px;width:100%}
-.oc-card{background:var(--surface);border-radius:var(--r-xl);border:1px solid var(--border);box-shadow:var(--shadow-card);padding:28px 26px 24px;width:220px;cursor:pointer;transition:var(--t-spring);position:relative;overflow:hidden}
-.oc-card::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0) 60%,rgba(255,255,255,.4));pointer-events:none}
-.oc-card:hover{transform:translateY(-4px) scale(1.015);box-shadow:var(--shadow-hover)}
+.cards-wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;max-width:860px;width:100%}
+.oc-card{background:linear-gradient(160deg,var(--ink2),var(--ink));border-radius:var(--r-xl);border:1px solid var(--line);box-shadow:var(--shadow-card);padding:26px 24px 22px;width:240px;cursor:pointer;transition:var(--t-spring);position:relative;overflow:hidden}
+.oc-card::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);opacity:0;transition:var(--t)}
+.oc-card:hover{transform:translateY(-4px) scale(1.015);box-shadow:var(--shadow-hover);border-color:var(--line2)}
+.oc-card:hover::before{opacity:1}
 .oc-card:active{transform:translateY(-1px) scale(1.005)}
 
-.card-icon-wrap{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:18px;transition:var(--t)}
+.card-icon-wrap{width:50px;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;background:#fff;transition:var(--t)}
 .oc-card:hover .card-icon-wrap{transform:scale(1.08) rotate(-3deg)}
 
-.card-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.8px;margin-bottom:10px;border:1px solid}
-.badge-supply{background:rgba(0,113,227,.1);color:#0071e3;border-color:rgba(0,113,227,.2)}
-.badge-finanzas{background:rgba(26,158,92,.1);color:#1a9e5c;border-color:rgba(26,158,92,.2)}
+.card-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.9px;margin-bottom:10px;border:1px solid rgba(220,26,35,.4);color:#ff6b71;background:rgba(220,26,35,.12)}
+.card-badge.accent{border-color:rgba(255,255,255,.25);color:#fff;background:rgba(255,255,255,.08)}
 
-.card-title{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.3px;margin-bottom:7px}
-.card-desc{font-size:12px;color:var(--text3);line-height:1.6;font-weight:400}
+.card-title{font-size:16px;font-weight:800;color:var(--txt);letter-spacing:-.3px;margin-bottom:6px}
+.card-desc{font-size:12px;color:var(--txt3);line-height:1.6;font-weight:400}
+
+.oc-foot{margin-top:40px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--txt4);letter-spacing:1px;text-transform:uppercase}
 
 /* ── PANEL BAR ── */
-.panel-bar{height:52px;background:rgba(245,245,247,.88);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--border2);display:flex;align-items:center;padding:0 20px;gap:14px;flex-shrink:0;z-index:10}
-.back-btn{display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;background:var(--surface);border:1px solid var(--border2);font-size:13px;font-weight:600;color:#0071e3;cursor:pointer;transition:var(--t);box-shadow:var(--shadow-sm);white-space:nowrap}
-.back-btn:hover{background:rgba(0,113,227,.07);transform:translateX(-2px)}
-.panel-breadcrumb{font-size:14px;font-weight:600;color:var(--text);flex:1;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.panel-chip{font-size:9px;font-weight:700;padding:4px 10px;border-radius:7px;letter-spacing:.6px;border:1px solid;font-family:'JetBrains Mono',monospace;text-transform:uppercase;flex-shrink:0}
-
-/* ── TOOLS PANEL ── */
-.tools-shell{display:flex;flex:1;overflow:hidden}
-.tools-nav{width:var(--sidebar-w);background:rgba(24,24,27,.93);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,255,255,.05);flex-shrink:0;padding:16px 12px}
-.tools-nav-label{font-size:10px;font-weight:600;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.2px;padding:10px 8px 6px;font-family:'JetBrains Mono',monospace}
-.tools-nav-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:11px;cursor:pointer;transition:var(--t);border:1px solid transparent;margin-bottom:2px;position:relative}
-.tools-nav-item:hover{background:rgba(255,255,255,.07)}
-.tools-nav-item.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.08)}
-.tools-nav-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:3px;border-radius:3px;background:#0071e3}
-.nav-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:var(--t)}
-.tools-nav-item:hover .nav-icon{transform:scale(1.06)}
-.nav-info{flex:1;min-width:0}
-.nav-name{font-size:13px;font-weight:500;color:rgba(255,255,255,.6);transition:var(--t)}
-.tools-nav-item.active .nav-name{color:#fff;font-weight:600}
-.nav-desc{font-size:11px;color:rgba(255,255,255,.28);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tools-main{flex:1;overflow:hidden;position:relative}
-.tool-frame{position:absolute;inset:0;width:100%;height:100%;border:none;display:none}
-.tool-frame.visible{display:block}
+.panel-bar{height:52px;background:rgba(0,0,0,.85);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:14px;flex-shrink:0;z-index:10}
+.back-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:var(--ink2);border:1px solid var(--line2);font-size:13px;font-weight:600;color:#fff;cursor:pointer;transition:var(--t);white-space:nowrap;font-family:inherit}
+.back-btn:hover{background:var(--ink3);border-color:var(--red);transform:translateX(-2px)}
+.bar-wordmark{font-weight:900;letter-spacing:3px;color:#fff;font-size:14px;transform:skewX(-4deg)}
+.bar-wordmark span{color:var(--red)}
+.panel-breadcrumb{font-size:14px;font-weight:600;color:var(--txt);flex:1;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panel-chip{font-size:9px;font-weight:700;padding:4px 10px;border-radius:7px;letter-spacing:.8px;border:1px solid rgba(220,26,35,.4);color:#ff6b71;background:rgba(220,26,35,.12);font-family:'JetBrains Mono',monospace;text-transform:uppercase;flex-shrink:0}
 
 /* ── FINANCE PANEL ── */
-.finanzas-frame{flex:1;border:none;display:block;width:100%;height:100%}
+.finanzas-frame{flex:1;border:none;display:block;width:100%;height:100%;background:#f5f5f7}
 </style>
 </head>
 <body>
@@ -105,15 +96,16 @@ html,body{height:100%;overflow:hidden;background:#f5f5f7;font-family:'Inter',-ap
 
   <!-- ═══════════════════════════════ HOME ═══════════════════════════════ -->
   <div id="oc-home">
+
+    <div class="kv-wordmark">KAVA<span class="kv-cut">K</span></div>
+    <div class="kv-sub">Finanzas · Chile</div>
+
     <div class="oc-badge">
       <div class="oc-badge-dot"></div>
-      Kavak Chile &nbsp;·&nbsp; Country Operations
+      Finance Operations Center
     </div>
 
-    <div class="oc-title">
-      Operations
-      <em>Center</em>
-    </div>
+    <div class="oc-title">Papeles de trabajo <em>asistidos por IA</em></div>
 
     <div class="oc-date" id="oc-date"></div>
 
@@ -124,119 +116,59 @@ html,body{height:100%;overflow:hidden;background:#f5f5f7;font-family:'Inter',-ap
 
     <div class="cards-wrap">
 
-      <!-- 1 · Tools (Inspecciones) -->
-      <div class="oc-card" onclick="openTools('docscan')">
-        <div class="card-icon-wrap" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">🔬</div>
-        <div class="card-badge badge-supply">FINANZAS</div>
-        <div class="card-title">Inspecciones</div>
-        <div class="card-desc">DocScan C2B · B2B Scan · Validador RUT/Patente</div>
+      <!-- 1 · Control de Provisiones (prioridad del equipo) -->
+      <div class="oc-card" onclick="openFinanzas('provisiones')">
+        <div class="card-icon-wrap">🧾</div>
+        <div class="card-badge">CIERRE MENSUAL</div>
+        <div class="card-title">Provisiones</div>
+        <div class="card-desc">Facturas IR vs provisiones Diario · General Ledger NetSuite · accionable del mes</div>
       </div>
 
       <!-- 2 · Conciliación Bancaria -->
       <div class="oc-card" onclick="openFinanzas('conciliacion')">
-        <div class="card-icon-wrap" style="background:linear-gradient(135deg,#22c55e,#15803d)">🏦</div>
-        <div class="card-badge badge-finanzas">FINANZAS</div>
+        <div class="card-icon-wrap">🏦</div>
+        <div class="card-badge accent">FINANZAS</div>
         <div class="card-title">Conciliación</div>
         <div class="card-desc">Cartola bancaria vs registros contables · detección de diferencias</div>
       </div>
 
       <!-- 3 · Reportería Financiera -->
       <div class="oc-card" onclick="openFinanzas('reporteria')">
-        <div class="card-icon-wrap" style="background:linear-gradient(135deg,#a855f7,#6d28d9)">📊</div>
-        <div class="card-badge badge-finanzas">FINANZAS</div>
+        <div class="card-icon-wrap">📊</div>
+        <div class="card-badge accent">FINANZAS</div>
         <div class="card-title">Reportería</div>
         <div class="card-desc">Análisis de estados financieros · KPIs · ratios automáticos</div>
       </div>
 
       <!-- 4 · Gestión Documental -->
       <div class="oc-card" onclick="openFinanzas('gestion')">
-        <div class="card-icon-wrap" style="background:linear-gradient(135deg,#fbbf24,#b45309)">📄</div>
-        <div class="card-badge badge-finanzas">FINANZAS</div>
+        <div class="card-icon-wrap">📄</div>
+        <div class="card-badge accent">FINANZAS</div>
         <div class="card-title">Gestión Documental</div>
         <div class="card-desc">Facturas · boletas · contratos · extracción automática</div>
       </div>
 
       <!-- 5 · Automatización Contable -->
       <div class="oc-card" onclick="openFinanzas('automatizacion')">
-        <div class="card-icon-wrap" style="background:linear-gradient(135deg,#f97316,#dc2626)">⚙️</div>
-        <div class="card-badge badge-finanzas">FINANZAS</div>
+        <div class="card-icon-wrap">⚙️</div>
+        <div class="card-badge accent">FINANZAS</div>
         <div class="card-title">Automatización</div>
         <div class="card-desc">Asientos contables automáticos desde documentos fuente</div>
       </div>
 
-      <!-- 6 · Control de Provisiones -->
-      <div class="oc-card" onclick="openFinanzas('provisiones')">
-        <div class="card-icon-wrap" style="background:linear-gradient(135deg,#ef4444,#991b1b)">🧾</div>
-        <div class="card-badge badge-finanzas">FINANZAS</div>
-        <div class="card-title">Provisiones</div>
-        <div class="card-desc">Facturas mensuales vs provisiones · General Ledger NetSuite</div>
-      </div>
-
     </div>
+
+    <div class="oc-foot">Kavak Finanzas · v<?= VERSION ?> · uso interno</div>
   </div><!-- #oc-home -->
-
-  <!-- ═══════════════════════════════ TOOLS PANEL ═══════════════════════ -->
-  <div id="panel-tools" class="oc-panel">
-
-    <div class="panel-bar">
-      <button class="back-btn" onclick="goHome()">← Operations Center</button>
-      <span class="panel-breadcrumb" id="tools-breadcrumb">Inspecciones</span>
-      <span class="panel-chip" style="background:rgba(0,113,227,.1);color:#0071e3;border-color:rgba(0,113,227,.2)">FINANZAS</span>
-    </div>
-
-    <div class="tools-shell">
-      <aside class="tools-nav">
-        <div class="tools-nav-label">Herramientas</div>
-
-        <div class="tools-nav-item active" id="nav-docscan" onclick="selectTool('docscan')">
-          <div class="nav-icon" style="background:#1c1c1e">🔍</div>
-          <div class="nav-info">
-            <div class="nav-name">DocScan</div>
-            <div class="nav-desc">RT · SOAP · Permiso</div>
-          </div>
-        </div>
-
-        <div class="tools-nav-item" id="nav-b2bscan" onclick="selectTool('b2bscan')">
-          <div class="nav-icon" style="background:rgba(0,160,96,.18)">🏢</div>
-          <div class="nav-info">
-            <div class="nav-name">B2B Scan</div>
-            <div class="nav-desc">Estatuto · Vigencia · E-RUT</div>
-          </div>
-        </div>
-
-        <div class="tools-nav-item" id="nav-validador" onclick="selectTool('validador')">
-          <div class="nav-icon" style="background:rgba(124,58,237,.18)">✓</div>
-          <div class="nav-info">
-            <div class="nav-name">Validador</div>
-            <div class="nav-desc">RUT · Patente</div>
-          </div>
-        </div>
-      </aside>
-
-      <div class="tools-main">
-        <iframe class="tool-frame" id="frame-docscan"
-          data-src="<?= BASE_URL ?>?page=docscan"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"></iframe>
-
-        <iframe class="tool-frame" id="frame-b2bscan"
-          data-src="<?= BASE_URL ?>?page=b2bscan"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"></iframe>
-
-        <iframe class="tool-frame" id="frame-validador"
-          data-src="<?= BASE_URL ?>?page=validador"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"></iframe>
-      </div>
-    </div>
-
-  </div><!-- #panel-tools -->
 
   <!-- ═══════════════════════════════ FINANCE PANEL ════════════════════ -->
   <div id="panel-finanzas" class="oc-panel">
 
     <div class="panel-bar">
-      <button class="back-btn" onclick="goHome()">← Operations Center</button>
+      <button class="back-btn" onclick="goHome()">← Inicio</button>
+      <span class="bar-wordmark">KAVA<span>K</span></span>
       <span class="panel-breadcrumb" id="finanzas-breadcrumb">Finanzas</span>
-      <span class="panel-chip" style="background:rgba(26,158,92,.1);color:#1a9e5c;border-color:rgba(26,158,92,.2)">FINANZAS</span>
+      <span class="panel-chip">FINANZAS</span>
     </div>
 
     <iframe class="finanzas-frame" id="frame-finanzas"
@@ -282,38 +214,6 @@ function showPanel(id){
 }
 function hidePanels(){
   document.querySelectorAll('.oc-panel').forEach(p => p.classList.remove('visible'));
-}
-
-/* ── openTools ── */
-function openTools(defaultTool){
-  hideHome();
-  showPanel('tools');
-  selectTool(defaultTool || 'docscan');
-}
-
-/* ── selectTool ── */
-var _activeTool = null;
-function selectTool(id){
-  /* update nav */
-  document.querySelectorAll('.tools-nav-item').forEach(el => el.classList.remove('active'));
-  const navEl = document.getElementById('nav-' + id);
-  if(navEl) navEl.classList.add('active');
-
-  /* update breadcrumb */
-  const names = {docscan:'DocScan · C2B', b2bscan:'B2B Scan · B2B', validador:'Validador RUT/Patente'};
-  document.getElementById('tools-breadcrumb').textContent = names[id] || id;
-
-  /* hide previous frame, show current */
-  document.querySelectorAll('.tool-frame').forEach(f => f.classList.remove('visible'));
-  const frame = document.getElementById('frame-' + id);
-  if(frame){
-    frame.classList.add('visible');
-    /* lazy load */
-    if(!frame.src && frame.dataset.src){
-      frame.src = frame.dataset.src;
-    }
-  }
-  _activeTool = id;
 }
 
 /* ── openFinanzas ── */
