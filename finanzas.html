@@ -762,7 +762,7 @@ function handleFile(key, input) {
   const proc = (key === 'provisiones') ? processProvisionesGL(file) : processFile(file);
   proc.then(function(fd) {
     const mod = getModuleForKey(key);
-    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '' };
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', anio: fd.anio || null, movs: fd.movs || null };
     showFilePreview(key, file);
     updateAnalyzeButton(mod);
   }).catch(function(err) {
@@ -1019,14 +1019,12 @@ function processProvisionesGL(file) {
         const keys = Object.keys(agg);
         if (!keys.length) throw new Error('No se encontraron movimientos en el archivo.');
 
-        let text = 'CUENTA: ' + (cuenta || 'no detectada') + '\nAÑO: ' + (anioDetectado || '') + '\n';
-        text += 'proveedor|mes|clasificacion|monto_total|n_movimientos\n';
-        keys.sort().forEach(function(k) {
+        const movs = keys.sort().map(function(k) {
           const a = agg[k];
-          text += a.prov + '|' + a.mes + '|' + a.clas + '|' + Math.round(a.monto) + '|' + a.n + '\n';
+          return { prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n };
         });
 
-        resolve({ b64: null, isText: true, text: text, cuenta: cuenta });
+        resolve({ b64: null, isText: true, text: null, cuenta: cuenta, anio: anioDetectado, movs: movs });
       } catch(err) { reject(err); }
     };
     reader.onerror = reject;
@@ -1349,14 +1347,21 @@ function analyzeProvisiones() {
   const mesCierre = parseInt(document.getElementById('prov-mes-cierre').value, 10) || 6;
   const umbral = parseInt(document.getElementById('prov-umbral').value, 10) || 3;
 
+  // Reconstruir la tabla compacta desde los movimientos pre-agregados (determinístico)
+  let datos = 'CUENTA: ' + (f.cuenta || 'no detectada') + '\nAÑO: ' + (f.anio || '') + '\n';
+  datos += 'proveedor|mes|clasificacion|monto_total|n_movimientos\n';
+  (f.movs || []).forEach(function(a) {
+    datos += a.prov + '|' + a.mes + '|' + a.clas + '|' + a.monto + '|' + a.n + '\n';
+  });
+
   const prompt = `Eres analista contable senior de Kavak Chile. Recibes movimientos del General Ledger de NetSuite YA AGREGADOS por proveedor, mes y clasificación (formato pipe-separated). Clasificaciones: FACTURA (recepción de artículo/factura), PROVISION (asiento de diario de provisión), REVERSO (reverso de provisión — anula una PROVISION del mismo proveedor/monto).
 
-Tu tarea (meses 1 a ${mesCierre} del año indicado):
-1. Identifica los proveedores RECURRENTES: con FACTURA en al menos ${umbral} meses distintos.
-2. Para cada proveedor recurrente, marca cada mes: "F" (llegó factura), "P" (solo provisión vigente, neteando reversos), "F+P" (ambas), "FALTA" (ni factura ni provisión vigente → hay que provisionar).
-3. Calcula factura_promedio = promedio de los montos mensuales de FACTURA del proveedor (redondeado).
-4. Para cada mes FALTA, la provisión sugerida mensual = factura_promedio.
-5. total_provision_sugerida = suma de todas las provisiones sugeridas de todos los meses FALTA.
+Tu tarea (meses 1 a ${mesCierre} del año indicado). Trabaja EXCLUSIVAMENTE con los datos entregados; no inventes proveedores, meses ni montos:
+1. Identifica los proveedores RECURRENTES: con FACTURA (monto neto > 0) en al menos ${umbral} meses distintos.
+2. Para cada proveedor recurrente, marca cada mes: "F" (llegó factura), "P" (solo provisión vigente: PROVISION + REVERSO netos > 0), "F+P" (ambas), "FALTA" (ni factura ni provisión vigente → hay que provisionar).
+3. factura_promedio = promedio aritmético de los montos mensuales netos de FACTURA (solo meses con factura > 0), redondeado a entero. Muestra rigor: si un mes tiene un monto atípico (ej. doble facturación), úsalo igual en el promedio pero coméntalo.
+4. Para cada mes FALTA, provisión sugerida mensual = factura_promedio.
+5. total_provision_sugerida = suma exacta de (nº de meses FALTA × provision_sugerida_mensual) de cada proveedor. Verifica esta suma dos veces antes de responder.
 
 Incluye también los proveedores NO recurrentes en la lista (recurrente:false, sin meses_falta) para visibilidad.
 El proveedor "(sin nombre)" corresponde a provisiones de diario sin proveedor asignado: NO lo trates como proveedor; menciónalo solo en el resumen como provisiones globales del mes que podrían cubrir parte de las faltas.
@@ -1375,13 +1380,46 @@ Responde ÚNICAMENTE con JSON válido:
 Reglas de formato: JSON compacto sin saltos de línea innecesarios; "comentario" máximo 8 palabras (omítelo si no aporta); en proveedores NO recurrentes omite "meses" y "factura_promedio". Nada de texto fuera del JSON.
 
 DATOS:
-${f.text}`;
+${datos}`;
 
   return callClaudeServer({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-opus-4-8',
     max_tokens: 16000,
+    temperature: 0,
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
-  }).then(function(resp) { return extractJSON(resp); });
+  }).then(function(resp) {
+    const d = extractJSON(resp);
+    return reconcileProvisiones(d);
+  });
+}
+
+/**
+ * Verificación aritmética post-IA: la IA clasifica y decide (F/P/FALTA,
+ * promedios, comentarios); el código garantiza que las sumas cuadren.
+ * meses_falta se deriva de la matriz de meses, y el total se recalcula
+ * exacto — así dos corridas con el mismo archivo dan el mismo monto.
+ */
+function reconcileProvisiones(d) {
+  let total = 0;
+  (d.proveedores || []).forEach(function(p) {
+    if (!p.recurrente) { p.meses_falta = []; return; }
+    // Derivar meses_falta desde la matriz (fuente de verdad de la clasificación)
+    const falta = [];
+    if (p.meses) {
+      Object.keys(p.meses).forEach(function(m) {
+        if (String(p.meses[m]).toUpperCase() === 'FALTA') falta.push(parseInt(m, 10));
+      });
+      falta.sort(function(a,b){ return a-b; });
+      p.meses_falta = falta;
+    } else {
+      p.meses_falta = p.meses_falta || [];
+    }
+    p.factura_promedio = Math.round(parseFloat(p.factura_promedio) || 0);
+    p.provision_sugerida_mensual = p.meses_falta.length ? (Math.round(parseFloat(p.provision_sugerida_mensual) || 0) || p.factura_promedio) : 0;
+    total += p.meses_falta.length * p.provision_sugerida_mensual;
+  });
+  d.total_provision_sugerida = total;
+  return d;
 }
 
 function extractJSON(resp) {
