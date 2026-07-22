@@ -108,7 +108,7 @@ function writeProvisionesSheet(payload) {
 
   const header = ['Proveedor', 'Recurrente'];
   for (var m = 1; m <= mesCierre; m++) header.push(MESES[m-1]);
-  header.push('Fact. promedio', 'Prov. sugerida/mes', 'Comentario');
+  header.push('Fact. típica', 'Prov. sugerida/mes', 'Comentario');
   const REAL_COLS = Math.max(header.length, mesCierre + 2); // matriz y comparativa caben
 
   function fmtMoney(v) {
@@ -152,7 +152,7 @@ function writeProvisionesSheet(payload) {
   push(['Proveedor', 'Monto a provisionar', 'Base del cálculo', 'Registrada (Sí/No)', 'Nº asiento', 'Notas'], 'colhead');
   if (pendCierre.length) {
     pendCierre.forEach(function(x) {
-      push([x.prov, x.monto, 'Factura promedio del proveedor', '', '', ''], 'row-accionable');
+      push([x.prov, x.monto, 'Factura típica del proveedor (valor más frecuente)', '', '', ''], 'row-accionable');
     });
   } else {
     push(['✓ ' + mesNombre + ' al día: todos los recurrentes tienen factura o provisión.'], 'row-ok');

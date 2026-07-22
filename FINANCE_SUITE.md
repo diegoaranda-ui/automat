@@ -142,12 +142,12 @@ El área de Finanzas dedica horas a leer documentos (cartolas, facturas, estados
 - **Cabecera de trazabilidad**: analista, fecha/hora, archivo fuente, cuenta y parámetros — el encabezado del papel de trabajo.
 - **KPIs**: proveedores recurrentes, con meses sin cubrir, meses FALTA, provisión total sugerida.
 - **Matriz mensual** por proveedor: `F` factura / `P` provisión / `F+P` / `FALTA`. **Clic en un proveedor** abre sus movimientos reales del General Ledger (facturas, provisiones y reversos por mes).
-- **Provisiones pendientes**: proveedor, mes y monto estimado (= factura promedio del proveedor).
+- **Provisiones pendientes**: proveedor, mes y monto estimado (= factura típica del proveedor: el valor que más se repite; mediana si no hay repetición — un cargo adicional de un solo mes no distorsiona la sugerencia).
 - **Notas para auditoría**: observaciones con cifras exactas (concentración del monto, patrones de facturación no mensual, reversos relevantes, sensibilidad al umbral) para justificar el análisis ante jefaturas y auditores.
 - Escritura automática en la planilla **Control Provisiones** (pestaña `Provisiones`) con semáforo y columnas de seguimiento (Registrada / N° asiento).
 - **🖨 Imprimir papel de trabajo**: versión imprimible del resultado completo.
 
-**Cómo se calcula (fiabilidad):** la IA clasifica y comenta, pero los números son deterministas: la factura promedio se recalcula en el navegador desde las facturas reales del archivo, el monto sugerido es siempre esa factura promedio (los montos de provisiones o reversos jamás entran al cálculo), y el total es la suma exacta de meses FALTA × promedio. El mismo archivo produce siempre el mismo resultado.
+**Cómo se calcula (fiabilidad):** la IA clasifica y comenta, pero los números son deterministas: la factura típica se recalcula en el navegador desde las facturas reales del archivo (moda con tolerancia ±5%; mediana si no hay repetición), el monto sugerido es siempre esa factura típica (los montos de provisiones o reversos jamás entran al cálculo), y el total es la suma exacta de meses FALTA × promedio. El mismo archivo produce siempre el mismo resultado.
 
 **Cómo interpretarlo:** un proveedor con montos idénticos en meses separados puede facturar por trimestre — confirma el contrato antes de provisionar mensual (las notas de auditoría lo señalan). Subir el umbral de recurrencia excluye proveedores de facturación esporádica.
 

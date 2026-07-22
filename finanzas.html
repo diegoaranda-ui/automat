@@ -655,7 +655,7 @@ tr.prov-detail>td{padding:0 8px 8px}
               <div class="empty-state">
                 <div class="empty-icon">🧾</div>
                 <div class="empty-title">Control de provisiones</div>
-                <div class="empty-sub">Importa el reporte General Ledger descargado de NetSuite. El sistema identifica los proveedores con factura mensual recurrente, detecta los meses donde no llegó la factura ni se registró la provisión, y sugiere el monto a provisionar según el promedio de facturas del proveedor.</div>
+                <div class="empty-sub">Importa el reporte General Ledger descargado de NetSuite. El sistema identifica los proveedores con factura mensual recurrente, detecta los meses donde no llegó la factura ni se registró la provisión, y sugiere el monto a provisionar según la factura típica del proveedor (el valor que más se repite — un cargo adicional de un solo mes no distorsiona la sugerencia).</div>
               </div>
             </div>
           </div>
@@ -1479,9 +1479,9 @@ Tu tarea (meses 1 a ${mesCierre} del año indicado). Trabaja EXCLUSIVAMENTE con 
 1. Identifica los proveedores RECURRENTES: con FACTURA (monto neto > 0) en al menos ${umbral} meses distintos dentro de su cuenta.
 2. Para cada proveedor recurrente, marca cada mes: "F" (llegó factura ese mes), "P" (sin factura pero con PROVISION registrada ese mes), "F+P" (ambas), "FALTA" (ni factura ni PROVISION ese mes → hay que provisionar).
 3. REGLA CRÍTICA — REVERSO es solo informativo: un REVERSO registrado en el mes M anula una provisión de un mes ANTERIOR (ciclo normal: se provisiona en M, llega la factura y se reversa en M+1). Por lo tanto: (a) un REVERSO NUNCA cambia el estado del mes donde aparece; (b) los montos de REVERSO y de PROVISION NUNCA se usan para calcular la provisión sugerida.
-4. factura_promedio = promedio aritmético de los montos mensuales netos de FACTURA (solo meses con factura > 0), redondeado a entero. Si un mes tiene monto atípico (ej. doble facturación o factura que cubre varios meses), úsalo igual en el promedio pero coméntalo.
-5. provision_sugerida_mensual = factura_promedio, SIEMPRE. Es la única fuente del monto sugerido.
-6. total_provision_sugerida = suma exacta de (nº de meses FALTA × factura_promedio) de cada proveedor recurrente. Verifica esta suma dos veces antes de responder.
+4. factura_promedio = la FACTURA TÍPICA del proveedor: el monto que MÁS SE REPITE entre sus facturas mensuales (agrupa montos con diferencia ≤5% como "iguales" y toma el grupo más numeroso). Si ningún monto se repite, usa la MEDIANA. NUNCA el promedio aritmético: un mes con cargo adicional o servicio extra no debe inflar la provisión sugerida — si detectas un mes atípico, coméntalo.
+5. provision_sugerida_mensual = esa factura típica, SIEMPRE. Es la única fuente del monto sugerido.
+6. total_provision_sugerida = suma exacta de (nº de meses FALTA × factura típica) de cada proveedor recurrente. Verifica esta suma dos veces antes de responder.
 
 Incluye también los proveedores NO recurrentes en la lista (recurrente:false, sin meses_falta) para visibilidad.
 El proveedor "(sin nombre)" corresponde a provisiones de diario sin proveedor asignado: NO lo trates como proveedor; menciónalo solo en el resumen como provisiones globales del mes que podrían cubrir parte de las faltas.
@@ -1523,13 +1523,15 @@ ${datos}`;
 
 /**
  * Verificación aritmética post-IA: la IA clasifica y decide (F/P/FALTA,
- * comentarios); el código garantiza los números. La factura promedio se
- * recalcula desde los movimientos reales del archivo (solo FACTURAS netas
- * positivas, meses 1..mesCierre), meses_falta se deriva de la matriz, y el
- * total se recalcula exacto — mismo archivo, mismo monto, siempre.
+ * comentarios); el código garantiza los números. La FACTURA TÍPICA se
+ * calcula desde los movimientos reales del archivo con el criterio del
+ * equipo: el valor que más se repite (moda con tolerancia ±5%, porque las
+ * facturas reales varían por pesos entre meses). Si ningún valor se repite,
+ * se usa la MEDIANA — no el promedio, para que un cargo adicional de un
+ * solo mes no distorsione la provisión sugerida.
  */
 function reconcileProvisiones(d, movs, mesCierre) {
-  // Factura promedio real por proveedor, calculada desde el archivo.
+  // Facturas mensuales netas por proveedor, desde el archivo.
   // Nombres normalizados (espacios/mayúsculas) para que una variación menor
   // devuelta por la IA no haga caer el match hacia su propio número.
   const byBoth = {}, byProv = {};
@@ -1542,11 +1544,31 @@ function reconcileProvisiones(d, movs, mesCierre) {
     if (!byProv[kp]) byProv[kp] = {};
     byProv[kp][a.mes] = (byProv[kp][a.mes] || 0) + a.monto;
   });
+  function medianaDe(arr) {
+    const s = arr.slice().sort(function(a, b) { return a - b; });
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+  }
+  // Valor típico = moda con tolerancia: el grupo de montos que están dentro
+  // de ±5% entre sí con más meses; de ese grupo, la mediana. Sin repetición
+  // (todos los montos "distintos"), cae a la mediana de todos los meses.
   function promedioDe(meses) {
     if (!meses) return null;
     const montos = Object.keys(meses).map(function(m){ return meses[m]; }).filter(function(v){ return v > 0; });
     if (!montos.length) return null;
-    return Math.round(montos.reduce(function(a,b){ return a+b; }, 0) / montos.length);
+    if (montos.length === 1) return Math.round(montos[0]);
+
+    let mejorGrupo = [];
+    montos.forEach(function(base) {
+      const grupo = montos.filter(function(v) {
+        return Math.abs(v - base) <= base * 0.05;
+      });
+      if (grupo.length > mejorGrupo.length) mejorGrupo = grupo;
+    });
+    // Grupo con 2+ meses similares → ese es el valor recurrente real del proveedor
+    if (mejorGrupo.length >= 2) return medianaDe(mejorGrupo);
+    // Sin valores que se repitan: mediana (robusta al mes con cargo adicional)
+    return medianaDe(montos);
   }
   function promedioReal(nombre, cta) {
     // Primero match cuenta+proveedor (archivo multi-cuenta); si no, por proveedor
@@ -1572,7 +1594,7 @@ function reconcileProvisiones(d, movs, mesCierre) {
     const real = promedioReal(p.nombre, p.cuenta || '');
     if (real === null && (movs || []).length) {
       // Sin match en el archivo: se usa el número de la IA pero queda marcado
-      p.comentario = ((p.comentario ? p.comentario + ' · ' : '') + '⚠ sin match exacto en archivo — promedio según IA');
+      p.comentario = ((p.comentario ? p.comentario + ' · ' : '') + '⚠ sin match exacto en archivo — valor según IA');
     }
     p.factura_promedio = (real !== null) ? real : Math.round(parseFloat(p.factura_promedio) || 0);
     // La sugerencia SIEMPRE es la factura promedio del proveedor: los montos de
@@ -2124,7 +2146,7 @@ function renderProvisiones(d) {
   html += '<div class="tbl-wrap"><table>';
   html += '<tr><th>Proveedor</th><th>Rec.</th>';
   for (let m = 1; m <= mesCierre; m++) html += '<th style="text-align:center">' + MESES[m-1] + '</th>';
-  html += '<th style="text-align:right">Fact. promedio</th></tr>';
+  html += '<th style="text-align:right">Fact. típica</th></tr>';
   // Agrupar por cuenta cuando el archivo trae varias
   const ctasOrden = [];
   provs.forEach(function(p) {
@@ -2179,7 +2201,7 @@ function renderProvisiones(d) {
       html += '<tr class="row-amber"><td style="font-weight:700">' + esc(x.nombre) + '</td>';
       html += '<td style="font-family:var(--mono);font-size:10px">' + esc(x.cuenta) + '</td>';
       html += '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--red-d)">' + fmtMoney(x.monto) + '</td>';
-      html += '<td style="font-size:11px;color:var(--n500)">Factura promedio del proveedor</td>';
+      html += '<td style="font-size:11px;color:var(--n500)">Factura típica (valor más frecuente; mediana si no se repite)</td>';
       html += '<td style="font-size:11px;color:var(--n500)">' + esc(x.comentario) + '</td></tr>';
     });
     html += '</table></div></div>';
