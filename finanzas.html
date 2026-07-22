@@ -645,10 +645,9 @@ tr.prov-detail>td{padding:0 8px 8px}
                   <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
                 </select>
               </label>
-              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
-                Umbral recurrencia (meses con factura)
-                <input id="prov-umbral" type="number" min="2" max="12" value="3" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;width:100px">
-              </label>
+              <div style="display:flex;align-items:flex-end;padding-bottom:6px;font-size:11px;color:var(--n400)">
+                Recurrente = factura en 2+ meses · sugerencia = valor que más se repite de cada proveedor
+              </div>
             </div>
 
             <div id="results-provisiones">
@@ -1308,7 +1307,7 @@ function captureAnalysisMeta(mod) {
   if (mod === 'provisiones') {
     const sel = document.getElementById('prov-mes-cierre');
     const mesTxt = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : sel.value;
-    params = 'Período: Enero–' + mesTxt + ' · Umbral recurrencia: ' + (document.getElementById('prov-umbral').value || 3) + ' meses con factura';
+    params = 'Período: Enero–' + mesTxt + ' · Criterio: factura típica (valor más frecuente por proveedor) · Recurrente = factura en 2+ meses';
     const f = st.provisiones;
     if (f && f.cuenta) params += ' · Cuenta: ' + f.cuenta;
   }
@@ -1457,153 +1456,174 @@ Responde ÚNICAMENTE con JSON válido:
 }
 
 // ── PROVISIONES ──
-function analyzeProvisiones() {
-  const f = STATE.provisiones.files.provisiones;
-  const mesCierre = parseInt(document.getElementById('prov-mes-cierre').value, 10) || 6;
-  const umbral = parseInt(document.getElementById('prov-umbral').value, 10) || 3;
+// La matriz, la recurrencia y los montos se calculan 100% EN CÓDIGO,
+// proveedor por proveedor, cada uno solo con sus propios montos.
+// La IA únicamente redacta el resumen, los comentarios y las notas de
+// auditoría sobre el resultado ya calculado — si falla, el análisis
+// igual se entrega completo.
 
-  // Reconstruir la tabla compacta desde los movimientos pre-agregados (determinístico)
-  let datos = 'CUENTAS ANALIZADAS: ' + ((f.cuentas && f.cuentas.length) ? f.cuentas.join(' ; ') : (f.cuenta || 'no detectada')) + '\nAÑO: ' + (f.anio || '') + '\n';
-  datos += 'cuenta|proveedor|mes|clasificacion|monto_total|n_movimientos\n';
-  (f.movs || []).forEach(function(a) {
-    datos += (a.cuenta || '') + '|' + a.prov + '|' + a.mes + '|' + a.clas + '|' + a.monto + '|' + a.n + '\n';
-  });
-
-  const prompt = `Eres analista contable senior de Kavak Chile. Recibes movimientos del General Ledger de NetSuite YA AGREGADOS por proveedor, mes y clasificación (formato pipe-separated). Clasificaciones (ya depuradas por código): FACTURA (recepción con Document Number "IR..." — factura recepcionada real), PROVISION (asiento de Diario de NetSuite con monto positivo), REVERSO (anulación de una provisión anterior — monto negativo). Pagos, notas de crédito y otros movimientos ya fueron excluidos.
-
-FOCO ACCIONABLE: el equipo contable solo puede accionar sobre el ÚLTIMO mes del análisis (mes ${mesCierre}); los meses anteriores ya están cerrados y sirven de referencia/contexto. En "resumen" y "notas_auditoria" prioriza SIEMPRE lo que hay que provisionar en el mes ${mesCierre}.
-
-El archivo puede traer VARIAS cuentas contables: analiza cada cuenta por separado (un proveedor pertenece a la cuenta donde registra sus movimientos) e incluye el campo "cuenta" en cada proveedor de tu respuesta.
-
-Tu tarea (meses 1 a ${mesCierre} del año indicado). Trabaja EXCLUSIVAMENTE con los datos entregados; no inventes proveedores, meses ni montos:
-1. Identifica los proveedores RECURRENTES: con FACTURA (monto neto > 0) en al menos ${umbral} meses distintos dentro de su cuenta.
-2. Para cada proveedor recurrente, marca cada mes: "F" (llegó factura ese mes), "P" (sin factura pero con PROVISION registrada ese mes), "F+P" (ambas), "FALTA" (ni factura ni PROVISION ese mes → hay que provisionar).
-3. REGLA CRÍTICA — REVERSO es solo informativo: un REVERSO registrado en el mes M anula una provisión de un mes ANTERIOR (ciclo normal: se provisiona en M, llega la factura y se reversa en M+1). Por lo tanto: (a) un REVERSO NUNCA cambia el estado del mes donde aparece; (b) los montos de REVERSO y de PROVISION NUNCA se usan para calcular la provisión sugerida.
-4. factura_promedio = la FACTURA TÍPICA del proveedor: el monto que MÁS SE REPITE entre sus facturas mensuales (agrupa montos con diferencia ≤5% como "iguales" y toma el grupo más numeroso). Si ningún monto se repite, usa la MEDIANA. NUNCA el promedio aritmético: un mes con cargo adicional o servicio extra no debe inflar la provisión sugerida — si detectas un mes atípico, coméntalo.
-5. provision_sugerida_mensual = esa factura típica, SIEMPRE. Es la única fuente del monto sugerido.
-6. total_provision_sugerida = suma exacta de (nº de meses FALTA × factura típica) de cada proveedor recurrente. Verifica esta suma dos veces antes de responder.
-
-Incluye también los proveedores NO recurrentes en la lista (recurrente:false, sin meses_falta) para visibilidad.
-El proveedor "(sin nombre)" corresponde a provisiones de diario sin proveedor asignado: NO lo trates como proveedor; menciónalo solo en el resumen como provisiones globales del mes que podrían cubrir parte de las faltas.
-
-Responde ÚNICAMENTE con JSON válido:
-{
-  "cuenta": "código y nombre de la cuenta",
-  "periodo": "Ene–${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][mesCierre-1]} <año>",
-  "mes_cierre": ${mesCierre},
-  "proveedores": [{"nombre":"...","cuenta":"código de la cuenta (ej. 5401-14)","recurrente":true,"meses":{"1":"F","2":"FALTA"},"factura_promedio":0,"meses_falta":[2],"provision_sugerida_mensual":0,"comentario":"breve"}],
-  "total_provision_sugerida": 0,
-  "resumen": "párrafo ejecutivo: cuántos proveedores recurrentes, cuántos meses FALTA, monto total a provisionar y qué proveedores concentran el riesgo",
-  "notas_auditoria": ["observación 1", "observación 2"]
+// Mediana de una lista de montos
+function medianaDe(arr) {
+  const s = arr.slice().sort(function(a, b) { return a - b; });
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
 }
 
-"notas_auditoria" es CLAVE — son las justificaciones que el analista presentará a auditores y jefaturas. Escribe de 3 a 8 observaciones concretas y verificables contra los datos, priorizando:
-- Concentración del monto sugerido (qué proveedor concentra qué % del total y en qué meses).
-- Patrones de facturación NO mensual detectados (ej. montos idénticos en meses separados que sugieren facturación trimestral o por período — indica que quizás no corresponde provisión mensual y conviene confirmar el contrato).
-- Fluctuaciones atípicas de monto entre meses de un mismo proveedor (dobles facturaciones, saltos > 50%).
-- Reversos relevantes y a qué provisión previa corresponden probablemente.
-- Sensibilidad al umbral: qué proveedores entran/salen del cálculo si el umbral de recurrencia cambia, y cuánto varía el total.
-- Provisiones de diario sin proveedor asignado que podrían cubrir parte de las faltas.
-Cada nota debe citar cifras exactas de los datos (montos y meses).
-
-Reglas de formato: JSON compacto sin saltos de línea innecesarios; "comentario" máximo 8 palabras (omítelo si no aporta); en proveedores NO recurrentes omite "meses" y "factura_promedio". Nada de texto fuera del JSON.
-
-DATOS:
-${datos}`;
-
-  return callClaudeServer({
-    model: 'claude-opus-4-8',
-    max_tokens: 16000,
-    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
-  }).then(function(resp) {
-    const d = extractJSON(resp);
-    return reconcileProvisiones(d, f.movs || [], mesCierre);
+// Factura típica del proveedor = el monto que MÁS SE REPITE entre sus
+// facturas mensuales (agrupando como "iguales" los que difieren ≤5%,
+// porque las facturas reales varían por pesos). Si nada se repite, la
+// MEDIANA — nunca el promedio: un cargo extra de un mes no infla nada.
+function facturaTipica(montos) {
+  if (!montos.length) return 0;
+  if (montos.length === 1) return Math.round(montos[0]);
+  let mejorGrupo = [];
+  montos.forEach(function(base) {
+    const grupo = montos.filter(function(v) {
+      return Math.abs(v - base) <= base * 0.05;
+    });
+    if (grupo.length > mejorGrupo.length) mejorGrupo = grupo;
   });
+  if (mejorGrupo.length >= 2) return medianaDe(mejorGrupo);
+  return medianaDe(montos);
 }
 
 /**
- * Verificación aritmética post-IA: la IA clasifica y decide (F/P/FALTA,
- * comentarios); el código garantiza los números. La FACTURA TÍPICA se
- * calcula desde los movimientos reales del archivo con el criterio del
- * equipo: el valor que más se repite (moda con tolerancia ±5%, porque las
- * facturas reales varían por pesos entre meses). Si ningún valor se repite,
- * se usa la MEDIANA — no el promedio, para que un cargo adicional de un
- * solo mes no distorsione la provisión sugerida.
+ * Cálculo determinístico del control de provisiones desde los movimientos
+ * parseados del archivo. Cada proveedor se evalúa POR SEPARADO dentro de su
+ * cuenta (clave cuenta|proveedor — los montos nunca se mezclan entre
+ * proveedores ni entre cuentas).
+ *  - F   = factura IR neta > 0 en el mes
+ *  - P   = provisión (Diario) positiva en el mes, sin factura
+ *  - F+P = ambas
+ *  - FALTA = ni factura ni provisión (solo para proveedores con factura
+ *            en 2+ meses — con un solo mes no hay patrón mensual que exigir)
  */
-function reconcileProvisiones(d, movs, mesCierre) {
-  // Facturas mensuales netas por proveedor, desde el archivo.
-  // Nombres normalizados (espacios/mayúsculas) para que una variación menor
-  // devuelta por la IA no haga caer el match hacia su propio número.
-  const byBoth = {}, byProv = {};
-  (movs || []).forEach(function(a) {
-    if (a.clas !== 'FACTURA' || a.mes > mesCierre) return;
-    const kp = normName(a.prov);
-    const kb = normCuenta(a.cuenta) + '|' + kp;
-    if (!byBoth[kb]) byBoth[kb] = {};
-    byBoth[kb][a.mes] = (byBoth[kb][a.mes] || 0) + a.monto;
-    if (!byProv[kp]) byProv[kp] = {};
-    byProv[kp][a.mes] = (byProv[kp][a.mes] || 0) + a.monto;
+function computeProvisionesLocal(f, mesCierre) {
+  const movs = f.movs || [];
+  const map = {};
+  const orden = [];
+  movs.forEach(function(a) {
+    if (a.mes > mesCierre || a.prov === '(sin nombre)') return;
+    const key = normCuenta(a.cuenta) + '|' + normName(a.prov);
+    if (!map[key]) {
+      map[key] = { nombre: a.prov, cuenta: normCuenta(a.cuenta), fact: {}, prov: {} };
+      orden.push(key);
+    }
+    if (a.clas === 'FACTURA')   map[key].fact[a.mes] = (map[key].fact[a.mes] || 0) + a.monto;
+    if (a.clas === 'PROVISION') map[key].prov[a.mes] = (map[key].prov[a.mes] || 0) + a.monto;
   });
-  function medianaDe(arr) {
-    const s = arr.slice().sort(function(a, b) { return a - b; });
-    const mid = Math.floor(s.length / 2);
-    return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
-  }
-  // Valor típico = moda con tolerancia: el grupo de montos que están dentro
-  // de ±5% entre sí con más meses; de ese grupo, la mediana. Sin repetición
-  // (todos los montos "distintos"), cae a la mediana de todos los meses.
-  function promedioDe(meses) {
-    if (!meses) return null;
-    const montos = Object.keys(meses).map(function(m){ return meses[m]; }).filter(function(v){ return v > 0; });
-    if (!montos.length) return null;
-    if (montos.length === 1) return Math.round(montos[0]);
-
-    let mejorGrupo = [];
-    montos.forEach(function(base) {
-      const grupo = montos.filter(function(v) {
-        return Math.abs(v - base) <= base * 0.05;
-      });
-      if (grupo.length > mejorGrupo.length) mejorGrupo = grupo;
-    });
-    // Grupo con 2+ meses similares → ese es el valor recurrente real del proveedor
-    if (mejorGrupo.length >= 2) return medianaDe(mejorGrupo);
-    // Sin valores que se repitan: mediana (robusta al mes con cargo adicional)
-    return medianaDe(montos);
-  }
-  function promedioReal(nombre, cta) {
-    // Primero match cuenta+proveedor (archivo multi-cuenta); si no, por proveedor
-    const exacto = promedioDe(byBoth[normCuenta(cta) + '|' + normName(nombre)]);
-    if (exacto !== null) return exacto;
-    return promedioDe(byProv[normName(nombre)]);
-  }
 
   let total = 0;
-  (d.proveedores || []).forEach(function(p) {
-    if (!p.recurrente) { p.meses_falta = []; return; }
-    // Derivar meses_falta desde la matriz (fuente de verdad de la clasificación)
+  const proveedores = orden.sort().map(function(key) {
+    const e = map[key];
+    const montosF = [];
+    const mesesConF = [];
+    for (let m = 1; m <= mesCierre; m++) {
+      if ((e.fact[m] || 0) > 0) { mesesConF.push(m); montosF.push(e.fact[m]); }
+    }
+    const recurrente = mesesConF.length >= 2;
+    const tipica = facturaTipica(montosF);
+
+    const meses = {};
     const falta = [];
-    if (p.meses) {
-      Object.keys(p.meses).forEach(function(m) {
-        if (String(p.meses[m]).toUpperCase() === 'FALTA') falta.push(parseInt(m, 10));
-      });
-      falta.sort(function(a,b){ return a-b; });
-      p.meses_falta = falta;
-    } else {
-      p.meses_falta = p.meses_falta || [];
+    for (let m = 1; m <= mesCierre; m++) {
+      const tieneF = (e.fact[m] || 0) > 0;
+      const tieneP = (e.prov[m] || 0) > 0;
+      if (tieneF && tieneP)      meses[String(m)] = 'F+P';
+      else if (tieneF)           meses[String(m)] = 'F';
+      else if (tieneP)           meses[String(m)] = 'P';
+      else if (recurrente)       { meses[String(m)] = 'FALTA'; falta.push(m); }
+      else                       meses[String(m)] = '';
     }
-    const real = promedioReal(p.nombre, p.cuenta || '');
-    if (real === null && (movs || []).length) {
-      // Sin match en el archivo: se usa el número de la IA pero queda marcado
-      p.comentario = ((p.comentario ? p.comentario + ' · ' : '') + '⚠ sin match exacto en archivo — valor según IA');
-    }
-    p.factura_promedio = (real !== null) ? real : Math.round(parseFloat(p.factura_promedio) || 0);
-    // La sugerencia SIEMPRE es la factura promedio del proveedor: los montos de
-    // provisiones (vigentes o reversadas) jamás entran al cálculo.
-    p.provision_sugerida_mensual = p.meses_falta.length ? p.factura_promedio : 0;
-    total += p.meses_falta.length * p.provision_sugerida_mensual;
+    const sugerida = falta.length ? tipica : 0;
+    total += falta.length * sugerida;
+
+    return {
+      nombre: e.nombre,
+      cuenta: e.cuenta,
+      recurrente: recurrente,
+      meses: meses,
+      factura_promedio: tipica,
+      meses_falta: falta,
+      provision_sugerida_mensual: sugerida,
+      comentario: ''
+    };
   });
-  d.total_provision_sugerida = total;
-  return d;
+
+  const cierreNombre = MESES_G[mesCierre - 1];
+  const accionables = proveedores.filter(function(p) { return p.meses_falta.indexOf(mesCierre) !== -1; });
+  return {
+    cuenta: (f.cuentas && f.cuentas.length) ? f.cuentas.join('  ·  ') : (f.cuenta || '—'),
+    cuentas: f.cuentas || [],
+    periodo: 'Ene–' + cierreNombre + (f.anio ? ' ' + f.anio : ''),
+    mes_cierre: mesCierre,
+    proveedores: proveedores,
+    total_provision_sugerida: total,
+    resumen: 'Cálculo determinístico: ' + proveedores.filter(function(p){ return p.recurrente; }).length +
+      ' proveedor(es) con factura recurrente; ' + accionables.length + ' sin factura ni provisión en ' + cierreNombre +
+      '. Monto sugerido según la factura típica de cada proveedor (valor más frecuente, mediana si no se repite).',
+    notas_auditoria: []
+  };
+}
+
+function analyzeProvisiones() {
+  const f = STATE.provisiones.files.provisiones;
+  const mesCierre = parseInt(document.getElementById('prov-mes-cierre').value, 10) || 6;
+
+  // 1) Resultado completo calculado en código — nunca depende de la IA
+  const base = computeProvisionesLocal(f, mesCierre);
+
+  // 2) IA solo como redactora de resumen/comentarios/notas de auditoría
+  let datos = 'cuenta|proveedor|mes|clasificacion|monto_total|n_movimientos\n';
+  (f.movs || []).forEach(function(a) {
+    datos += (a.cuenta || '') + '|' + a.prov + '|' + a.mes + '|' + a.clas + '|' + a.monto + '|' + a.n + '\n';
+  });
+  const matrizCalc = base.proveedores.map(function(p) {
+    return p.cuenta + '|' + p.nombre + '|rec:' + (p.recurrente ? 'sí' : 'no') +
+      '|tipica:' + p.factura_promedio + '|falta_meses:[' + p.meses_falta.join(',') + ']';
+  }).join('\n');
+
+  const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el control de provisiones (matriz F/P/FALTA, factura típica = monto que más se repite por proveedor, y total sugerido $${base.total_provision_sugerida}). Tu único trabajo es REDACTAR — no recalcules ni cambies ningún número.
+
+Contexto: FACTURA = recepción IR (factura recepcionada); PROVISION = asiento de Diario positivo; REVERSO = anulación de una provisión anterior (informativo). El mes accionable para el equipo es el mes ${mesCierre} (${MESES_G[mesCierre-1]}); los anteriores son referencia.
+
+RESULTADO CALCULADO (cuenta|proveedor|recurrente|factura_tipica|meses_falta):
+${matrizCalc}
+
+MOVIMIENTOS DEL ARCHIVO:
+${datos}
+
+Responde ÚNICAMENTE con JSON válido:
+{
+  "resumen": "párrafo ejecutivo: qué hay que provisionar en ${MESES_G[mesCierre-1]}, qué proveedores concentran el monto, y contexto de meses previos",
+  "comentarios": [{"cuenta":"...","nombre":"...","comentario":"máx 8 palabras (solo proveedores donde aporte: mes atípico, doble facturación, posible facturación trimestral, reverso relevante)"}],
+  "notas_auditoria": ["3 a 8 observaciones con cifras exactas para auditores: concentración del monto sugerido, patrones de facturación no mensual, fluctuaciones atípicas entre meses, reversos relevantes, provisiones de diario sin proveedor asignado"]
+}`;
+
+  return callClaudeServer({
+    model: 'claude-opus-4-8',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+  }).then(function(resp) {
+    try {
+      const ia = extractJSON(resp);
+      if (ia.resumen) base.resumen = ia.resumen;
+      if (ia.notas_auditoria && ia.notas_auditoria.length) base.notas_auditoria = ia.notas_auditoria;
+      (ia.comentarios || []).forEach(function(c) {
+        base.proveedores.forEach(function(p) {
+          if (normName(p.nombre) === normName(c.nombre) &&
+              (!c.cuenta || normCuenta(c.cuenta) === normCuenta(p.cuenta))) {
+            p.comentario = c.comentario || '';
+          }
+        });
+      });
+    } catch(e) { /* redacción IA malformada: se entrega el cálculo igual */ }
+    return base;
+  }).catch(function(err) {
+    // La IA falló (red, sobrecarga, key): el cálculo determinístico se entrega igual
+    showToast('Notas IA no disponibles (' + ((err && err.message) || err) + ') — mostrando cálculo completo', 'error');
+    return base;
+  });
 }
 
 function extractJSON(resp) {

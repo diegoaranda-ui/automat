@@ -135,7 +135,7 @@ El área de Finanzas dedica horas a leer documentos (cartolas, facturas, estados
 **Pasos:**
 1. Exporta desde NetSuite el reporte **"CL - General Ledger (Con filtro por Cuenta)"** del período (ej. enero a junio).
 2. Súbelo al módulo (acepta el .xls tal cual sale de NetSuite).
-3. Ajusta **Último mes cerrado** y el **Umbral de recurrencia** (meses con factura para considerar recurrente a un proveedor).
+3. Ajusta el **Último mes cerrado**. (Recurrente = proveedor con factura en 2 o más meses; no requiere configuración.)
 4. Pulsa **🧾 Analizar provisiones**.
 
 **Qué obtienes:**
