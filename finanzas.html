@@ -2159,6 +2159,37 @@ function renderProvisiones(d) {
   html += '<div class="result-section" style="display:flex;gap:10px;align-items:center;padding:10px 14px;background:#fff;border:1px solid var(--n200);border-radius:10px;font-size:12px">';
   html += '<strong>Cuenta:</strong> ' + esc(d.cuenta || '—') + ' &nbsp;·&nbsp; <strong>Período:</strong> ' + esc(d.periodo || '—') + '</div>';
 
+  // ═══ FOCO PRINCIPAL: qué provisionar en el mes accionable ═══
+  const pendCierre = [], pendPrevios = [];
+  recurrentes.forEach(function(p) {
+    (p.meses_falta || []).forEach(function(m) {
+      const item = { nombre: p.nombre, cuenta: normCuenta(p.cuenta || ''), mesNum: m, mes: MESES[m-1], monto: p.provision_sugerida_mensual || 0, comentario: p.comentario || '' };
+      (m === mesCierre ? pendCierre : pendPrevios).push(item);
+    });
+  });
+
+  if (pendCierre.length) {
+    html += '<div class="card result-section" style="border:2px solid var(--red-b);box-shadow:0 4px 16px rgba(220,26,35,.08)">';
+    html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">🎯</div>';
+    html += '<div><div class="card-title" style="font-size:14px">Provisionar en ' + MESES[mesCierre-1] + ' — sin factura ni provisión</div>';
+    html += '<div style="font-size:10px;color:var(--n500)">Estos proveedores facturan todos los meses y en ' + MESES[mesCierre-1] + ' no llegó la factura: registra la provisión para no comerte el gasto</div></div>';
+    html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(accionable) + '</span></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:6px;padding:8px 14px 12px">';
+    pendCierre.sort(function(a,b){ return b.monto - a.monto; }).forEach(function(x, i) {
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid var(--red-b);border-radius:10px">';
+      html += '<span style="width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">' + (i+1) + '</span>';
+      html += '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px">' + esc(x.nombre) + '</div>';
+      html += '<div style="font-size:10px;color:var(--n400)">Cuenta ' + esc(x.cuenta) + (x.comentario ? ' · ' + esc(x.comentario) : '') + '</div></div>';
+      html += '<span style="font-family:var(--mono);font-weight:800;font-size:14px;color:var(--red-d)">' + fmtMoney(x.monto) + '</span>';
+      html += '<button class="copy-btn" style="font-size:13px" onclick="event.stopPropagation();copyText(\'' + esc(String(x.monto)) + '\')" title="Copiar monto">📋</button>';
+      html += '</div>';
+    });
+    html += '<div style="font-size:10px;color:var(--n400);padding:2px 4px 0">Monto = factura típica del proveedor (su valor que más se repite; mediana si no hay repetición). Cada proveedor se calcula solo con sus propios montos.</div>';
+    html += '</div></div>';
+  } else {
+    html += '<div class="result-section" style="padding:14px 16px;background:var(--green-l);border:1px solid var(--green-b);border-radius:12px;font-size:13px;font-weight:600;color:var(--green-d)">✓ ' + MESES[mesCierre-1] + ' al día: todos los proveedores recurrentes tienen factura o provisión en el mes de cierre.</div>';
+  }
+
   // Matriz (filas clicables: drill-down a los movimientos del proveedor)
   html += '<div class="card result-section">';
   html += '<div class="card-header"><div class="card-icon" style="background:var(--red-l)">🧾</div><div class="card-title">Matriz mensual — F factura · P provisión · FALTA provisionar</div>';
@@ -2199,52 +2230,46 @@ function renderProvisiones(d) {
   });
   html += '</table></div></div>';
 
-  // Desglose de otros movimientos (sin "IR" ni Diario) — visibilidad total del archivo
-  html += buildOtrosDesglose(mesCierre);
-
-  // Provisiones pendientes: ACCIONABLES (mes de cierre) vs referencia (meses previos)
-  const pendCierre = [], pendPrevios = [];
-  recurrentes.forEach(function(p) {
-    (p.meses_falta || []).forEach(function(m) {
-      const item = { nombre: p.nombre, cuenta: normCuenta(p.cuenta || ''), mesNum: m, mes: MESES[m-1], monto: p.provision_sugerida_mensual || 0, comentario: p.comentario || '' };
-      (m === mesCierre ? pendCierre : pendPrevios).push(item);
-    });
-  });
-
-  if (pendCierre.length) {
-    html += '<div class="card result-section" style="border:2px solid var(--red-b)">';
-    html += '<div class="card-header"><div class="card-icon" style="background:var(--red-l)">🎯</div><div class="card-title">ACCIONABLE — Provisionar en ' + MESES[mesCierre-1] + ' (' + pendCierre.length + ')</div>';
-    html += '<span style="margin-left:auto;font-weight:800;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(accionable) + '</span></div>';
-    html += '<div class="tbl-wrap"><table>';
-    html += '<tr><th>Proveedor</th><th>Cuenta</th><th style="text-align:right">Monto a provisionar</th><th>Base del cálculo</th><th>Comentario</th></tr>';
-    pendCierre.forEach(function(x) {
-      html += '<tr class="row-amber"><td style="font-weight:700">' + esc(x.nombre) + '</td>';
-      html += '<td style="font-family:var(--mono);font-size:10px">' + esc(x.cuenta) + '</td>';
-      html += '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--red-d)">' + fmtMoney(x.monto) + '</td>';
-      html += '<td style="font-size:11px;color:var(--n500)">Factura típica (valor más frecuente; mediana si no se repite)</td>';
-      html += '<td style="font-size:11px;color:var(--n500)">' + esc(x.comentario) + '</td></tr>';
-    });
-    html += '</table></div></div>';
-  } else {
-    html += '<div class="result-section" style="padding:14px 16px;background:var(--green-l);border:1px solid var(--green-b);border-radius:12px;font-size:13px;font-weight:600;color:var(--green-d)">✓ ' + MESES[mesCierre-1] + ' al día: todos los proveedores recurrentes tienen factura o provisión en el mes de cierre.</div>';
-  }
-
+  // Referencia — meses anteriores donde ya nos comimos la provisión,
+  // agrupada por proveedor con chips de meses (contexto, no accionable)
   if (pendPrevios.length) {
-    html += '<div class="card result-section" style="opacity:.85">';
-    html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">🕓</div><div class="card-title">Referencia — meses anteriores ya cerrados (' + pendPrevios.length + ')</div>';
-    html += '<span style="margin-left:auto;font-size:10px;color:var(--n400)">no accionable · contexto para auditoría</span></div>';
-    html += '<div class="tbl-wrap"><table>';
-    html += '<tr><th>Proveedor</th><th>Cuenta</th><th>Mes</th><th style="text-align:right">Monto de referencia</th><th>Comentario</th></tr>';
+    const porProvRef = {};
+    const ordenRef = [];
     pendPrevios.forEach(function(x) {
-      html += '<tr><td>' + esc(x.nombre) + '</td><td style="font-family:var(--mono);font-size:10px">' + esc(x.cuenta) + '</td><td>' + x.mes + '</td>';
-      html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(x.monto) + '</td>';
-      html += '<td style="font-size:11px;color:var(--n500)">' + esc(x.comentario) + '</td></tr>';
+      const k = x.cuenta + '|' + x.nombre;
+      if (!porProvRef[k]) { porProvRef[k] = { nombre: x.nombre, cuenta: x.cuenta, monto: x.monto, meses: [] }; ordenRef.push(k); }
+      porProvRef[k].meses.push(x.mes);
     });
-    html += '</table></div></div>';
+    let totalRef = 0;
+    ordenRef.forEach(function(k) { totalRef += porProvRef[k].monto * porProvRef[k].meses.length; });
+
+    html += '<div class="card result-section" style="border-left:3px solid var(--n300)">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">🕓</div>';
+    html += '<div><div class="card-title">Referencia — meses anteriores sin factura ni provisión</div>';
+    html += '<div style="font-size:10px;color:var(--n400)">Ya cerrados (el gasto se comió): sirven de contexto y justificación, no requieren acción</div></div>';
+    html += '<span style="margin-left:auto;font-family:var(--mono);font-weight:700;color:var(--n500)">' + fmtMoney(totalRef) + '</span></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 14px 12px">';
+    ordenRef.forEach(function(k) {
+      const r = porProvRef[k];
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--n50);border-radius:8px">';
+      html += '<div style="flex:1;min-width:0"><span style="font-weight:600;font-size:12px">' + esc(r.nombre) + '</span>';
+      html += '<span style="font-size:10px;color:var(--n400)"> · ' + esc(r.cuenta) + '</span></div>';
+      html += '<div style="display:flex;gap:4px;flex-wrap:wrap">';
+      r.meses.forEach(function(mn) {
+        html += '<span style="padding:2px 8px;border-radius:12px;background:#fff;border:1px solid var(--n200);font-size:10px;font-weight:700;color:var(--n500)">' + mn + '</span>';
+      });
+      html += '</div>';
+      html += '<span style="font-family:var(--mono);font-size:11px;color:var(--n500);white-space:nowrap">' + fmtMoney(r.monto) + '/mes</span>';
+      html += '</div>';
+    });
+    html += '</div></div>';
   }
 
   // Dashboard comparativo mensual (determinístico, desde el archivo cargado)
   html += buildComparativaMensual(mesCierre);
+
+  // Desglose de otros movimientos (sin "IR" ni Diario) — visibilidad total del archivo
+  html += buildOtrosDesglose(mesCierre);
 
   // Notas para auditoría
   const notas = d.notas_auditoria || [];
