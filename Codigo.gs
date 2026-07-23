@@ -131,9 +131,14 @@ function writeProvisionesSheet(payload) {
   const pendCierre = [], pendRevisar = [], pendPrevios = [];
   provs.forEach(function(pr) {
     (pr.meses_falta || []).forEach(function(m) {
-      const item = { prov: pr.nombre, mesNum: m, mes: MESES[m-1], monto: parseFloat(pr.provision_sugerida_mensual) || 0, ultimoF: pr.ultimo_mes_factura || 0 };
+      // Solo el accionable lleva monto a provisionar; el resto muestra la
+      // factura típica como contexto (meses previos se regularizan a fin de año)
+      const esAccionable = (m === mesCierre && pr.accionable === true);
+      const item = { prov: pr.nombre, mesNum: m, mes: MESES[m-1],
+        monto: esAccionable ? (parseFloat(pr.provision_sugerida_mensual) || 0) : (parseFloat(pr.factura_promedio) || 0),
+        ultimoF: pr.ultimo_mes_factura || 0 };
       if (m === mesCierre) {
-        (pr.accionable === true ? pendCierre : pendRevisar).push(item);
+        (esAccionable ? pendCierre : pendRevisar).push(item);
       } else {
         pendPrevios.push(item);
       }
@@ -182,7 +187,8 @@ function writeProvisionesSheet(payload) {
     const r = [pr.nombre || '', pr.recurrente ? 'Sí' : 'No'];
     for (var m = 1; m <= mesCierre; m++) r.push((pr.meses && pr.meses[String(m)]) || '');
     r.push(parseFloat(pr.factura_promedio) || 0);
-    r.push((pr.meses_falta && pr.meses_falta.length) ? (parseFloat(pr.provision_sugerida_mensual) || 0) : '');
+    // 'Prov. sugerida/mes' solo para el proveedor accionable del cierre
+    r.push(pr.accionable === true ? (parseFloat(pr.provision_sugerida_mensual) || 0) : '');
     r.push(pr.comentario || '');
     push(r, 'row-matriz');
   });
@@ -190,8 +196,8 @@ function writeProvisionesSheet(payload) {
 
   // ── Referencia: meses anteriores ──
   if (pendPrevios.length) {
-    push(['REFERENCIA — meses anteriores ya cerrados (' + pendPrevios.length + ') · no accionable, contexto para auditoría'], 'sec-gray');
-    push(['Proveedor', 'Mes', 'Monto de referencia', '', '', ''], 'colhead');
+    push(['REFERENCIA — meses anteriores ya cerrados (' + pendPrevios.length + ') · sin monto a provisionar (se regulariza a fin de año)'], 'sec-gray');
+    push(['Proveedor', 'Mes', 'Fact. típica (contexto)', '', '', ''], 'colhead');
     pendPrevios.forEach(function(x) {
       push([x.prov, x.mes, x.monto, '', '', ''], 'row-ref');
     });

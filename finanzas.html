@@ -1629,8 +1629,11 @@ function computeProvisionesLocal(f, mesCierre) {
     const facturoMesAnterior = mesCierre > 1 && (e.fact[mesCierre - 1] || 0) > 0;
     const accionable = faltaEnCierre && facturoMesAnterior;
 
-    const sugerida = falta.length ? tipica : 0;
-    total += falta.length * sugerida;
+    // La provisión SOLO se sugiere para el mes accionable. Los meses
+    // anteriores ya se comieron el gasto (se regulariza a fin de año):
+    // quedan como referencia, sin monto a provisionar ni total acumulado.
+    const sugerida = accionable ? tipica : 0;
+    total += sugerida;
 
     return {
       nombre: e.nombre,
@@ -1683,7 +1686,7 @@ function analyzeProvisiones() {
       '|accionable_cierre:' + (p.accionable ? 'sí' : 'no') + '|ultima_factura_mes:' + p.ultimo_mes_factura;
   }).join('\n');
 
-  const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el control de provisiones (matriz F/P/FALTA, factura típica = monto que más se repite por proveedor, y total sugerido $${base.total_provision_sugerida}). Tu único trabajo es REDACTAR — no recalcules ni cambies ningún número.
+  const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el control de provisiones (matriz F/P/FALTA, factura típica = monto que más se repite por proveedor, y el accionable del mes ${MESES_G[mesCierre-1]}: $${base.total_provision_sugerida} — SOLO se sugiere provisión para el mes de cierre; los meses anteriores ya absorbieron el gasto y se regularizan a fin de año, son referencia sin monto). Tu único trabajo es REDACTAR — no recalcules ni cambies ningún número.
 
 Contexto: FACTURA = recepción IR (factura recepcionada); PROVISION = asiento de Diario positivo; REVERSO = anulación de una provisión anterior (informativo). El mes accionable para el equipo es el mes ${mesCierre} (${MESES_G[mesCierre-1]}); los anteriores son referencia. Un proveedor es "accionable_cierre" solo si venía facturando hasta el mes anterior y no tiene factura ni provisión en el cierre; los que dejaron de facturar hace meses van a "confirmar vigencia" (no se les sugiere provisión automática) — respeta esa distinción en tu redacción.
 
@@ -2242,13 +2245,14 @@ function renderProvisiones(d) {
 
   // Accionable = sin factura/provisión en el mes de cierre Y venía facturando
   // hasta el mes anterior. Falta en cierre sin actividad reciente → "revisar
-  // vigencia". Faltas de meses anteriores → referencia.
-  let accionable = 0, referencia = 0, provsAccionables = 0;
+  // vigencia". Faltas de meses anteriores → referencia (sin monto: ya se
+  // comieron el gasto y se regulariza a fin de año).
+  let accionable = 0, provsAccionables = 0, mesesPrevios = 0;
   recurrentes.forEach(function(p) {
     const faltas = p.meses_falta || [];
     const enCierre = faltas.indexOf(mesCierre) !== -1;
     if (p.accionable) { accionable += (p.provision_sugerida_mensual || 0); provsAccionables++; }
-    referencia += (faltas.length - (enCierre ? 1 : 0)) * (p.provision_sugerida_mensual || 0);
+    mesesPrevios += faltas.length - (enCierre ? 1 : 0);
   });
 
   // KPIs
@@ -2256,7 +2260,7 @@ function renderProvisiones(d) {
   html += '<div class="summary-item ' + (accionable > 0 ? 'red' : 'green') + '"><div class="si-val">' + fmtMoney(accionable) + '</div><div class="si-lbl">🎯 Provisionar en ' + MESES[mesCierre-1] + ' (accionable)</div></div>';
   html += '<div class="summary-item amber"><div class="si-val">' + provsAccionables + '</div><div class="si-lbl">Proveedores sin factura en ' + MESES[mesCierre-1] + '</div></div>';
   html += '<div class="summary-item green"><div class="si-val">' + recurrentes.length + '</div><div class="si-lbl">Proveedores recurrentes</div></div>';
-  html += '<div class="summary-item"><div class="si-val">' + fmtMoney(referencia) + '</div><div class="si-lbl">Meses previos (solo referencia)</div></div>';
+  html += '<div class="summary-item"><div class="si-val">' + mesesPrevios + '</div><div class="si-lbl">Meses previos sin cubrir (referencia)</div></div>';
   html += '</div>';
 
   // Banner cuenta/periodo
@@ -2269,7 +2273,11 @@ function renderProvisiones(d) {
   const pendCierre = [], pendRevisar = [], pendPrevios = [];
   recurrentes.forEach(function(p) {
     (p.meses_falta || []).forEach(function(m) {
-      const item = { nombre: p.nombre, cuenta: normCuenta(p.cuenta || ''), mesNum: m, mes: MESES[m-1], monto: p.provision_sugerida_mensual || 0, comentario: p.comentario || '', ultimoF: p.ultimo_mes_factura || 0 };
+      // Accionable: monto a provisionar. Revisar/referencia: solo la factura
+      // típica como contexto — no es un monto a provisionar.
+      const item = { nombre: p.nombre, cuenta: normCuenta(p.cuenta || ''), mesNum: m, mes: MESES[m-1],
+        monto: (m === mesCierre && p.accionable) ? (p.provision_sugerida_mensual || 0) : (p.factura_promedio || 0),
+        comentario: p.comentario || '', ultimoF: p.ultimo_mes_factura || 0 };
       if (m === mesCierre) {
         (p.accionable ? pendCierre : pendRevisar).push(item);
       } else {
@@ -2368,14 +2376,11 @@ function renderProvisiones(d) {
       if (!porProvRef[k]) { porProvRef[k] = { nombre: x.nombre, cuenta: x.cuenta, monto: x.monto, meses: [] }; ordenRef.push(k); }
       porProvRef[k].meses.push(x.mes);
     });
-    let totalRef = 0;
-    ordenRef.forEach(function(k) { totalRef += porProvRef[k].monto * porProvRef[k].meses.length; });
-
     html += '<div class="card result-section" style="border-left:3px solid var(--n300)">';
     html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">🕓</div>';
     html += '<div><div class="card-title">Referencia — meses anteriores sin factura ni provisión</div>';
-    html += '<div style="font-size:10px;color:var(--n400)">Ya cerrados (el gasto se comió): sirven de contexto y justificación, no requieren acción</div></div>';
-    html += '<span style="margin-left:auto;font-family:var(--mono);font-weight:700;color:var(--n500)">' + fmtMoney(totalRef) + '</span></div>';
+    html += '<div style="font-size:10px;color:var(--n400)">Ya cerrados (el gasto se comió, se regulariza a fin de año): contexto y justificación, sin monto a provisionar</div></div>';
+    html += '<span style="margin-left:auto;font-size:10px;color:var(--n400)">' + pendPrevios.length + ' mes(es)</span></div>';
     html += '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 14px 12px">';
     ordenRef.forEach(function(k) {
       const r = porProvRef[k];
@@ -2387,7 +2392,7 @@ function renderProvisiones(d) {
         html += '<span style="padding:2px 8px;border-radius:12px;background:#fff;border:1px solid var(--n200);font-size:10px;font-weight:700;color:var(--n500)">' + mn + '</span>';
       });
       html += '</div>';
-      html += '<span style="font-family:var(--mono);font-size:11px;color:var(--n500);white-space:nowrap">' + fmtMoney(r.monto) + '/mes</span>';
+      html += '<span style="font-family:var(--mono);font-size:11px;color:var(--n400);white-space:nowrap">fact. típica ' + fmtMoney(r.monto) + '</span>';
       html += '</div>';
     });
     html += '</div></div>';
