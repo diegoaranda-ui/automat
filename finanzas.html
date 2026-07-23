@@ -1013,6 +1013,35 @@ function processProvisionesGL(file) {
         const cMemoL= col('Memo/Nota (Linea)');
 
         const MES_ABBR = {ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+        // El Memo/Nota dice PARA QUÉ MES es la provisión (ej. "provisión
+        // servicios junio", "prov. mayo 2026"). Si nombra un mes, la
+        // provisión se asigna a ese mes — no al mes del asiento.
+        const MES_FULL = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+        function mesDeMemo(memo, anio) {
+          const t = ' ' + String(memo || '').toLowerCase() + ' ';
+          // 1º el mes escrito con nombre ("enero", "junio 2026"): es la
+          // aclaración explícita del analista y gana sobre el numérico
+          for (const nombre in MES_FULL) {
+            if (t.indexOf(nombre) !== -1) return MES_FULL[nombre];
+          }
+          // 2º formato numérico con año: "04-2026", "05.2026", "01/2026"
+          if (anio) {
+            const mNum = t.match(new RegExp('(0?[1-9]|1[0-2])[\\.\\-\\/ ]' + anio));
+            if (mNum) return parseInt(mNum[1], 10);
+          }
+          // 3º abreviaturas ("prov. jun", "recla mar")
+          const m = t.match(/[\s\.\-_\/](ene|feb|mar|abr|jun|jul|ago|sept|sep|oct|nov|dic)[\s\.\-_\/0-9]/);
+          if (m) return MES_ABBR[m[1].slice(0,3)];
+          return null;
+        }
+        // Tipo de asiento según el memo (para justificación contable)
+        function tipoDeMemo(memo) {
+          const t = String(memo || '').toLowerCase();
+          if (t.indexOf('reclasific') !== -1 || t.indexOf('reclas') !== -1) return 'reclasificación';
+          if (t.indexOf('devengo') !== -1 || t.indexOf('devenga') !== -1) return 'devengo';
+          if (t.indexOf('provisi') !== -1 || t.indexOf('provi') !== -1) return 'provisión';
+          return '';
+        }
         function parseMes(row) {
           const per = String(row[cPer] || '');
           const m = per.toLowerCase().match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
@@ -1032,17 +1061,19 @@ function processProvisionesGL(file) {
 
         let cuenta = '';
         const cuentas = [];   // todas las cuentas detectadas (archivo multi-cuenta)
-        const agg = {};       // cuenta|proveedor|mes|clas -> {monto, n}
+        const agg = {};       // cuenta|proveedor|mes|clas -> {monto, n, memos}
         const aggOtros = {};  // movimientos que no son factura IR ni diario: desglose informativo
         let anioDetectado = null;
         let omitidas = 0;     // movimientos sin período legible
 
+        // ── PASADA 1: parsear filas y conocer los proveedores por cuenta ──
+        const filas = [];
+        const provsPorCuenta = {};
         for (let i = hIdx + 1; i < grid.length; i++) {
           const row = grid[i] || [];
           const accCell = String(row[cAcc] || '').trim();
           const type = String(row[cType] || '').trim();
           if (accCell && !type) {
-            // Subtítulo de cuenta, ej. "5401-22 - Servicio de ..." (se ignoran los "Total - ...")
             if (/^\d{4}-\d+/.test(accCell)) {
               cuenta = accCell;
               if (cuentas.indexOf(cuenta) === -1) cuentas.push(cuenta);
@@ -1056,36 +1087,88 @@ function processProvisionesGL(file) {
           anioDetectado = anioDetectado || pm.anio;
 
           const prov = String(row[cNameD] || row[cName] || '').trim() || '(sin nombre)';
-          const docNum = String(row[cDoc] || '').trim().toUpperCase();
-          const debit  = parseFloat(row[cDeb])  || 0;
-          const credit = parseFloat(row[cCre]) || 0;
-          const monto  = debit - credit;
           const memo = (String(row[cMemoH] || '') + ' ' + String(row[cMemoL] || '')).toLowerCase();
+          filas.push({
+            cuenta: cuenta, type: type, prov: prov, pm: pm, memo: memo,
+            docNum: String(row[cDoc] || '').trim().toUpperCase(),
+            monto: (parseFloat(row[cDeb]) || 0) - (parseFloat(row[cCre]) || 0)
+          });
+          if (prov !== '(sin nombre)') {
+            if (!provsPorCuenta[cuenta]) provsPorCuenta[cuenta] = [];
+            if (provsPorCuenta[cuenta].indexOf(prov) === -1) provsPorCuenta[cuenta].push(prov);
+          }
+        }
+
+        // Índice token→proveedor por cuenta (solo tokens que identifican a UN
+        // único proveedor): "PROVISION CREDEX 04-2026" → Credex; "Provision
+        // Hiya 01-2026" → Hiya. Así los diarios sin Name (Diario) se asignan.
+        const GENERICAS = ['SERVICIOS','SERVICIO','INFORMACION','INFORMATICA','TELECOMUNICACIONES','SOCIEDAD','COMERCIAL','CHILE','LIMITADA','LTDA','TECHNOLOGIES','TECNOLOGIAS','SOLUCIONES','WORKING','GASTO','ARRIENDO','AMERICA'];
+        const tokenIdx = {};
+        Object.keys(provsPorCuenta).forEach(function(cta) {
+          const idx = {};
+          provsPorCuenta[cta].forEach(function(nombre) {
+            normName(nombre).split(/[^A-ZÁÉÍÓÚÑ0-9]+/).forEach(function(tok) {
+              if (tok.length < 4 || GENERICAS.indexOf(tok) !== -1) return;
+              if (idx[tok] === undefined) idx[tok] = nombre;
+              else if (idx[tok] !== nombre) idx[tok] = null; // ambiguo entre proveedores
+            });
+          });
+          tokenIdx[cta] = idx;
+        });
+        function provDesdeMemo(cta, memo) {
+          const idx = tokenIdx[cta] || {};
+          const palabras = normName(memo).split(/[^A-ZÁÉÍÓÚÑ0-9]+/);
+          for (let i = 0; i < palabras.length; i++) {
+            const hit = idx[palabras[i]];
+            if (hit) return hit;
+          }
+          return null;
+        }
+
+        // ── PASADA 2: clasificar y agregar (memo manda en proveedor y mes) ──
+        filas.forEach(function(fRow) {
+          let prov = fRow.prov;
+          let clas;
+          let mesEfectivo = fRow.pm.mes;
 
           // Regla contable Kavak:
           //  · FACTURA recepcionada = Document Number empieza con "IR"
-          //  · PROVISION = Type "Diario" (asiento manual de NetSuite); negativo o
-          //    memo "reverso" = REVERSO (anulación de provisión anterior)
-          //  · Todo lo demás (Factura de compra sin IR, pagos, NC) NO entra a la
-          //    lógica de provisiones, pero se desglosa aparte para visibilidad
-          let clas;
-          if (/diario/i.test(type)) {
-            clas = (memo.indexOf('reverso') !== -1 || monto < 0) ? 'REVERSO' : 'PROVISION';
-          } else if (docNum.indexOf('IR') === 0) {
+          //  · PROVISION = Type "Diario"; negativo o memo "reverso" = REVERSO
+          //  · Resto (pagos, NC, facturas sin IR) → desglose "otros"
+          if (/diario/i.test(fRow.type)) {
+            clas = (fRow.memo.indexOf('reverso') !== -1 || fRow.monto < 0) ? 'REVERSO' : 'PROVISION';
+            // El Memo/Nota manda: mes al que corresponde la provisión...
+            const mm = mesDeMemo(fRow.memo, anioDetectado);
+            if (mm) mesEfectivo = mm;
+            // ...y proveedor, cuando el asiento viene sin Name (Diario)
+            if (prov === '(sin nombre)') {
+              const pMemo = provDesdeMemo(fRow.cuenta, fRow.memo);
+              if (pMemo) prov = pMemo;
+            }
+          } else if (fRow.docNum.indexOf('IR') === 0) {
             clas = 'FACTURA';
           } else {
-            const ko = cuenta + '|' + type + '|' + prov + '|' + pm.mes;
-            if (!aggOtros[ko]) aggOtros[ko] = { cuenta: cuenta, tipo: type, prov: prov, mes: pm.mes, monto: 0, n: 0 };
-            aggOtros[ko].monto += monto;
+            const ko = fRow.cuenta + '|' + fRow.type + '|' + prov + '|' + fRow.pm.mes;
+            if (!aggOtros[ko]) aggOtros[ko] = { cuenta: fRow.cuenta, tipo: fRow.type, prov: prov, mes: fRow.pm.mes, monto: 0, n: 0 };
+            aggOtros[ko].monto += fRow.monto;
             aggOtros[ko].n++;
-            continue;
+            return;
           }
 
-          const key = cuenta + '|' + prov + '|' + pm.mes + '|' + clas;
-          if (!agg[key]) agg[key] = { cuenta: cuenta, prov: prov, mes: pm.mes, clas: clas, monto: 0, n: 0 };
-          agg[key].monto += monto;
+          const key = fRow.cuenta + '|' + prov + '|' + mesEfectivo + '|' + clas;
+          if (!agg[key]) agg[key] = { cuenta: fRow.cuenta, prov: prov, mes: mesEfectivo, clas: clas, monto: 0, n: 0, memos: [] };
+          agg[key].monto += fRow.monto;
           agg[key].n++;
-        }
+          // El texto del memo en diarios es la justificación contable
+          // (devengo / provisión / reclasificación y a qué mes corresponde)
+          if (clas !== 'FACTURA' && fRow.memo.trim()) {
+            const tipo = tipoDeMemo(fRow.memo);
+            const excerpt = (tipo ? '[' + tipo + '] ' : '') + fRow.memo.trim().slice(0, 90);
+            if (agg[key].memos.indexOf(excerpt) === -1 && agg[key].memos.length < 3) {
+              agg[key].memos.push(excerpt);
+            }
+          }
+        });
 
         const keys = Object.keys(agg);
         const otros = Object.keys(aggOtros).sort().map(function(k) {
@@ -1102,7 +1185,7 @@ function processProvisionesGL(file) {
 
         const movs = keys.sort().map(function(k) {
           const a = agg[k];
-          return { cuenta: a.cuenta, prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n };
+          return { cuenta: a.cuenta, prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n, memos: a.memos || [] };
         });
 
         resolve({ b64: null, isText: true, text: null, cuenta: cuentas.join('  ·  ') || cuenta, cuentas: cuentas, anio: anioDetectado, movs: movs, otros: otros, omitidas: omitidas });
@@ -1586,10 +1669,13 @@ function analyzeProvisiones() {
   // 1) Resultado completo calculado en código — nunca depende de la IA
   const base = computeProvisionesLocal(f, mesCierre);
 
-  // 2) IA solo como redactora de resumen/comentarios/notas de auditoría
-  let datos = 'cuenta|proveedor|mes|clasificacion|monto_total|n_movimientos\n';
+  // 2) IA solo como redactora de resumen/comentarios/notas de auditoría.
+  // Los Memo/Nota de los diarios van incluidos: son la justificación contable
+  // (devengos, provisiones, reclasificaciones y a qué mes corresponden).
+  let datos = 'cuenta|proveedor|mes|clasificacion|monto_total|n_movimientos|memo_nota\n';
   (f.movs || []).forEach(function(a) {
-    datos += (a.cuenta || '') + '|' + a.prov + '|' + a.mes + '|' + a.clas + '|' + a.monto + '|' + a.n + '\n';
+    const memoTxt = (a.memos && a.memos.length) ? a.memos.join(' / ') : '';
+    datos += (a.cuenta || '') + '|' + a.prov + '|' + a.mes + '|' + a.clas + '|' + a.monto + '|' + a.n + '|' + memoTxt + '\n';
   });
   const matrizCalc = base.proveedores.map(function(p) {
     return p.cuenta + '|' + p.nombre + '|rec:' + (p.recurrente ? 'sí' : 'no') +
@@ -1600,6 +1686,8 @@ function analyzeProvisiones() {
   const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el control de provisiones (matriz F/P/FALTA, factura típica = monto que más se repite por proveedor, y total sugerido $${base.total_provision_sugerida}). Tu único trabajo es REDACTAR — no recalcules ni cambies ningún número.
 
 Contexto: FACTURA = recepción IR (factura recepcionada); PROVISION = asiento de Diario positivo; REVERSO = anulación de una provisión anterior (informativo). El mes accionable para el equipo es el mes ${mesCierre} (${MESES_G[mesCierre-1]}); los anteriores son referencia. Un proveedor es "accionable_cierre" solo si venía facturando hasta el mes anterior y no tiene factura ni provisión en el cierre; los que dejaron de facturar hace meses van a "confirmar vigencia" (no se les sugiere provisión automática) — respeta esa distinción en tu redacción.
+
+MEMO/NOTA es la columna clave de justificación contable: en los diarios indica si el asiento es un DEVENGO, una PROVISIÓN o una RECLASIFICACIÓN, y para qué mes corresponde (el sistema ya reasignó al mes que nombra el memo cuando aplica). En "comentarios" y "notas_auditoria", CITA el texto del memo cuando fundamenta un movimiento: es lo que el analista presentará como justificación de devengamientos, provisiones y reclasificaciones ante jefaturas y auditores. Señala también memos ambiguos o vacíos en provisiones relevantes (asientos sin glosa clara son un hallazgo de auditoría).
 
 RESULTADO CALCULADO (cuenta|proveedor|recurrente|factura_tipica|meses_falta):
 ${matrizCalc}
@@ -2360,6 +2448,10 @@ function toggleProvDetail(idx) {
         inner += '<td style="color:' + color + ';font-weight:600">' + esc(a.clas) + '</td>';
         inner += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(a.monto) + '</td>';
         inner += '<td style="text-align:right">' + a.n + '</td></tr>';
+        // Memo/Nota del diario: la justificación contable del asiento
+        if (a.memos && a.memos.length) {
+          inner += '<tr><td></td><td colspan="3" style="font-size:10px;color:var(--n400);font-style:italic;padding:0 8px 6px">✎ ' + esc(a.memos.join('  ·  ')) + '</td></tr>';
+        }
       });
       inner += '</table>';
     }
