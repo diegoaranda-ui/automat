@@ -67,6 +67,144 @@ var CONCIL_SHEET_ID = '1p3TYuzbwMw1Iijd07lTpsJMM_e73VUmnIlBkeM57Txc';
 // Planilla de Control de Provisiones (facturas de proveedores vs provisiones)
 var PROVISIONES_SHEET_ID = '1oOWGLYN7X28lennVGvp58n1LXmjU8-MoltVj7GeSIaU';
 
+// Planilla del equipo "2801-01 Impuesto transferencia" — el análisis ICAR se
+// escribe ahí, en la pestaña "Análisis ICAR" (no se toca ninguna otra pestaña)
+var ICAR_SHEET_ID = '1D1SleLGZccIgXhVQ1TE99W1fllQsLgZkw8nGVO2ArEE';
+
+/**
+ * Escribe (sobreescribe) la pestaña "Análisis ICAR" de la planilla de
+ * impuesto transferencia con el resultado del cruce por Stock ID.
+ * payload: { analista, fecha, hora, saldoCuenta, sumFact, sumNC, sumDesc,
+ *   nMovs, nStocks, ok, negRegistrado,
+ *   pendiente: {n, monto, items:[{st,patente,mesVenta,fact,nc,desc,saldo}]},
+ *   negPorRegistrar: {n, monto, items:[...]},
+ *   pivot: {mes: {pendiente, pendienteN, negativo, negativoN}},
+ *   resumen, notas_auditoria }
+ */
+function writeIcarSheet(payload) {
+  const p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+  const ssId = PropertiesService.getScriptProperties().getProperty('ICAR_SHEET_ID') || ICAR_SHEET_ID;
+  const ss   = SpreadsheetApp.openById(ssId);
+
+  let sh = ss.getSheetByName('Análisis ICAR');
+  if (!sh) sh = ss.insertSheet('Análisis ICAR');
+  else {
+    sh.clearContents();
+    sh.clearFormats();
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.setConditionalFormatRules([]);
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+
+  const NCOLS = 7;
+  function fmtM(v) { return (parseFloat(v) || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
+  function pad(arr) { while (arr.length < NCOLS) arr.push(''); return arr; }
+  const rows = [], marks = [];
+  function push(arr, kind) { rows.push(pad(arr)); if (kind) marks.push({ r: rows.length, kind: kind }); }
+
+  push(['ANÁLISIS IMPUESTO TRANSFERENCIA (ICAR) — cuenta 2801-01  ·  Kavak Finanzas Chile'], 'title');
+  push(['Analista: ' + (p.analista || 'Anónimo'), 'Fecha análisis: ' + (p.fecha || '') + ' ' + (p.hora || ''),
+    'Saldo cuenta: ' + fmtM(p.saldoCuenta), 'Vehículos: ' + (p.nStocks || 0), 'Movimientos: ' + (p.nMovs || 0)], 'meta');
+  push([]);
+
+  // Cuadratura
+  push(['CUADRATURA DEL SALDO'], 'sec-dark');
+  push(['Facturado a clientes', 'Notas de crédito', 'Diarios (descuentos/pérdidas)', 'SALDO CUENTA', 'Veh. ok', 'Pérdida ya registrada (veh.)'], 'colhead');
+  push([p.sumFact || 0, p.sumNC || 0, p.sumDesc || 0, p.saldoCuenta || 0, p.ok || 0, p.negRegistrado || 0], 'row-money4');
+  push([]);
+
+  // Análisis del ajuste
+  const neg = p.negPorRegistrar || { n: 0, monto: 0, items: [] };
+  push(['🎯 RESULTADO NEGATIVO KAVAK POR REGISTRAR — ' + neg.n + ' vehículo(s) · ' + fmtM(neg.monto) + ' · insumo del asiento de ajuste (lo registra el analista)'], 'sec-red');
+  push(['Stock ID', 'Patente', 'Mes venta', 'Facturado', 'Descontado', 'Diferencia', 'Registrado (Sí/No)'], 'colhead');
+  (neg.items || []).forEach(function(o) {
+    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), o.desc || 0, o.saldo || 0, ''], 'row-neg');
+  });
+  if (!(neg.items || []).length) push(['✓ Sin resultados negativos por registrar'], 'row-ok');
+  push([]);
+
+  // Pivot por mes
+  const pivot = p.pivot || {};
+  push(['DESCUADRES POR MES DE VENTA'], 'sec-dark');
+  push(['Mes de venta', 'Facturado sin descontar', 'Veh.', 'Resultado negativo', 'Veh.', '', ''], 'colhead');
+  Object.keys(pivot).sort().forEach(function(m) {
+    const v = pivot[m];
+    push([m, v.pendiente || 0, v.pendienteN || 0, v.negativo || 0, v.negativoN || 0, '', ''], 'row-pivot');
+  });
+  push([]);
+
+  // Pendientes de rendición
+  const pend = p.pendiente || { n: 0, monto: 0, items: [] };
+  push(['⏳ FACTURADO SIN DESCONTAR DEL FONDO — ' + pend.n + ' vehículo(s) · ' + fmtM(pend.monto) + ' · esperar rendición ICAR (sin acción este cierre)'], 'sec-gray');
+  push(['Stock ID', 'Patente', 'Mes venta', 'Facturado', 'Descontado', 'Saldo pendiente', 'Rendido (Sí/No)'], 'colhead');
+  (pend.items || []).forEach(function(o) {
+    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), o.desc || 0, o.saldo || 0, ''], 'row-pend');
+  });
+  push([]);
+
+  // Notas y resumen
+  const notas = p.notas_auditoria || [];
+  push(['NOTAS PARA AUDITORÍA (' + notas.length + ')'], 'sec-purple');
+  notas.forEach(function(n, i) { push([(i + 1) + '. ' + n], 'row-nota'); });
+  push([]);
+  push(['RESUMEN'], 'sec-gray');
+  push([p.resumen || ''], 'row-resumen');
+
+  sh.getRange(1, 1, rows.length, NCOLS).setValues(rows);
+
+  marks.forEach(function(mk) {
+    const R = sh.getRange(mk.r, 1, 1, NCOLS);
+    switch (mk.kind) {
+      case 'title':
+        R.merge().setBackground('#000000').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 38); break;
+      case 'meta':
+        R.setBackground('#f4f4f5').setFontColor('#3f3f46').setFontSize(10); break;
+      case 'sec-dark':
+        R.merge().setBackground('#18181b').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-red':
+        R.merge().setBackground('#dc1a23').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-gray':
+        R.merge().setBackground('#e4e4e7').setFontColor('#3f3f46').setFontWeight('bold').setFontSize(11); break;
+      case 'sec-purple':
+        R.merge().setBackground('#7c3aed').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11); break;
+      case 'colhead':
+        R.setBackground('#27272a').setFontColor('#e4e4e7').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center'); break;
+      case 'row-money4':
+        R.setFontSize(10).setFontWeight('bold');
+        sh.getRange(mk.r, 1, 1, 4).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-neg':
+        R.setFontSize(10).setBackground('#fde8e9');
+        sh.getRange(mk.r, 4, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 6, 1, 1).setFontWeight('bold').setFontColor('#b01019'); break;
+      case 'row-pend':
+        R.setFontSize(10).setFontColor('#52525b');
+        sh.getRange(mk.r, 4, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-pivot':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 2, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 4, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right').setFontColor('#b01019'); break;
+      case 'row-ok':
+        R.merge().setBackground('#e6f7f0').setFontColor('#0b6b3a').setFontWeight('bold'); break;
+      case 'row-nota':
+        R.merge().setWrap(true).setBackground('#f5f3ff').setFontColor('#4c1d95').setFontSize(10).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 34); break;
+      case 'row-resumen':
+        R.merge().setWrap(true).setFontColor('#3f3f46').setFontSize(10);
+        sh.setRowHeight(mk.r, 80); break;
+    }
+  });
+
+  sh.setColumnWidth(1, 110); sh.setColumnWidth(2, 100); sh.setColumnWidth(3, 150);
+  sh.setColumnWidth(4, 130); sh.setColumnWidth(5, 130); sh.setColumnWidth(6, 130); sh.setColumnWidth(7, 150);
+  sh.setFrozenRows(1);
+
+  return ss.getUrl() + '#gid=' + sh.getSheetId();
+}
+
 /**
  * Escribe (sobreescribe) la hoja "Provisiones" de la planilla de Control de
  * Provisiones con el resultado del análisis del módulo Provisiones.

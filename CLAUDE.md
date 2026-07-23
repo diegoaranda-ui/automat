@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Google Apps Script Web App for **Kavak Chile — Finanzas**. A single-URL "Operations Center" with two families of tools:
 
-- **Finance Suite** (`finanzas.html`, the product): 5 AI-assisted modules that turn financial documents into structured working papers (papeles de trabajo) — Conciliación Bancaria, Reportería Financiera, Gestión Documental, Automatización Contable, and **Control de Provisiones** (NetSuite GL vs monthly provisions). The legacy Supply inspection tools (DocScan/B2B/validador) were removed in Jul 2026.
+- **Finance Suite** (`finanzas.html`, the product): 6 AI-assisted modules that turn financial documents into structured working papers (papeles de trabajo) — Conciliación Bancaria, Reportería Financiera, Gestión Documental, Automatización Contable, **Control de Provisiones** (NetSuite GL vs monthly provisions), and **Impuesto Transferencia ICAR** (account 2801-01: per-Stock-ID cross of customer-invoiced transfer tax vs ICAR fund deductions; deterministic like Provisiones — classification ok / invoiced-not-deducted (wait for ICAR rendition) / negative-result-to-book (sum > 0 per stock, feeds the analyst's adjustment entry — the module analyzes, never books); writes to the team's own spreadsheet `ICAR_SHEET_ID` tab 'Análisis ICAR'). The legacy Supply inspection tools (DocScan/B2B/validador) were removed in Jul 2026.
 
 Primary user: junior Accountant Analyst producing audit-defensible working papers. Outputs must stay traceable (who/when/which file/params) and reproducible.
 

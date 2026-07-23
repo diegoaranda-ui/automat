@@ -156,6 +156,14 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:'Inter',-apple
         <div class="card-desc">Asientos contables automáticos desde documentos fuente</div>
       </div>
 
+      <!-- 6 · Impuesto Transferencia ICAR -->
+      <div class="oc-card" onclick="openFinanzas('icar')">
+        <div class="card-icon-wrap">🚗</div>
+        <div class="card-badge">CIERRE MENSUAL</div>
+        <div class="card-title">Imp. Transferencia</div>
+        <div class="card-desc">Balance ICAR cuenta 2801-01 · cruce por Stock ID · análisis del ajuste</div>
+      </div>
+
     </div>
 
     <div class="oc-foot">Kavak Finanzas · v<?= VERSION ?> · uso interno</div>
@@ -227,7 +235,8 @@ function openFinanzas(tab){
     reporteria   : 'Reportería Financiera',
     gestion      : 'Gestión Documental',
     automatizacion: 'Automatización Contable',
-    provisiones  : 'Control de Provisiones'
+    provisiones  : 'Control de Provisiones',
+    icar         : 'Impuesto Transferencia (ICAR)'
   };
   document.getElementById('finanzas-breadcrumb').textContent = labels[tab] || tab;
 

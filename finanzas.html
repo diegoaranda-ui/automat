@@ -395,6 +395,15 @@ tr.prov-detail>td{padding:0 8px 8px}
         </div>
         <div class="nav-badge">FINANZAS</div>
       </div>
+
+      <div class="nav-item" id="nav-icar" onclick="selectModule('icar')">
+        <div class="nav-icon" style="background:rgba(37,99,235,.15)">🚗</div>
+        <div class="nav-text">
+          <div class="nav-name">Imp. Transferencia</div>
+          <div class="nav-desc">Balance ICAR cuenta 2801-01</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -666,6 +675,50 @@ tr.prov-detail>td{padding:0 8px 8px}
         </div>
       </div>
 
+      <!-- ══ VIEW: ICAR (Impuesto Transferencia) ══ -->
+      <div class="view" id="view-icar">
+        <div class="content">
+          <div class="content-inner">
+            <div class="section-header">
+              <span class="section-title">🚗 Mayor cuenta 2801-01 — Impuesto Transferencia</span>
+              <div class="section-line"></div>
+            </div>
+            <div class="upload-zone" id="zone-icar" ondragover="onDragOver(event,'zone-icar')" ondragleave="onDragLeave('zone-icar')" ondrop="onDrop(event,'icar-file-input','icar')">
+              <input type="file" id="icar-file-input" accept=".xlsx,.xls,.csv" onchange="handleFile('icar',this)">
+              <div class="upload-icon">🚗</div>
+              <div class="upload-title">Importar mayor 2801-01 (NetSuite)</div>
+              <div class="upload-sub">El libro con la hoja del mayor de la cuenta (facturas de venta, notas de crédito y diarios ICAR)<br>Arrastra o haz clic para importarlo</div>
+              <div class="upload-kbd">XLSX · XLS · CSV</div>
+            </div>
+            <div class="file-preview" id="prev-icar">
+              <span id="prev-icar-icon">🚗</span>
+              <div style="flex:1;min-width:0">
+                <div class="file-name" id="prev-icar-name">—</div>
+                <div class="file-size" id="prev-icar-size">—</div>
+              </div>
+              <button class="file-remove" onclick="removeFile('icar')">✕</button>
+            </div>
+
+            <div class="no-print" style="display:flex;align-items:center;gap:12px;margin:12px 0;font-size:11px;color:var(--n400)">
+              Cruce por Stock ID · saldo 0 = ok · saldo negativo = facturado sin descontar (esperar rendición ICAR) · saldo positivo = resultado negativo Kavak · el asiento de ajuste lo registra el analista (aquí solo se analiza)
+            </div>
+
+            <div id="results-icar">
+              <div class="empty-state">
+                <div class="empty-icon">🚗</div>
+                <div class="empty-title">Balance impuesto transferencia</div>
+                <div class="empty-sub">Importa el mayor de la cuenta 2801-01. El sistema cruza por Stock ID lo facturado al cliente contra lo descontado del fondo ICAR, cuadra el saldo con el balance, clasifica cada vehículo (ok / facturado sin descontar / resultado negativo Kavak) y entrega el análisis para el ajuste del cierre.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Cruce por Stock ID · cuadratura de balance · análisis del ajuste</span>
+          <button class="btn-secondary" onclick="resetModule('icar')">Limpiar</button>
+          <button class="btn-primary" id="btn-icar" onclick="analyzeModule('icar')" disabled>🚗 Analizar impuesto</button>
+        </div>
+      </div>
+
     </div><!-- /views -->
   </main>
 </div>
@@ -692,7 +745,8 @@ const STATE = {
   reporteria:   { files: {} },   // files.reporteria
   gestion:      { files: [] },   // array of files
   automatizacion:{ files: {} },  // files.automatizacion
-  provisiones:  { files: {} }    // files.provisiones (GL NetSuite pre-agregado)
+  provisiones:  { files: {} },   // files.provisiones (GL NetSuite pre-agregado)
+  icar:         { files: {} }    // files.icar (mayor 2801-01 impuesto transferencia)
 };
 
 let currentModule = 'conciliacion';
@@ -714,7 +768,8 @@ const MODULE_META = {
   reporteria:     { icon: '📊', title: 'Reportería Financiera' },
   gestion:        { icon: '📄', title: 'Gestión Documental' },
   automatizacion: { icon: '⚙️', title: 'Automatización Contable' },
-  provisiones:    { icon: '🧾', title: 'Control de Provisiones' }
+  provisiones:    { icon: '🧾', title: 'Control de Provisiones' },
+  icar:           { icon: '🚗', title: 'Impuesto Transferencia (ICAR)' }
 };
 
 // ── INIT ──
@@ -753,7 +808,7 @@ function loadUserName() {
 
 // ── MODULE SELECTION ──
 function selectModule(mod) {
-  const mods = ['conciliacion','reporteria','gestion','automatizacion','provisiones'];
+  const mods = ['conciliacion','reporteria','gestion','automatizacion','provisiones','icar'];
   if (!mods.includes(mod)) mod = 'conciliacion';
   currentModule = mod;
 
@@ -800,10 +855,12 @@ function handleFile(key, input) {
   // Limpiar el input: permite volver a elegir el mismo archivo tras Limpiar/✕
   if (input.value !== undefined) { try { input.value = ''; } catch(e) {} }
 
-  const proc = (key === 'provisiones') ? processProvisionesGL(file) : processFile(file);
+  const proc = (key === 'provisiones') ? processProvisionesGL(file)
+             : (key === 'icar') ? processIcarGL(file)
+             : processFile(file);
   proc.then(function(fd) {
     const mod = getModuleForKey(key);
-    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [] };
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [], icar: fd.icar || null };
     showFilePreview(key, file);
     updateAnalyzeButton(mod);
   }).catch(function(err) {
@@ -1196,6 +1253,159 @@ function processProvisionesGL(file) {
   });
 }
 
+/**
+ * Parser del mayor 2801-01 (Impuesto Transferencia). Busca en el libro la
+ * hoja del mayor (headers "Tipo" + "Importe" + "Stock ID"), y agrega POR
+ * STOCK ID: facturado al cliente (Factura de venta, negativo), notas de
+ * crédito, y descontado del fondo (Diario: pagos ICAR, provisiones y
+ * resultados negativos ya registrados). Todo queda en el navegador.
+ */
+function processIcarGL(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: false });
+
+        // Localizar la hoja del mayor
+        let ws = null, head = null, hIdx = -1;
+        for (let s = 0; s < wb.SheetNames.length; s++) {
+          const grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[s]], { header: 1, blankrows: false, raw: true });
+          for (let i = 0; i < Math.min(grid.length, 8); i++) {
+            const row = (grid[i] || []).map(function(c) { return String(c || '').trim(); });
+            if (row.indexOf('Tipo') !== -1 && row.indexOf('Importe') !== -1 &&
+                row.join('|').indexOf('Stock ID') !== -1) {
+              ws = grid; head = row; hIdx = i; break;
+            }
+          }
+          if (ws) break;
+        }
+        if (!ws) throw new Error('No se encontró la hoja del mayor (columnas Tipo / Importe / Stock ID). ¿Es el export del mayor 2801-01?');
+
+        function col(name) { return head.findIndex(function(h) { return h.toLowerCase().indexOf(name.toLowerCase()) !== -1; }); }
+        const cTipo = head.indexOf('Tipo') !== -1 ? head.indexOf('Tipo') : col('Tipo');
+        const cImp  = head.indexOf('Importe') !== -1 ? head.indexOf('Importe') : col('Importe');
+        const cSt   = col('Stock ID Línea') !== -1 ? col('Stock ID Línea') : col('Stock ID');
+        const cNota = col('Nota');
+        const cNotaP = col('Nota (principal)');
+        const cPer  = col('Período');
+        const cTReg = col('Tipo de registro');
+        const cMesV = col('Mes de venta');
+
+        const stocks = {};   // stockId -> {fact, nc, desc, n03, saldo, patente, mesVenta, nMovs, notas}
+        let sumFact = 0, sumNC = 0, sumDesc = 0, sinStock = 0, nMovs = 0;
+
+        for (let i = hIdx + 1; i < ws.length; i++) {
+          const row = ws[i] || [];
+          const tipo = String(row[cTipo] || '').trim();
+          if (!tipo) continue;
+          const imp = parseFloat(row[cImp]) || 0;
+          let st = row[cSt];
+          st = (st === undefined || st === null || String(st).trim() === '') ? null : String(parseInt(st, 10));
+          const nota = String(row[cNota] || '');
+          nMovs++;
+
+          if (!st) {
+            // Fallback: Stock ID desde la Nota ("Stock ID: 476190 ...")
+            const m = nota.match(/Stock ID:?\s*(\d{4,})/i);
+            if (m) st = m[1]; else { sinStock++; continue; }
+          }
+
+          if (!stocks[st]) {
+            stocks[st] = { st: st, fact: 0, nc: 0, desc: 0, n03: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '' };
+          }
+          const o = stocks[st];
+          o.nMovs++;
+          if (!o.patente) {
+            const mp = nota.match(/Patente:?\s*([A-Z0-9\-]{5,8})/i);
+            if (mp) o.patente = mp[1].toUpperCase();
+          }
+          if (!o.mesVenta && cMesV !== -1 && row[cMesV] && String(row[cMesV]).indexOf('N/A') === -1) {
+            o.mesVenta = String(row[cMesV]).trim();
+          }
+          if (!o.notaP && cNotaP !== -1 && /diario/i.test(tipo)) o.notaP = String(row[cNotaP] || '').slice(0, 40);
+
+          if (/factura de venta/i.test(tipo)) { o.fact += imp; sumFact += imp; }
+          else if (/nota de cr/i.test(tipo))  { o.nc += imp; sumNC += imp; }
+          else if (/diario/i.test(tipo)) {
+            o.desc += imp; sumDesc += imp;
+            const tr = cTReg !== -1 ? String(row[cTReg] || '') : '';
+            if (tr.indexOf('03') === 0) o.n03++;
+          }
+        }
+
+        const lista = Object.keys(stocks).map(function(k) {
+          const o = stocks[k];
+          o.saldo = Math.round(o.fact + o.nc + o.desc);
+          o.fact = Math.round(o.fact); o.nc = Math.round(o.nc); o.desc = Math.round(o.desc);
+          return o;
+        });
+        if (!lista.length) throw new Error('No se encontraron movimientos con Stock ID en el mayor.');
+        if (sinStock > 0) showToast('⚠ ' + sinStock + ' movimiento(s) sin Stock ID quedaron fuera del cruce', 'error');
+
+        resolve({
+          b64: null, isText: true, text: null,
+          icar: {
+            stocks: lista, nMovs: nMovs, sinStock: sinStock,
+            sumFact: Math.round(sumFact), sumNC: Math.round(sumNC), sumDesc: Math.round(sumDesc),
+            saldoCuenta: Math.round(sumFact + sumNC + sumDesc)
+          }
+        });
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
+// Tolerancia de cuadratura por vehículo (los redondeos de ICAR difieren en ±$1)
+const ICAR_TOL = 50;
+
+/**
+ * Clasificación determinística por Stock ID (criterio del equipo):
+ *  · |saldo| ≤ tol y sin filas 03  → OK (cuadrado)
+ *  · |saldo| ≤ tol con filas 03    → resultado negativo YA registrado
+ *  · saldo < −tol → facturado no descontado del fondo (esperar rendición ICAR)
+ *  · saldo > +tol → resultado negativo Kavak POR registrar (se pagó más de lo
+ *    facturado): alimenta el análisis del ajuste — el asiento lo hace el analista
+ */
+function computeIcarLocal(ic) {
+  const cats = { ok: [], pendiente: [], negRegistrado: [], negPorRegistrar: [] };
+  ic.stocks.forEach(function(o) {
+    if (Math.abs(o.saldo) <= ICAR_TOL) {
+      (o.n03 > 0 ? cats.negRegistrado : cats.ok).push(o);
+    } else if (o.saldo < 0) {
+      cats.pendiente.push(o);
+    } else {
+      cats.negPorRegistrar.push(o);
+    }
+  });
+  function suma(arr) { return arr.reduce(function(a, o) { return a + o.saldo; }, 0); }
+
+  // Pivot por mes de venta (sin mes → "Revisar fin de mes", criterio del equipo)
+  const pivot = {};
+  ['pendiente', 'negPorRegistrar'].forEach(function(cat) {
+    cats[cat].forEach(function(o) {
+      const mes = o.mesVenta || 'Revisar fin de mes';
+      if (!pivot[mes]) pivot[mes] = { pendiente: 0, pendienteN: 0, negativo: 0, negativoN: 0 };
+      if (cat === 'pendiente') { pivot[mes].pendiente += o.saldo; pivot[mes].pendienteN++; }
+      else { pivot[mes].negativo += o.saldo; pivot[mes].negativoN++; }
+    });
+  });
+
+  return {
+    saldoCuenta: ic.saldoCuenta,
+    sumFact: ic.sumFact, sumNC: ic.sumNC, sumDesc: ic.sumDesc,
+    nMovs: ic.nMovs, nStocks: ic.stocks.length, sinStock: ic.sinStock,
+    ok: cats.ok.length,
+    negRegistrado: cats.negRegistrado.length,
+    pendiente: { n: cats.pendiente.length, monto: suma(cats.pendiente), items: cats.pendiente },
+    negPorRegistrar: { n: cats.negPorRegistrar.length, monto: suma(cats.negPorRegistrar), items: cats.negPorRegistrar },
+    pivot: pivot,
+    resumen: '', notas_auditoria: []
+  };
+}
+
 function showFilePreview(key, file) {
   const prev = document.getElementById('prev-' + key);
   if (!prev) return;
@@ -1297,7 +1507,8 @@ function showEmptyState(mod) {
     reporteria:   '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Análisis financiero</div><div class="empty-sub">Sube un balance, estado de resultados o flujo de caja para obtener métricas y ratios clave.</div></div>',
     gestion:      '<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-title">Extracción documental</div><div class="empty-sub">Sube facturas, boletas, notas de crédito o contratos para extraer y validar los datos.</div></div>',
     automatizacion:'<div class="empty-state"><div class="empty-icon">⚙️</div><div class="empty-title">Asiento automático</div><div class="empty-sub">Sube cualquier documento fuente y el sistema generará el asiento contable según el Plan de Cuentas chileno.</div></div>',
-    provisiones:  '<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Control de provisiones</div><div class="empty-sub">Importa el reporte General Ledger de NetSuite para detectar meses sin factura ni provisión.</div></div>'
+    provisiones:  '<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Control de provisiones</div><div class="empty-sub">Importa el reporte General Ledger de NetSuite para detectar meses sin factura ni provisión.</div></div>',
+    icar:         '<div class="empty-state"><div class="empty-icon">🚗</div><div class="empty-title">Balance impuesto transferencia</div><div class="empty-sub">Importa el mayor 2801-01 para cruzar por Stock ID lo facturado contra lo descontado del fondo ICAR.</div></div>'
   };
   r.innerHTML = empties[mod] || '';
 }
@@ -1353,7 +1564,8 @@ function analyzeModule(mod) {
     reporteria:     analyzeReporteria,
     gestion:        analyzeGestion,
     automatizacion: analyzeAutomatizacion,
-    provisiones:    analyzeProvisiones
+    provisiones:    analyzeProvisiones,
+    icar:           analyzeIcar
   };
 
   handlers[mod]().then(function(result) {
@@ -1366,6 +1578,9 @@ function analyzeModule(mod) {
     }
     if (mod === 'provisiones') {
       saveProvisionesToSheet(result);
+    }
+    if (mod === 'icar') {
+      saveIcarToSheet(result);
     }
   }).catch(function(err) {
     showProgress(false);
@@ -1731,6 +1946,59 @@ Responde ÚNICAMENTE con JSON válido:
   });
 }
 
+// ── ICAR (Impuesto Transferencia) ──
+function analyzeIcar() {
+  const f = STATE.icar.files.icar;
+  const base = computeIcarLocal(f.icar);
+
+  // IA solo redacta: recibe el resultado calculado + top descuadres
+  const topNeg = base.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 20)
+    .map(function(o){ return o.st + '|' + (o.patente||'—') + '|' + o.saldo + '|' + (o.mesVenta||'sin mes') + '|' + (o.notaP||''); }).join('\n');
+  const topPend = base.pendiente.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 15)
+    .map(function(o){ return o.st + '|' + (o.patente||'—') + '|' + o.saldo + '|' + (o.mesVenta||'sin mes'); }).join('\n');
+  const pivotTxt = Object.keys(base.pivot).map(function(m) {
+    const p = base.pivot[m];
+    return m + '|pendiente:' + p.pendiente + ' (' + p.pendienteN + ')|negativo:' + p.negativo + ' (' + p.negativoN + ')';
+  }).join('\n');
+
+  const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el balance de la cuenta 2801-01 (Impuesto Transferencia, fondo ICAR) cruzando POR STOCK ID lo facturado al cliente vs lo descontado del fondo. Tu único trabajo es REDACTAR — no recalcules nada.
+
+RESULTADO CALCULADO:
+- Saldo cuenta: ${base.saldoCuenta} (facturado ${base.sumFact} + NC ${base.sumNC} + diarios/descuentos ${base.sumDesc})
+- ${base.nStocks} vehículos: ${base.ok} ok (cuadrados), ${base.negRegistrado} con resultado negativo YA registrado, ${base.pendiente.n} facturados sin descontar del fondo por ${base.pendiente.monto} (se espera la rendición de ICAR), ${base.negPorRegistrar.n} con resultado negativo Kavak POR registrar por ${base.negPorRegistrar.monto} (se descontó del fondo más de lo facturado — insumo del asiento de ajuste que registra EL ANALISTA, no el sistema).
+
+PIVOT POR MES DE VENTA (mes|pendiente|negativo):
+${pivotTxt}
+
+TOP RESULTADO NEGATIVO POR REGISTRAR (stock|patente|monto|mes venta|nota):
+${topNeg}
+
+TOP FACTURADO SIN DESCONTAR (stock|patente|monto|mes venta):
+${topPend}
+
+Responde ÚNICAMENTE con JSON válido:
+{
+  "resumen": "párrafo ejecutivo: cuadratura del saldo, cuánto está pendiente de rendición ICAR, cuánto es resultado negativo por registrar en el ajuste, y qué meses/vehículos concentran los montos",
+  "notas_auditoria": ["3 a 7 observaciones con cifras exactas para auditores: cuadratura contra balance, concentración de descuadres, vehículos sin mes de venta (revisar fin de mes), patrones anómalos (montos repetidos, stocks con muchos movimientos)"]
+}`;
+
+  return callClaudeServer({
+    model: 'claude-opus-4-8',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+  }).then(function(resp) {
+    try {
+      const ia = extractJSON(resp);
+      if (ia.resumen) base.resumen = ia.resumen;
+      if (ia.notas_auditoria && ia.notas_auditoria.length) base.notas_auditoria = ia.notas_auditoria;
+    } catch(e) { /* el cálculo se entrega igual */ }
+    return base;
+  }).catch(function(err) {
+    showToast('Notas IA no disponibles (' + ((err && err.message) || err) + ') — mostrando cálculo completo', 'error');
+    return base;
+  });
+}
+
 function extractJSON(resp) {
   if (resp.stop_reason === 'max_tokens') {
     throw new Error('El documento es muy grande para procesar de una vez. Intenta subir una sola hoja del Excel o un PDF más corto.');
@@ -1766,7 +2034,8 @@ function renderResult(mod, data) {
     reporteria:     renderReporteria,
     gestion:        renderGestion,
     automatizacion: renderAutomatizacion,
-    provisiones:    renderProvisiones
+    provisiones:    renderProvisiones,
+    icar:           renderIcar
   };
   r.innerHTML = buildTrazabilidad(mod) + renders[mod](data);
 }
@@ -2591,6 +2860,131 @@ function buildComparativaMensual(mesCierre) {
   return html;
 }
 
+// ── RENDER ICAR ──
+function renderIcar(d) {
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // KPIs
+  html += '<div class="summary-row result-section">';
+  html += '<div class="summary-item"><div class="si-val">' + fmtMoney(d.saldoCuenta) + '</div><div class="si-lbl">Saldo cuenta 2801-01</div></div>';
+  html += '<div class="summary-item amber"><div class="si-val">' + fmtMoney(Math.abs(d.pendiente.monto)) + '</div><div class="si-lbl">⏳ Facturado sin descontar (' + d.pendiente.n + ' veh.) — esperar rendición ICAR</div></div>';
+  html += '<div class="summary-item ' + (d.negPorRegistrar.monto > 0 ? 'red' : 'green') + '"><div class="si-val">' + fmtMoney(d.negPorRegistrar.monto) + '</div><div class="si-lbl">🎯 Resultado negativo por registrar (' + d.negPorRegistrar.n + ' veh.)</div></div>';
+  html += '<div class="summary-item green"><div class="si-val">' + d.ok + '</div><div class="si-lbl">Vehículos cuadrados (ok, cero)</div></div>';
+  html += '</div>';
+
+  // Banner de composición del saldo (cuadratura)
+  html += '<div class="result-section" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:#fff;border:1px solid var(--n200);border-radius:10px;font-size:11px;color:var(--n500)">';
+  html += '<span><strong>Cuadratura:</strong></span>';
+  html += '<span>Facturado ' + fmtMoney(d.sumFact) + '</span><span>+ NC ' + fmtMoney(d.sumNC) + '</span><span>+ Diarios ' + fmtMoney(d.sumDesc) + '</span>';
+  html += '<span style="font-weight:700;color:var(--n700)">= ' + fmtMoney(d.saldoCuenta) + '</span>';
+  html += '<span style="margin-left:auto">' + d.nMovs + ' movs · ' + d.nStocks + ' vehículos · ' + d.negRegistrado + ' con pérdida ya registrada</span>';
+  html += '</div>';
+
+  // 🎯 Análisis para el asiento de ajuste (el asiento lo registra el analista)
+  if (d.negPorRegistrar.n) {
+    const top = d.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; });
+    html += '<div class="card result-section" style="border:2px solid var(--red-b)">';
+    html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">🎯</div>';
+    html += '<div><div class="card-title" style="font-size:14px">Resultado negativo Kavak por registrar — análisis del ajuste</div>';
+    html += '<div style="font-size:10px;color:var(--n500)">Se descontó del fondo más de lo facturado al cliente. Insumo para tu asiento de ajuste — el sistema NO lo ejecuta</div></div>';
+    html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(d.negPorRegistrar.monto) + '</span>';
+    html += '<button class="copy-btn" style="font-size:14px" onclick="copyText(\'' + esc(String(d.negPorRegistrar.monto)) + '\')" title="Copiar total">📋</button></div>';
+    html += '<div class="tbl-wrap" style="max-height:320px;overflow-y:auto"><table>';
+    html += '<tr><th>Stock ID</th><th>Patente</th><th>Mes venta</th><th style="text-align:right">Facturado</th><th style="text-align:right">Descontado</th><th style="text-align:right">Diferencia</th></tr>';
+    top.forEach(function(o) {
+      html += '<tr class="row-amber"><td style="font-family:var(--mono)">' + esc(o.st) + '</td>';
+      html += '<td style="font-family:var(--mono);font-weight:600">' + esc(o.patente || '—') + '</td>';
+      html += '<td style="font-size:11px">' + esc(o.mesVenta || 'Revisar fin de mes') + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(Math.abs(o.fact + o.nc)) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(o.desc) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--red-d)">' + fmtMoney(o.saldo) + '</td></tr>';
+    });
+    html += '</table></div></div>';
+  } else {
+    html += '<div class="result-section" style="padding:14px 16px;background:var(--green-l);border:1px solid var(--green-b);border-radius:12px;font-size:13px;font-weight:600;color:var(--green-d)">✓ Sin resultados negativos por registrar: todos los descuadres positivos están reconocidos.</div>';
+  }
+
+  // Pivot por mes de venta
+  const meses = Object.keys(d.pivot);
+  if (meses.length) {
+    html += '<div class="card result-section">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">📅</div><div class="card-title">Descuadres por mes de venta</div>';
+    html += '<span class="no-print" style="margin-left:auto;font-size:10px;color:var(--n400)">"Revisar fin de mes" = sin cruce con ventas aún</span></div>';
+    html += '<div class="tbl-wrap"><table>';
+    html += '<tr><th>Mes de venta</th><th style="text-align:right">Facturado sin descontar</th><th style="text-align:right">Veh.</th><th style="text-align:right">Resultado negativo</th><th style="text-align:right">Veh.</th></tr>';
+    meses.sort().forEach(function(m) {
+      const p = d.pivot[m];
+      html += '<tr' + (m === 'Revisar fin de mes' ? ' style="opacity:.7"' : '') + '><td style="font-weight:600">' + esc(m) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(p.pendiente) + '</td><td style="text-align:right">' + p.pendienteN + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(p.negativo) + '</td><td style="text-align:right">' + p.negativoN + '</td></tr>';
+    });
+    html += '</table></div></div>';
+  }
+
+  // Pendientes de rendición (informativo)
+  html += '<div class="result-section" style="padding:12px 16px;background:var(--amber-l);border:1px solid var(--amber-b);border-radius:12px;font-size:12px;color:var(--n600)">';
+  html += '⏳ <strong>' + d.pendiente.n + ' vehículo(s)</strong> facturados al cliente y aún no descontados del fondo por <strong>' + fmtMoney(Math.abs(d.pendiente.monto)) + '</strong> — se esperan en próximas rendiciones de ICAR (sin acción en este cierre).' ;
+  if (d.sinStock) html += ' · ⚠ ' + d.sinStock + ' movimiento(s) sin Stock ID fuera del cruce.';
+  html += '</div>';
+
+  // Notas para auditoría (IA)
+  const notas = d.notas_auditoria || [];
+  if (notas.length) {
+    html += '<div class="card result-section" style="border-left:3px solid var(--purple)">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--purple-l)">🔎</div><div class="card-title">Notas para auditoría</div>';
+    html += '<button class="copy-btn" style="margin-left:auto;font-size:14px" onclick="copyNotasAuditoria(this)" title="Copiar notas">📋</button></div>';
+    html += '<div id="notas-auditoria-list" style="padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px">';
+    notas.forEach(function(n) {
+      html += '<div style="display:flex;gap:8px;font-size:12px;line-height:1.6;color:var(--n600)"><span style="color:var(--purple);flex-shrink:0">▸</span><span>' + esc(n) + '</span></div>';
+    });
+    html += '</div></div>';
+  }
+
+  if (d.resumen) {
+    html += '<div class="card result-section"><div class="card-header"><div class="card-icon" style="background:var(--n100)">📝</div><div class="card-title">Resumen</div></div>';
+    html += '<div style="padding:4px 14px 14px;font-size:12px;line-height:1.7;color:var(--n600)">' + esc(d.resumen) + '</div></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ── ICAR → SHEETS ──
+function saveIcarToSheet(d) {
+  if (!(window.google && google.script && google.script.run)) return;
+  const now = new Date();
+  const payload = Object.assign({}, d, {
+    analista: document.getElementById('userInput').value || 'Anónimo',
+    fecha: now.toLocaleDateString('es-CL'),
+    hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }),
+    // Solo lo necesario (las listas completas pueden ser miles de filas)
+    negPorRegistrar: { n: d.negPorRegistrar.n, monto: d.negPorRegistrar.monto,
+      items: d.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 300) },
+    pendiente: { n: d.pendiente.n, monto: d.pendiente.monto,
+      items: d.pendiente.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 300) }
+  });
+  showToast('Escribiendo análisis ICAR en tu planilla…', 'info');
+  google.script.run
+    .withSuccessHandler(function(url) {
+      const r = document.getElementById('results-icar');
+      if (r) {
+        const old = r.querySelector('.desglose-link-bar');
+        if (old) old.remove();
+        const bar = document.createElement('div');
+        bar.className = 'desglose-link-bar';
+        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:#e6f7f0;border:1px solid #b3e8d3;border-radius:10px;margin-bottom:8px;font-size:12px;color:#0b6b3a';
+        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Análisis escrito en la pestaña "Análisis ICAR" de tu planilla</span>' +
+          '<a href="' + url + '" target="_blank" style="margin-left:auto;font-size:11px;font-weight:700;color:#007a4a;text-decoration:none;padding:4px 10px;background:#fff;border:1px solid #b3e8d3;border-radius:6px">Abrir Sheets →</a>';
+        r.insertBefore(bar, r.firstChild);
+      }
+      showToast('Análisis ICAR guardado ✓', 'success');
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error al escribir en Sheets: ' + e.message, 'error');
+    })
+    .writeIcarSheet(JSON.stringify(payload));
+}
+
 function copyNotasAuditoria(btn) {
   const list = document.getElementById('notas-auditoria-list');
   if (!list) return;
@@ -2736,7 +3130,8 @@ function saveHistory(mod, data) {
     reporteria:     (data.tipo || 'financiero') + ' · ' + (data.periodo || ''),
     gestion:        (data.tipo_documento || 'doc') + ' N°' + (data.numero || '') + ' · ' + fmtMoney(data.total || 0),
     automatizacion: (data.tipo_operacion || 'asiento') + ' · ' + fmtMoney(data.total_debe || 0),
-    provisiones:    (data.proveedores || []).length + ' proveedores · Sugerido: ' + fmtMoney(data.total_provision_sugerida || 0)
+    provisiones:    (data.proveedores || []).length + ' proveedores · Sugerido: ' + fmtMoney(data.total_provision_sugerida || 0),
+    icar:           (data.nStocks || 0) + ' vehículos · Neg. por registrar: ' + fmtMoney((data.negPorRegistrar || {}).monto || 0)
   };
   const item = {
     id: Date.now(),
@@ -2776,7 +3171,7 @@ function renderHistory() {
     return;
   }
 
-  const modIcons = { conciliacion: '⚖️', reporteria: '📊', gestion: '📄', automatizacion: '⚙️', provisiones: '🧾' };
+  const modIcons = { conciliacion: '⚖️', reporteria: '📊', gestion: '📄', automatizacion: '⚙️', provisiones: '🧾', icar: '🚗' };
 
   list.innerHTML = hist.map(function(h) {
     const ts = new Date(h.timestamp);
