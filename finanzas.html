@@ -1523,6 +1523,7 @@ function computeProvisionesLocal(f, mesCierre) {
     }
     const recurrente = mesesConF.length >= 2;
     const tipica = facturaTipica(montosF);
+    const ultimoMesF = mesesConF.length ? mesesConF[mesesConF.length - 1] : 0;
 
     const meses = {};
     const falta = [];
@@ -1535,6 +1536,16 @@ function computeProvisionesLocal(f, mesCierre) {
       else if (recurrente)       { meses[String(m)] = 'FALTA'; falta.push(m); }
       else                       meses[String(m)] = '';
     }
+
+    // ACCIONABLE en el mes de cierre SOLO si el proveedor venía facturando
+    // hasta el mes anterior: sin F ni P en el cierre + factura en mesCierre-1.
+    // Un proveedor que dejó de facturar hace meses NO genera provisión
+    // automática — pasa a "confirmar vigencia" (dato de meses anteriores,
+    // no del mes que estamos cerrando).
+    const faltaEnCierre = falta.indexOf(mesCierre) !== -1;
+    const facturoMesAnterior = mesCierre > 1 && (e.fact[mesCierre - 1] || 0) > 0;
+    const accionable = faltaEnCierre && facturoMesAnterior;
+
     const sugerida = falta.length ? tipica : 0;
     total += falta.length * sugerida;
 
@@ -1546,12 +1557,14 @@ function computeProvisionesLocal(f, mesCierre) {
       factura_promedio: tipica,
       meses_falta: falta,
       provision_sugerida_mensual: sugerida,
+      accionable: accionable,
+      ultimo_mes_factura: ultimoMesF,
       comentario: ''
     };
   });
 
   const cierreNombre = MESES_G[mesCierre - 1];
-  const accionables = proveedores.filter(function(p) { return p.meses_falta.indexOf(mesCierre) !== -1; });
+  const accionables = proveedores.filter(function(p) { return p.accionable; });
   return {
     cuenta: (f.cuentas && f.cuentas.length) ? f.cuentas.join('  ·  ') : (f.cuenta || '—'),
     cuentas: f.cuentas || [],
@@ -1560,8 +1573,8 @@ function computeProvisionesLocal(f, mesCierre) {
     proveedores: proveedores,
     total_provision_sugerida: total,
     resumen: 'Cálculo determinístico: ' + proveedores.filter(function(p){ return p.recurrente; }).length +
-      ' proveedor(es) con factura recurrente; ' + accionables.length + ' sin factura ni provisión en ' + cierreNombre +
-      '. Monto sugerido según la factura típica de cada proveedor (valor más frecuente, mediana si no se repite).',
+      ' proveedor(es) con factura recurrente; ' + accionables.length + ' accionable(s) en ' + cierreNombre +
+      ' (venían facturando hasta el mes anterior y no tienen factura ni provisión en el cierre). Monto sugerido = factura típica de cada proveedor.',
     notas_auditoria: []
   };
 }
@@ -1580,12 +1593,13 @@ function analyzeProvisiones() {
   });
   const matrizCalc = base.proveedores.map(function(p) {
     return p.cuenta + '|' + p.nombre + '|rec:' + (p.recurrente ? 'sí' : 'no') +
-      '|tipica:' + p.factura_promedio + '|falta_meses:[' + p.meses_falta.join(',') + ']';
+      '|tipica:' + p.factura_promedio + '|falta_meses:[' + p.meses_falta.join(',') + ']' +
+      '|accionable_cierre:' + (p.accionable ? 'sí' : 'no') + '|ultima_factura_mes:' + p.ultimo_mes_factura;
   }).join('\n');
 
   const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el control de provisiones (matriz F/P/FALTA, factura típica = monto que más se repite por proveedor, y total sugerido $${base.total_provision_sugerida}). Tu único trabajo es REDACTAR — no recalcules ni cambies ningún número.
 
-Contexto: FACTURA = recepción IR (factura recepcionada); PROVISION = asiento de Diario positivo; REVERSO = anulación de una provisión anterior (informativo). El mes accionable para el equipo es el mes ${mesCierre} (${MESES_G[mesCierre-1]}); los anteriores son referencia.
+Contexto: FACTURA = recepción IR (factura recepcionada); PROVISION = asiento de Diario positivo; REVERSO = anulación de una provisión anterior (informativo). El mes accionable para el equipo es el mes ${mesCierre} (${MESES_G[mesCierre-1]}); los anteriores son referencia. Un proveedor es "accionable_cierre" solo si venía facturando hasta el mes anterior y no tiene factura ni provisión en el cierre; los que dejaron de facturar hace meses van a "confirmar vigencia" (no se les sugiere provisión automática) — respeta esa distinción en tu redacción.
 
 RESULTADO CALCULADO (cuenta|proveedor|recurrente|factura_tipica|meses_falta):
 ${matrizCalc}
@@ -2138,12 +2152,14 @@ function renderProvisiones(d) {
 
   let html = '<div style="display:flex;flex-direction:column;gap:12px">';
 
-  // Accionable = solo el mes de cierre; lo anterior es referencia
+  // Accionable = sin factura/provisión en el mes de cierre Y venía facturando
+  // hasta el mes anterior. Falta en cierre sin actividad reciente → "revisar
+  // vigencia". Faltas de meses anteriores → referencia.
   let accionable = 0, referencia = 0, provsAccionables = 0;
   recurrentes.forEach(function(p) {
     const faltas = p.meses_falta || [];
     const enCierre = faltas.indexOf(mesCierre) !== -1;
-    if (enCierre) { accionable += (p.provision_sugerida_mensual || 0); provsAccionables++; }
+    if (p.accionable) { accionable += (p.provision_sugerida_mensual || 0); provsAccionables++; }
     referencia += (faltas.length - (enCierre ? 1 : 0)) * (p.provision_sugerida_mensual || 0);
   });
 
@@ -2160,11 +2176,17 @@ function renderProvisiones(d) {
   html += '<strong>Cuenta:</strong> ' + esc(d.cuenta || '—') + ' &nbsp;·&nbsp; <strong>Período:</strong> ' + esc(d.periodo || '—') + '</div>';
 
   // ═══ FOCO PRINCIPAL: qué provisionar en el mes accionable ═══
-  const pendCierre = [], pendPrevios = [];
+  // pendCierre: solo proveedores con actividad reciente (facturaron el mes
+  // anterior). pendRevisar: falta en el cierre pero sin factura hace meses.
+  const pendCierre = [], pendRevisar = [], pendPrevios = [];
   recurrentes.forEach(function(p) {
     (p.meses_falta || []).forEach(function(m) {
-      const item = { nombre: p.nombre, cuenta: normCuenta(p.cuenta || ''), mesNum: m, mes: MESES[m-1], monto: p.provision_sugerida_mensual || 0, comentario: p.comentario || '' };
-      (m === mesCierre ? pendCierre : pendPrevios).push(item);
+      const item = { nombre: p.nombre, cuenta: normCuenta(p.cuenta || ''), mesNum: m, mes: MESES[m-1], monto: p.provision_sugerida_mensual || 0, comentario: p.comentario || '', ultimoF: p.ultimo_mes_factura || 0 };
+      if (m === mesCierre) {
+        (p.accionable ? pendCierre : pendRevisar).push(item);
+      } else {
+        pendPrevios.push(item);
+      }
     });
   });
 
@@ -2172,7 +2194,7 @@ function renderProvisiones(d) {
     html += '<div class="card result-section" style="border:2px solid var(--red-b);box-shadow:0 4px 16px rgba(220,26,35,.08)">';
     html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">🎯</div>';
     html += '<div><div class="card-title" style="font-size:14px">Provisionar en ' + MESES[mesCierre-1] + ' — sin factura ni provisión</div>';
-    html += '<div style="font-size:10px;color:var(--n500)">Estos proveedores facturan todos los meses y en ' + MESES[mesCierre-1] + ' no llegó la factura: registra la provisión para no comerte el gasto</div></div>';
+    html += '<div style="font-size:10px;color:var(--n500)">Venían facturando hasta ' + (mesCierre > 1 ? MESES[mesCierre-2] : '—') + ' y en ' + MESES[mesCierre-1] + ' no llegó la factura: registra la provisión para no comerte el gasto</div></div>';
     html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(accionable) + '</span></div>';
     html += '<div style="display:flex;flex-direction:column;gap:6px;padding:8px 14px 12px">';
     pendCierre.sort(function(a,b){ return b.monto - a.monto; }).forEach(function(x, i) {
@@ -2187,7 +2209,25 @@ function renderProvisiones(d) {
     html += '<div style="font-size:10px;color:var(--n400);padding:2px 4px 0">Monto = factura típica del proveedor (su valor que más se repite; mediana si no hay repetición). Cada proveedor se calcula solo con sus propios montos.</div>';
     html += '</div></div>';
   } else {
-    html += '<div class="result-section" style="padding:14px 16px;background:var(--green-l);border:1px solid var(--green-b);border-radius:12px;font-size:13px;font-weight:600;color:var(--green-d)">✓ ' + MESES[mesCierre-1] + ' al día: todos los proveedores recurrentes tienen factura o provisión en el mes de cierre.</div>';
+    html += '<div class="result-section" style="padding:14px 16px;background:var(--green-l);border:1px solid var(--green-b);border-radius:12px;font-size:13px;font-weight:600;color:var(--green-d)">✓ ' + MESES[mesCierre-1] + ' al día: todos los proveedores con actividad reciente tienen factura o provisión en el mes de cierre.</div>';
+  }
+
+  // ⏸ Sin factura en el cierre PERO sin actividad reciente: no se sugiere
+  // provisión automática — primero confirmar si el servicio sigue vigente
+  if (pendRevisar.length) {
+    html += '<div class="card result-section" style="border-left:3px solid var(--amber)">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--amber-l)">⏸</div>';
+    html += '<div><div class="card-title">Sin factura hace meses — confirmar vigencia del servicio (' + pendRevisar.length + ')</div>';
+    html += '<div style="font-size:10px;color:var(--n400)">Tampoco tienen factura en ' + MESES[mesCierre-1] + ', pero dejaron de facturar hace tiempo: NO se sugiere provisión automática. Confirma con el proveedor/contrato si corresponde provisionar o dar de baja.</div></div></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 14px 12px">';
+    pendRevisar.sort(function(a,b){ return b.monto - a.monto; }).forEach(function(x) {
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--amber-l);border:1px solid var(--amber-b);border-radius:8px">';
+      html += '<div style="flex:1;min-width:0"><span style="font-weight:600;font-size:12px">' + esc(x.nombre) + '</span>';
+      html += '<span style="font-size:10px;color:var(--n500)"> · ' + esc(x.cuenta) + ' · última factura: ' + (x.ultimoF ? MESES[x.ultimoF-1] : '—') + (x.comentario ? ' · ' + esc(x.comentario) : '') + '</span></div>';
+      html += '<span style="font-family:var(--mono);font-size:11px;color:var(--n500);white-space:nowrap">típica ' + fmtMoney(x.monto) + '</span>';
+      html += '</div>';
+    });
+    html += '</div></div>';
   }
 
   // Matriz (filas clicables: drill-down a los movimientos del proveedor)

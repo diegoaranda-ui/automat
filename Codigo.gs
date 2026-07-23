@@ -126,12 +126,17 @@ function writeProvisionesSheet(payload) {
     if (kind) marks.push({ r: rows.length, kind: kind });
   }
 
-  // Pendientes: accionables (mes de cierre) vs referencia (meses anteriores)
-  const pendCierre = [], pendPrevios = [];
+  // Pendientes: accionables (con actividad reciente) vs revisar vigencia
+  // (falta en el cierre pero sin facturar hace meses) vs referencia (previos)
+  const pendCierre = [], pendRevisar = [], pendPrevios = [];
   provs.forEach(function(pr) {
     (pr.meses_falta || []).forEach(function(m) {
-      const item = { prov: pr.nombre, mesNum: m, mes: MESES[m-1], monto: parseFloat(pr.provision_sugerida_mensual) || 0 };
-      (m === mesCierre ? pendCierre : pendPrevios).push(item);
+      const item = { prov: pr.nombre, mesNum: m, mes: MESES[m-1], monto: parseFloat(pr.provision_sugerida_mensual) || 0, ultimoF: pr.ultimo_mes_factura || 0 };
+      if (m === mesCierre) {
+        (pr.accionable === true ? pendCierre : pendRevisar).push(item);
+      } else {
+        pendPrevios.push(item);
+      }
     });
   });
   var totalAccionable = pendCierre.reduce(function(a, x) { return a + x.monto; }, 0);
@@ -155,9 +160,19 @@ function writeProvisionesSheet(payload) {
       push([x.prov, x.monto, 'Factura típica del proveedor (valor más frecuente)', '', '', ''], 'row-accionable');
     });
   } else {
-    push(['✓ ' + mesNombre + ' al día: todos los recurrentes tienen factura o provisión.'], 'row-ok');
+    push(['✓ ' + mesNombre + ' al día: todos los proveedores con actividad reciente tienen factura o provisión.'], 'row-ok');
   }
   push([]);
+
+  // ── Revisar vigencia: sin factura en el cierre y sin actividad reciente ──
+  if (pendRevisar.length) {
+    push(['⏸ SIN FACTURA HACE MESES — CONFIRMAR VIGENCIA DEL SERVICIO (' + pendRevisar.length + ') · sin provisión automática'], 'sec-gray');
+    push(['Proveedor', 'Última factura', 'Fact. típica (referencia)', 'Vigente (Sí/No)', 'Acción', 'Notas'], 'colhead');
+    pendRevisar.forEach(function(x) {
+      push([x.prov, x.ultimoF ? MESES[x.ultimoF - 1] : '—', x.monto, '', '', ''], 'row-ref');
+    });
+    push([]);
+  }
 
   // ── Matriz mensual ──
   push(['MATRIZ MENSUAL  ·  F = factura (IR) · P = provisión (Diario) · FALTA = provisionar'], 'sec-dark');
