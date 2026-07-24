@@ -1485,10 +1485,18 @@ function captureAnalysisMeta(mod) {
   };
 }
 
+// ── MARCO DE REDACCIÓN IA (común a TODOS los módulos) ──
+// Todo prompt de la suite DEBE empezar con este marco. Los módulos nuevos
+// que se agreguen con el tiempo también: se antepone con ${IA_MARCO}.
+const IA_MARCO = `MARCO DE REDACCIÓN — Finance Suite Kavak (aplica a todos los módulos):
+Eres apoyo de un papel de trabajo contable. Tu redacción se centra en la CUADRATURA y en que el registro/ajuste quede BIEN CONTABILIZADO: cifras exactas, trazables y verificables contra la fuente. No propongas recomendaciones comerciales, de pricing ni de negocio; no califiques como "hallazgo" o "anomalía" un resultado que el módulo declare esperado o estructural. Los números los calcula el sistema o vienen del documento — NUNCA los alteres ni los recalcules. Tu salida es una propuesta de apoyo a la decisión de un analista humano, no un registro contable oficial.`;
+
 // ── CONCILIACION ──
 function analyzeConciliacion() {
   const f = STATE.conciliacion.files;
-  const prompt = `Eres experto en conciliación bancaria chilena. Analiza los documentos adjuntos:
+  const prompt = `${IA_MARCO}
+
+Eres experto en conciliación bancaria chilena. Analiza los documentos adjuntos:
 Documento 1: Cartola bancaria — extrae cada transacción con fecha (DD/MM/YYYY), descripción, monto (número), tipo ("abono"/"cargo")
 Documento 2: Registros contables — extrae cada asiento con fecha, glosa, monto, referencia
 
@@ -1712,7 +1720,9 @@ function analyzeProvisiones() {
       '|accionable_cierre:' + (p.accionable ? 'sí' : 'no') + '|ultima_factura_mes:' + p.ultimo_mes_factura;
   }).join('\n');
 
-  const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el control de provisiones (matriz F/P/FALTA, factura típica = monto que más se repite por proveedor, y el accionable del mes ${MESES_G[mesCierre-1]}: $${base.total_provision_sugerida} — SOLO se sugiere provisión para el mes de cierre; los meses anteriores ya absorbieron el gasto y se regularizan a fin de año, son referencia sin monto). Tu único trabajo es REDACTAR — no recalcules ni cambies ningún número.
+  const prompt = `${IA_MARCO}
+
+Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el control de provisiones (matriz F/P/FALTA, factura típica = monto que más se repite por proveedor, y el accionable del mes ${MESES_G[mesCierre-1]}: $${base.total_provision_sugerida} — SOLO se sugiere provisión para el mes de cierre; los meses anteriores ya absorbieron el gasto y se regularizan a fin de año, son referencia sin monto). Tu único trabajo es REDACTAR — no recalcules ni cambies ningún número.
 
 Contexto: FACTURA = recepción IR (factura recepcionada); PROVISION = asiento de Diario positivo; REVERSO = anulación de una provisión anterior (informativo). El mes accionable para el equipo es el mes ${mesCierre} (${MESES_G[mesCierre-1]}); los anteriores son referencia. Un proveedor es "accionable_cierre" solo si venía facturando hasta el mes anterior y no tiene factura ni provisión en el cierre; los que dejaron de facturar hace meses van a "confirmar vigencia" (no se les sugiere provisión automática) — respeta esa distinción en tu redacción.
 
@@ -1801,7 +1811,9 @@ function analyzeIcar() {
     return m + '|pendiente:' + p.pendiente + ' (' + p.pendienteN + ')|negativo:' + p.negativo + ' (' + p.negativoN + ')';
   }).join('\n');
 
-  const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el balance de la cuenta 2801-01 (Impuesto Transferencia, fondo ICAR) cruzando POR STOCK ID lo facturado al cliente vs lo descontado del fondo. Tu único trabajo es REDACTAR — no recalcules nada.
+  const prompt = `${IA_MARCO}
+
+Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el balance de la cuenta 2801-01 (Impuesto Transferencia, fondo ICAR) cruzando POR STOCK ID lo facturado al cliente vs lo descontado del fondo. Tu único trabajo es REDACTAR — no recalcules nada.
 
 CONTEXTO DE NEGOCIO (no lo cuestiones): el resultado negativo Kavak es ESTRUCTURAL y esperado — al cliente se le cobra el 1,5% del precio de venta acordado, pero ICAR descuenta el 1,5% de la tasación fiscal (base de auto nuevo), que en autos usados suele ser mayor. El objetivo del papel de trabajo es CONTABILIZAR esa pérdida de forma eficiente, rápida y precisa — NO reducirla ni "resolverla". No redactes recomendaciones comerciales ni de pricing; no la califiques de anomalía o hallazgo. Sí es útil dejar la pérdida del período cuantificada por mes (pivot) como dato de gestión para jefaturas.
 
