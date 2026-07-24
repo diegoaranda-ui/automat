@@ -1267,30 +1267,44 @@ function processIcarGL(file) {
       try {
         const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: false });
 
-        // Localizar la hoja del mayor
+        // Localizar la hoja del mayor. Acepta el libro trabajado del equipo
+        // (headers "Tipo / Importe / Stock ID Línea") Y el export directo de
+        // NetSuite (headers "Type/Tipo" + "Amount/Importe" o "Debit/Credit",
+        // con filas de título encima). Se busca en hasta 30 filas por hoja.
+        function findIdx(row, names) {
+          for (let n = 0; n < names.length; n++) {
+            const buscado = names[n].toLowerCase();
+            // 1º match exacto, 2º contiene (celdas vacías/huecos → '')
+            let idx = row.findIndex(function(h) { return String(h || '').toLowerCase() === buscado; });
+            if (idx !== -1) return idx;
+            idx = row.findIndex(function(h) { return String(h || '').toLowerCase().indexOf(buscado) !== -1 && String(h || '') !== ''; });
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        }
         let ws = null, head = null, hIdx = -1;
         for (let s = 0; s < wb.SheetNames.length; s++) {
           const grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[s]], { header: 1, blankrows: false, raw: true });
-          for (let i = 0; i < Math.min(grid.length, 8); i++) {
+          for (let i = 0; i < Math.min(grid.length, 30); i++) {
             const row = (grid[i] || []).map(function(c) { return String(c || '').trim(); });
-            if (row.indexOf('Tipo') !== -1 && row.indexOf('Importe') !== -1 &&
-                row.join('|').indexOf('Stock ID') !== -1) {
-              ws = grid; head = row; hIdx = i; break;
-            }
+            const tieneTipo = findIdx(row, ['Tipo', 'Type']) !== -1;
+            const tieneMonto = findIdx(row, ['Importe', 'Amount']) !== -1 ||
+                               (findIdx(row, ['Debit', 'Débito', 'Debito']) !== -1 && findIdx(row, ['Credit', 'Crédito', 'Credito']) !== -1);
+            if (tieneTipo && tieneMonto) { ws = grid; head = row; hIdx = i; }
           }
           if (ws) break;
         }
-        if (!ws) throw new Error('No se encontró la hoja del mayor (columnas Tipo / Importe / Stock ID). ¿Es el export del mayor 2801-01?');
+        if (!ws) throw new Error('No se encontró la hoja del mayor: se necesita una columna Tipo/Type y una de monto (Importe/Amount o Debit/Credit). ¿Es el export del mayor 2801-01?');
 
-        function col(name) { return head.findIndex(function(h) { return h.toLowerCase().indexOf(name.toLowerCase()) !== -1; }); }
-        const cTipo = head.indexOf('Tipo') !== -1 ? head.indexOf('Tipo') : col('Tipo');
-        const cImp  = head.indexOf('Importe') !== -1 ? head.indexOf('Importe') : col('Importe');
-        const cSt   = col('Stock ID Línea') !== -1 ? col('Stock ID Línea') : col('Stock ID');
-        const cNota = col('Nota');
-        const cNotaP = col('Nota (principal)');
-        const cPer  = col('Período');
-        const cTReg = col('Tipo de registro');
-        const cMesV = col('Mes de venta');
+        const cTipo = findIdx(head, ['Tipo', 'Type']);
+        const cImp  = findIdx(head, ['Importe', 'Amount']);
+        const cDeb  = findIdx(head, ['Debit', 'Débito', 'Debito']);
+        const cCre  = findIdx(head, ['Credit', 'Crédito', 'Credito']);
+        const cSt   = findIdx(head, ['Stock ID Línea', 'Stock ID (Linea)', 'Stock ID (Línea)', 'Stock ID Linea', 'Stock ID']);
+        const cNota = findIdx(head, ['Nota', 'Memo/Nota', 'Memo']);
+        const cNotaP = findIdx(head, ['Nota (principal)', 'Memo/Nota a nivel']);
+        const cTReg = findIdx(head, ['Tipo de registro']);
+        const cMesV = findIdx(head, ['Mes de venta']);
 
         const stocks = {};   // stockId -> {fact, nc, desc, n03, saldo, patente, mesVenta, nMovs, notas}
         let sumFact = 0, sumNC = 0, sumDesc = 0, sinStock = 0, nMovs = 0;
@@ -1299,8 +1313,15 @@ function processIcarGL(file) {
           const row = ws[i] || [];
           const tipo = String(row[cTipo] || '').trim();
           if (!tipo) continue;
-          const imp = parseFloat(row[cImp]) || 0;
-          let st = row[cSt];
+          // Monto: columna Importe, o Débito − Crédito en el export crudo
+          // (cuenta de pasivo: factura al cliente = crédito → importe negativo)
+          let imp;
+          if (cImp !== -1 && row[cImp] !== undefined && row[cImp] !== null && row[cImp] !== '') {
+            imp = parseFloat(row[cImp]) || 0;
+          } else {
+            imp = (parseFloat(row[cDeb]) || 0) - (parseFloat(row[cCre]) || 0);
+          }
+          let st = (cSt !== -1) ? row[cSt] : null;
           st = (st === undefined || st === null || String(st).trim() === '') ? null : String(parseInt(st, 10));
           const nota = String(row[cNota] || '');
           nMovs++;
@@ -1325,9 +1346,10 @@ function processIcarGL(file) {
           }
           if (!o.notaP && cNotaP !== -1 && /diario/i.test(tipo)) o.notaP = String(row[cNotaP] || '').slice(0, 40);
 
-          if (/factura de venta/i.test(tipo)) { o.fact += imp; sumFact += imp; }
-          else if (/nota de cr/i.test(tipo))  { o.nc += imp; sumNC += imp; }
-          else if (/diario/i.test(tipo)) {
+          // Tipos en español (libro del equipo) o inglés (export crudo NetSuite)
+          if (/factura de venta|^invoice$/i.test(tipo)) { o.fact += imp; sumFact += imp; }
+          else if (/nota de cr|credit memo/i.test(tipo))  { o.nc += imp; sumNC += imp; }
+          else if (/diario|^journal$/i.test(tipo)) {
             o.desc += imp; sumDesc += imp;
             const tr = cTReg !== -1 ? String(row[cTReg] || '') : '';
             if (tr.indexOf('03') === 0) o.n03++;
