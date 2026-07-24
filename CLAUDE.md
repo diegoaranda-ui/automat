@@ -74,6 +74,7 @@ The module answers: *which recurrent monthly suppliers have months with neither 
 - Brand: "KAVAK Finanzas" — black (#000/#0a0a0a) chrome with red (#dc1a23) accents per Kavak identity; data semantics keep green/amber/red. Do not reintroduce Supply naming.
 - Plain browser JS inside Apps Script HtmlService iframes: no modules, no bundler, CDN-pinned pdf.js 3.11.174 and SheetJS 0.18.5.
 - AI outputs are decision support: keep human-review framing ("propuesta", confidence levels) in UI copy; never present AI output as official accounting records.
+- **`IA_MARCO` (mandatory for every module, present and future):** every AI prompt in the suite MUST start with the shared `IA_MARCO` constant (defined in `finanzas.html`, prepended via `${IA_MARCO}`). It pins the tool-wide writing frame: the AI's prose centers on cuadratura and correct booking of the entry/adjustment (exact, traceable, verifiable figures); no business/pricing recommendations; results a module declares expected/structural are never written up as "hallazgo" or "anomalía"; numbers are computed by code or come from the document and must never be altered. When adding a new module, prepend `IA_MARCO` to its prompt — do not restate or fork the frame.
 
 ## Scaling to other Kavak markets
 
