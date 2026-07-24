@@ -98,6 +98,8 @@ El área de Finanzas dedica horas a leer documentos (cartolas, mayores de NetSui
 
 **Para qué sirve:** cruzar por **Stock ID** el impuesto de transferencia facturado al cliente contra lo descontado del fondo ICAR en la cuenta 2801-01, para determinar el resultado por vehículo y armar el análisis del asiento de ajuste.
 
+> **Contexto de negocio:** el resultado negativo Kavak es **estructural y esperado** — al cliente se le cobra el 1,5% del precio de venta acordado, pero ICAR descuenta el 1,5% de la **tasación fiscal** (base de auto nuevo), que en autos usados suele ser mayor. El foco del módulo es **contabilizar esa pérdida de forma eficiente, rápida y precisa**, no reducirla. El pivot por mes entrega, como subproducto, la cifra de cuánto se pierde mensualmente (dato de gestión para jefaturas).
+
 **Pasos:**
 1. Exporta el **mayor de la cuenta 2801-01** (o el General Ledger de NetSuite filtrado por esa cuenta). Para el análisis completo, exporta desde el inicio del año.
 2. Súbelo al módulo.

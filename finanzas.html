@@ -1803,6 +1803,8 @@ function analyzeIcar() {
 
   const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el balance de la cuenta 2801-01 (Impuesto Transferencia, fondo ICAR) cruzando POR STOCK ID lo facturado al cliente vs lo descontado del fondo. Tu único trabajo es REDACTAR — no recalcules nada.
 
+CONTEXTO DE NEGOCIO (no lo cuestiones): el resultado negativo Kavak es ESTRUCTURAL y esperado — al cliente se le cobra el 1,5% del precio de venta acordado, pero ICAR descuenta el 1,5% de la tasación fiscal (base de auto nuevo), que en autos usados suele ser mayor. El objetivo del papel de trabajo es CONTABILIZAR esa pérdida de forma eficiente, rápida y precisa — NO reducirla ni "resolverla". No redactes recomendaciones comerciales ni de pricing; no la califiques de anomalía o hallazgo. Sí es útil dejar la pérdida del período cuantificada por mes (pivot) como dato de gestión para jefaturas.
+
 RESULTADO CALCULADO:
 - Saldo cuenta: ${base.saldoCuenta} (facturado ${base.sumFact} + NC ${base.sumNC} + diarios/descuentos ${base.sumDesc})
 - ${base.nStocks} vehículos: ${base.ok} ok (cuadrados), ${base.negRegistrado} con resultado negativo YA registrado, ${base.pendiente.n} facturados sin descontar del fondo por ${base.pendiente.monto} (se espera la rendición de ICAR), ${base.negPorRegistrar.n} con resultado negativo Kavak POR registrar por ${base.negPorRegistrar.monto} (se descontó del fondo más de lo facturado — insumo del asiento de ajuste que registra EL ANALISTA, no el sistema), y ${base.sinFactura.n} con descuentos por ${base.sinFactura.monto} cuya factura está FUERA de la ventana del export (ventas de períodos anteriores — no entran al ajuste; sugerir exportar desde inicio de año si es relevante).
@@ -1818,8 +1820,8 @@ ${topPend}
 
 Responde ÚNICAMENTE con JSON válido:
 {
-  "resumen": "párrafo ejecutivo: cuadratura del saldo, cuánto está pendiente de rendición ICAR, cuánto es resultado negativo por registrar en el ajuste, y qué meses/vehículos concentran los montos",
-  "notas_auditoria": ["3 a 7 observaciones con cifras exactas para auditores: cuadratura contra balance, concentración de descuadres, vehículos sin mes de venta (revisar fin de mes), patrones anómalos (montos repetidos, stocks con muchos movimientos)"]
+  "resumen": "párrafo ejecutivo: cuadratura del saldo, cuánto está pendiente de rendición ICAR, cuánto es resultado negativo por registrar en el ajuste (pérdida estructural esperada del período, con su desglose por mes como dato de gestión), y qué meses/vehículos concentran los montos",
+  "notas_auditoria": ["3 a 7 observaciones con cifras exactas para auditores: cuadratura contra balance, pérdida estructural del período por mes (dato de gestión, no hallazgo), concentración de descuadres, vehículos sin mes de venta (revisar fin de mes), patrones anómalos (montos repetidos, stocks con muchos movimientos)"]
 }`;
 
   return callClaudeServer({
@@ -2397,7 +2399,7 @@ function renderIcar(d) {
     html += '<div class="card result-section" style="border:2px solid var(--red-b)">';
     html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">🎯</div>';
     html += '<div><div class="card-title" style="font-size:14px">Resultado negativo Kavak por registrar — análisis del ajuste</div>';
-    html += '<div style="font-size:10px;color:var(--n500)">Se descontó del fondo más de lo facturado al cliente. Insumo para tu asiento de ajuste — el sistema NO lo ejecuta</div></div>';
+    html += '<div style="font-size:10px;color:var(--n500)">Se descontó del fondo más de lo facturado al cliente (pérdida estructural esperada: 1,5% del precio de venta vs 1,5% de la tasación fiscal). Insumo para tu asiento de ajuste — el sistema NO lo ejecuta</div></div>';
     html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(d.negPorRegistrar.monto) + '</span>';
     html += '<button class="copy-btn" style="font-size:14px" onclick="copyText(\'' + esc(String(d.negPorRegistrar.monto)) + '\')" title="Copiar total">📋</button></div>';
     html += '<div class="tbl-wrap" style="max-height:320px;overflow-y:auto"><table>';
