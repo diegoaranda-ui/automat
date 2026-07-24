@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Google Apps Script Web App for **Kavak Chile — Finanzas**. A single-URL "Operations Center" with two families of tools:
 
-- **Finance Suite** (`finanzas.html`, the product): 6 AI-assisted modules that turn financial documents into structured working papers (papeles de trabajo) — Conciliación Bancaria, Reportería Financiera, Gestión Documental, Automatización Contable, **Control de Provisiones** (NetSuite GL vs monthly provisions), and **Impuesto Transferencia ICAR** (account 2801-01: per-Stock-ID cross of customer-invoiced transfer tax vs ICAR fund deductions; deterministic like Provisiones — classification ok / invoiced-not-deducted (wait for ICAR rendition) / negative-result-to-book (sum > 0 per stock, feeds the analyst's adjustment entry — the module analyzes, never books); writes to the team's own spreadsheet `ICAR_SHEET_ID` tab 'Análisis ICAR'). The legacy Supply inspection tools (DocScan/B2B/validador) were removed in Jul 2026.
+- **Finance Suite** (`finanzas.html`, the product): 3 AI-assisted modules that turn financial documents into structured working papers (papeles de trabajo) — Conciliación Bancaria (cartola vs libro mayor), **Control de Provisiones** (NetSuite GL vs monthly provisions), and **Impuesto Transferencia ICAR** (account 2801-01: per-Stock-ID cross of customer-invoiced transfer tax vs ICAR fund deductions; deterministic like Provisiones — classification ok / invoiced-not-deducted (wait for ICAR rendition) / negative-result-to-book (sum > 0 per stock, feeds the analyst's adjustment entry — the module analyzes, never books); writes to the team's own spreadsheet `ICAR_SHEET_ID` tab 'Análisis ICAR'). The legacy Supply inspection tools (DocScan/B2B/validador) were removed in Jul 2026; the Reportería, Gestión Documental and Automatización Contable modules were removed in Jul 2026 to focus the suite on the deterministic month-close tools.
 
 Primary user: junior Accountant Analyst producing audit-defensible working papers. Outputs must stay traceable (who/when/which file/params) and reproducible.
 
@@ -16,7 +16,7 @@ Primary user: junior Accountant Analyst producing audit-defensible working paper
 |------|------|------|
 | `Codigo.gs` | `Codigo` | Backend — router (`doGet`), `include()`, `callClaude()` proxy, Sheets writers |
 | `hub.html` | `hub` | Operations Center: card grid landing + sandboxed lazy iframes per tool |
-| `finanzas.html` | `finanzas` | Finance Suite (5 modules), served by `?page=finanzas&tab=<module>` |
+| `finanzas.html` | `finanzas` | Finance Suite (3 modules: conciliacion, provisiones, icar), served by `?page=finanzas&tab=<module>` |
 | `FINANCE_SUITE.md` | — | Executive summary, per-module manual, reliability roadmap |
 
 **Critical naming rule:** the Apps Script HTML file name must match the route exactly (`finanzas`, not `Finanzas_v2`). `buildPage` does `createTemplateFromFile(name)` where `name` is the `?page=` value in `validPages`.
@@ -49,11 +49,11 @@ No build step. Deploy manually:
 
 | Constant in `Codigo.gs` | Spreadsheet | Written by |
 |---|---|---|
-| `DEFAULT_SHEET_ID` (override: Script Property `SHEET_ID`) | Panel de inspecciones — `Registros` + `Dashboard` tabs | `appendToSheet(payload)` from DocScan/B2B/finanzas modules |
 | `CONCIL_SHEET_ID` (override: `CONCIL_SHEET_ID` property) | Papel de trabajo de conciliaciones — `Desglose` tab | `writeConciliacionDesglose(payload)` after each conciliación analysis (overwrite) |
-| `PROVISIONES_SHEET_ID` (override: `PROVISIONES_SHEET_ID` property) | Control Provisiones — `Provisiones` tab | `writeProvisionesSheet(payload)` after each provisiones analysis (overwrite) |
+| `PROVISIONES_SHEET_ID` (override: `PROVISIONES_SHEET_ID` property) | Control Provisiones — `Provisiones` + `Dashboard` tabs | `writeProvisionesSheet(payload)` / `writeProvisionesDashboard_(payload)` after each provisiones analysis (overwrite) |
+| `ICAR_SHEET_ID` (override: `ICAR_SHEET_ID` property) | Team's own "2801-01 Impuesto transferencia" workbook — `Análisis ICAR` tab | `writeIcarSheet(payload)` after each ICAR analysis (overwrite; no other tab is touched) |
 
-`setupKavakSheet()` and `setupDesgloseTemplate()` are one-time formatters run from the editor. Keep client payload keys in sync with `appendToSheet` and `SHEET_HEADERS` column order.
+`setupDesgloseTemplate()` is a one-time formatter run from the editor. Sheet writers rebuild content from scratch each run (see next section).
 
 Sheet writers rebuild content with `clearContents()+clearFormats()` then `setValues` on a uniform-width rows array (`pad()` to `REAL_COLS`) followed by explicit format ranges — when editing, recompute the row-offset arithmetic (title/metadata/section headers) by hand and keep every pushed row the same width.
 

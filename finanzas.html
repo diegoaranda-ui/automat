@@ -272,19 +272,6 @@ tr:hover td{background:var(--n50)}
 .result-section{animation:fu .2s cubic-bezier(.4,0,.2,1) both}
 @keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
-/* ── MULTIPLE FILES ── */
-.files-list{display:flex;flex-direction:column;gap:4px;padding:8px 0 0}
-.files-list-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--n50);border-radius:8px;border:1px solid var(--n200)}
-.fli-name{font-size:11px;font-weight:500;color:var(--n700);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fli-size{font-size:10px;color:var(--n400)}
-.fli-remove{background:none;border:none;color:var(--n300);cursor:pointer;font-size:12px;transition:var(--t)}
-.fli-remove:hover{color:var(--red)}
-
-/* ── ADD MORE ── */
-.add-more{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border:1px dashed var(--n300);border-radius:8px;font-size:10px;color:var(--n400);cursor:pointer;position:relative;transition:var(--t);margin-top:4px}
-.add-more:hover{border-color:var(--green);color:var(--green)}
-.add-more input{position:absolute;inset:0;opacity:0;cursor:pointer}
-
 /* ── SECTION HEADER ── */
 .section-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .section-title{font-size:12px;font-weight:700;color:var(--n700)}
@@ -318,7 +305,7 @@ tr.prov-detail>td{padding:0 8px 8px}
 /* ── IMPRESIÓN: solo el papel de trabajo ── */
 @media print{
   html,body{overflow:visible !important;height:auto !important;background:#fff !important}
-  .sidebar,.topbar,.prog,.action-bar,#toast,.upload-grid,.upload-zone,.file-preview,.files-list,.add-more,.section-header,.no-print,.wp-print{display:none !important}
+  .sidebar,.topbar,.prog,.action-bar,#toast,.upload-grid,.upload-zone,.file-preview,.section-header,.no-print,.wp-print{display:none !important}
   .shell{display:block !important;height:auto !important}
   .main{overflow:visible !important;display:block !important}
   .views{overflow:visible !important;position:static !important}
@@ -356,33 +343,6 @@ tr.prov-detail>td{padding:0 8px 8px}
         <div class="nav-text">
           <div class="nav-name">Conciliación</div>
           <div class="nav-desc">Cartola vs. libro mayor</div>
-        </div>
-        <div class="nav-badge">FINANZAS</div>
-      </div>
-
-      <div class="nav-item" id="nav-reporteria" onclick="selectModule('reporteria')">
-        <div class="nav-icon" style="background:rgba(37,99,235,.15)">📊</div>
-        <div class="nav-text">
-          <div class="nav-name">Reportería</div>
-          <div class="nav-desc">Estados financieros</div>
-        </div>
-        <div class="nav-badge">FINANZAS</div>
-      </div>
-
-      <div class="nav-item" id="nav-gestion" onclick="selectModule('gestion')">
-        <div class="nav-icon" style="background:rgba(124,58,237,.15)">📄</div>
-        <div class="nav-text">
-          <div class="nav-name">Gestión Documental</div>
-          <div class="nav-desc">Facturas y contratos</div>
-        </div>
-        <div class="nav-badge">FINANZAS</div>
-      </div>
-
-      <div class="nav-item" id="nav-automatizacion" onclick="selectModule('automatizacion')">
-        <div class="nav-icon" style="background:rgba(217,119,6,.15)">⚙️</div>
-        <div class="nav-text">
-          <div class="nav-name">Automatización</div>
-          <div class="nav-desc">Asientos contables</div>
         </div>
         <div class="nav-badge">FINANZAS</div>
       </div>
@@ -499,124 +459,6 @@ tr.prov-detail>td{padding:0 8px 8px}
           <span class="action-hint">Sube ambos documentos para iniciar la conciliación</span>
           <button class="btn-secondary" onclick="resetModule('conciliacion')">Limpiar</button>
           <button class="btn-primary" id="btn-conciliacion" onclick="analyzeModule('conciliacion')" disabled>⚡ Conciliar</button>
-        </div>
-      </div>
-
-      <!-- ══ VIEW: REPORTERIA ══ -->
-      <div class="view" id="view-reporteria">
-        <div class="content">
-          <div class="content-inner">
-            <div class="section-header">
-              <span class="section-title">📈 Estado Financiero</span>
-              <div class="section-line"></div>
-            </div>
-            <div class="upload-zone" id="zone-reporteria" ondragover="onDragOver(event,'zone-reporteria')" ondragleave="onDragLeave('zone-reporteria')" ondrop="onDrop(event,'rep-file-input','reporteria')">
-              <input type="file" id="rep-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('reporteria',this)">
-              <div class="upload-icon">📈</div>
-              <div class="upload-title">Estado Financiero</div>
-              <div class="upload-sub">Balance general · Estado de resultados · Flujo de caja<br>Arrastra o haz clic para subir</div>
-              <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
-            </div>
-            <div class="file-preview" id="prev-reporteria">
-              <span id="prev-reporteria-icon">📄</span>
-              <div style="flex:1;min-width:0">
-                <div class="file-name" id="prev-reporteria-name">—</div>
-                <div class="file-size" id="prev-reporteria-size">—</div>
-              </div>
-              <button class="file-remove" onclick="removeFile('reporteria')">✕</button>
-            </div>
-
-            <div id="results-reporteria">
-              <div class="empty-state">
-                <div class="empty-icon">📊</div>
-                <div class="empty-title">Análisis financiero</div>
-                <div class="empty-sub">Sube un balance, estado de resultados o flujo de caja para obtener métricas y ratios clave.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="action-bar">
-          <span class="action-hint">Balance · P&amp;L · Flujo de Caja</span>
-          <button class="btn-secondary" onclick="resetModule('reporteria')">Limpiar</button>
-          <button class="btn-primary" id="btn-reporteria" onclick="analyzeModule('reporteria')" disabled>📊 Analizar</button>
-        </div>
-      </div>
-
-      <!-- ══ VIEW: GESTION ══ -->
-      <div class="view" id="view-gestion">
-        <div class="content">
-          <div class="content-inner">
-            <div class="section-header">
-              <span class="section-title">📄 Documentos Financieros</span>
-              <div class="section-line"></div>
-            </div>
-            <div class="upload-zone" id="zone-gestion" ondragover="onDragOver(event,'zone-gestion')" ondragleave="onDragLeave('zone-gestion')" ondrop="onDropMulti(event,'gest-file-input','gestion')">
-              <input type="file" id="gest-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" multiple onchange="handleFileMulti('gestion',this)">
-              <div class="upload-icon">📄</div>
-              <div class="upload-title">Factura / Boleta / Nota de Crédito / Contrato</div>
-              <div class="upload-sub">Puedes subir múltiples archivos<br>Arrastra o haz clic</div>
-              <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG · múltiples</div>
-            </div>
-            <div id="gestion-files-list" class="files-list" style="display:none"></div>
-            <div style="display:none" id="gestion-add-more-wrap">
-              <label class="add-more">
-                <input type="file" accept="image/*,.pdf,.xlsx,.xls,.csv" multiple onchange="handleFileMulti('gestion',this)"> + Agregar más archivos
-              </label>
-            </div>
-
-            <div id="results-gestion">
-              <div class="empty-state">
-                <div class="empty-icon">📄</div>
-                <div class="empty-title">Extracción documental</div>
-                <div class="empty-sub">Sube facturas, boletas, notas de crédito o contratos para extraer y validar los datos automáticamente.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="action-bar">
-          <span class="action-hint">Facturas · Boletas · Notas de Crédito · Contratos</span>
-          <button class="btn-secondary" onclick="resetModule('gestion')">Limpiar</button>
-          <button class="btn-primary" id="btn-gestion" onclick="analyzeModule('gestion')" disabled>🔍 Extraer datos</button>
-        </div>
-      </div>
-
-      <!-- ══ VIEW: AUTOMATIZACION ══ -->
-      <div class="view" id="view-automatizacion">
-        <div class="content">
-          <div class="content-inner">
-            <div class="section-header">
-              <span class="section-title">📑 Documento Fuente</span>
-              <div class="section-line"></div>
-            </div>
-            <div class="upload-zone" id="zone-automatizacion" ondragover="onDragOver(event,'zone-automatizacion')" ondragleave="onDragLeave('zone-automatizacion')" ondrop="onDrop(event,'auto-file-input','automatizacion')">
-              <input type="file" id="auto-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('automatizacion',this)">
-              <div class="upload-icon">📑</div>
-              <div class="upload-title">Documento Fuente</div>
-              <div class="upload-sub">Factura, boleta, recibo u otro documento<br>Genera el asiento contable automáticamente</div>
-              <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
-            </div>
-            <div class="file-preview" id="prev-automatizacion">
-              <span id="prev-automatizacion-icon">📄</span>
-              <div style="flex:1;min-width:0">
-                <div class="file-name" id="prev-automatizacion-name">—</div>
-                <div class="file-size" id="prev-automatizacion-size">—</div>
-              </div>
-              <button class="file-remove" onclick="removeFile('automatizacion')">✕</button>
-            </div>
-
-            <div id="results-automatizacion">
-              <div class="empty-state">
-                <div class="empty-icon">⚙️</div>
-                <div class="empty-title">Asiento automático</div>
-                <div class="empty-sub">Sube cualquier documento fuente y el sistema generará el asiento contable según el Plan de Cuentas chileno (IFRS + SII).</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="action-bar">
-          <span class="action-hint">Plan de Cuentas chileno · IFRS · SII</span>
-          <button class="btn-secondary" onclick="resetModule('automatizacion')">Limpiar</button>
-          <button class="btn-primary" id="btn-automatizacion" onclick="analyzeModule('automatizacion')" disabled>⚙️ Generar asiento</button>
         </div>
       </div>
 
@@ -742,9 +584,6 @@ const PDF_MAX_PX  = 1800; // max height of stacked PDF canvas before downscaling
 // Per-module state
 const STATE = {
   conciliacion: { files: {} },   // files.cartola, files.libro
-  reporteria:   { files: {} },   // files.reporteria
-  gestion:      { files: [] },   // array of files
-  automatizacion:{ files: {} },  // files.automatizacion
   provisiones:  { files: {} },   // files.provisiones (GL NetSuite pre-agregado)
   icar:         { files: {} }    // files.icar (mayor 2801-01 impuesto transferencia)
 };
@@ -765,9 +604,6 @@ const SPIN_MSGS = [
 
 const MODULE_META = {
   conciliacion:   { icon: '⚖️', title: 'Conciliación Bancaria' },
-  reporteria:     { icon: '📊', title: 'Reportería Financiera' },
-  gestion:        { icon: '📄', title: 'Gestión Documental' },
-  automatizacion: { icon: '⚙️', title: 'Automatización Contable' },
   provisiones:    { icon: '🧾', title: 'Control de Provisiones' },
   icar:           { icon: '🚗', title: 'Impuesto Transferencia (ICAR)' }
 };
@@ -808,7 +644,7 @@ function loadUserName() {
 
 // ── MODULE SELECTION ──
 function selectModule(mod) {
-  const mods = ['conciliacion','reporteria','gestion','automatizacion','provisiones','icar'];
+  const mods = ['conciliacion','provisiones','icar'];
   if (!mods.includes(mod)) mod = 'conciliacion';
   currentModule = mod;
 
@@ -832,20 +668,11 @@ function onDragLeave(zoneId) {
 }
 function onDrop(e, inputId, key) {
   e.preventDefault();
-  const zoneId = 'zone-' + (key === 'cartola' || key === 'libro' ? key : key);
-  document.getElementById(zoneId) && document.getElementById(zoneId).classList.remove('over');
+  const z = document.getElementById('zone-' + key);
+  if (z) z.classList.remove('over');
   const files = e.dataTransfer.files;
   if (!files.length) return;
-  const fakeInput = { files: files };
-  handleFile(key, fakeInput);
-}
-function onDropMulti(e, inputId, key) {
-  e.preventDefault();
-  document.getElementById('zone-' + key).classList.remove('over');
-  const files = e.dataTransfer.files;
-  if (!files.length) return;
-  const fakeInput = { files: files };
-  handleFileMulti(key, fakeInput);
+  handleFile(key, { files: files });
 }
 
 // ── FILE HANDLING ──
@@ -865,24 +692,6 @@ function handleFile(key, input) {
     updateAnalyzeButton(mod);
   }).catch(function(err) {
     showToast('Error procesando archivo: ' + err.message, 'error');
-  });
-}
-
-function handleFileMulti(mod, input) {
-  const files = Array.from(input.files || []);
-  if (!files.length) return;
-  if (input.value !== undefined) { try { input.value = ''; } catch(e) {} }
-
-  Promise.all(files.map(function(f) {
-    return processFile(f).then(function(fd) {
-      return { name: f.name, size: f.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: f.type };
-    });
-  })).then(function(processed) {
-    STATE[mod].files = STATE[mod].files.concat(processed);
-    renderMultiFileList(mod);
-    updateAnalyzeButton(mod);
-  }).catch(function(err) {
-    showToast('Error procesando archivos: ' + err.message, 'error');
   });
 }
 
@@ -1470,46 +1279,12 @@ function removeFile(key) {
   updateAnalyzeButton(mod);
 }
 
-function renderMultiFileList(mod) {
-  const list = document.getElementById(mod + '-files-list');
-  const addWrap = document.getElementById(mod + '-add-more-wrap');
-  if (!list) return;
-  const files = STATE[mod].files;
-  if (!files.length) {
-    list.style.display = 'none';
-    if (addWrap) addWrap.style.display = 'none';
-    return;
-  }
-  list.style.display = 'flex';
-  if (addWrap) addWrap.style.display = 'block';
-  list.innerHTML = files.map(function(f, i) {
-    return '<div class="files-list-item">' +
-      '<span>' + (f.type === 'application/pdf' ? '📕' : '🖼️') + '</span>' +
-      '<span class="fli-name">' + esc(f.name) + '</span>' +
-      '<span class="fli-size">' + formatBytes(f.size) + '</span>' +
-      '<button class="fli-remove" onclick="removeMultiFile(\'' + mod + '\',' + i + ')">✕</button>' +
-      '</div>';
-  }).join('');
-  document.getElementById('zone-' + mod).classList.add('has-file');
-}
-
-function removeMultiFile(mod, idx) {
-  STATE[mod].files.splice(idx, 1);
-  renderMultiFileList(mod);
-  updateAnalyzeButton(mod);
-  if (!STATE[mod].files.length) {
-    document.getElementById('zone-' + mod).classList.remove('has-file');
-  }
-}
-
 function updateAnalyzeButton(mod) {
   const btn = document.getElementById('btn-' + mod);
   if (!btn) return;
   let ready = false;
   if (mod === 'conciliacion') {
     ready = !!(STATE[mod].files.cartola && STATE[mod].files.libro);
-  } else if (mod === 'gestion') {
-    ready = STATE[mod].files.length > 0;
   } else {
     ready = !!(STATE[mod].files[mod]);
   }
@@ -1517,11 +1292,7 @@ function updateAnalyzeButton(mod) {
 }
 
 function resetModule(mod) {
-  if (mod === 'gestion') {
-    STATE[mod].files = [];
-    renderMultiFileList(mod);
-    document.getElementById('zone-' + mod).classList.remove('has-file');
-  } else if (mod === 'conciliacion') {
+  if (mod === 'conciliacion') {
     STATE[mod].files = {};
     ['cartola','libro'].forEach(function(k) {
       const prev = document.getElementById('prev-' + k);
@@ -1544,10 +1315,7 @@ function showEmptyState(mod) {
   if (!r) return;
   const empties = {
     conciliacion: '<div class="empty-state"><div class="empty-icon">⚖️</div><div class="empty-title">Conciliación lista</div><div class="empty-sub">Sube la cartola bancaria y los registros contables, luego presiona Conciliar.</div></div>',
-    reporteria:   '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Análisis financiero</div><div class="empty-sub">Sube un balance, estado de resultados o flujo de caja para obtener métricas y ratios clave.</div></div>',
-    gestion:      '<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-title">Extracción documental</div><div class="empty-sub">Sube facturas, boletas, notas de crédito o contratos para extraer y validar los datos.</div></div>',
-    automatizacion:'<div class="empty-state"><div class="empty-icon">⚙️</div><div class="empty-title">Asiento automático</div><div class="empty-sub">Sube cualquier documento fuente y el sistema generará el asiento contable según el Plan de Cuentas chileno.</div></div>',
-    provisiones:  '<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Control de provisiones</div><div class="empty-sub">Importa el reporte General Ledger de NetSuite para detectar meses sin factura ni provisión.</div></div>',
+    provisiones: '<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Control de provisiones</div><div class="empty-sub">Importa el reporte General Ledger de NetSuite para detectar meses sin factura ni provisión.</div></div>',
     icar:         '<div class="empty-state"><div class="empty-icon">🚗</div><div class="empty-title">Balance impuesto transferencia</div><div class="empty-sub">Importa el mayor 2801-01 para cruzar por Stock ID lo facturado contra lo descontado del fondo ICAR.</div></div>'
   };
   r.innerHTML = empties[mod] || '';
@@ -1601,9 +1369,6 @@ function analyzeModule(mod) {
 
   const handlers = {
     conciliacion:   analyzeConciliacion,
-    reporteria:     analyzeReporteria,
-    gestion:        analyzeGestion,
-    automatizacion: analyzeAutomatizacion,
     provisiones:    analyzeProvisiones,
     icar:           analyzeIcar
   };
@@ -1691,106 +1456,6 @@ Responde ÚNICAMENTE con JSON válido:
   }).then(function(resp) {
     return extractJSON(resp);
   });
-}
-
-// ── REPORTERIA ──
-function analyzeReporteria() {
-  const f = STATE.reporteria.files.reporteria;
-  const prompt = `Eres analista financiero senior. Analiza este estado financiero chileno y extrae los datos clave.
-Identifica el tipo (balance general, estado de resultados, flujo de caja) y período.
-Responde ÚNICAMENTE con JSON válido:
-{
-  "tipo": "balance|resultados|flujo|otro",
-  "periodo": "...",
-  "moneda": "CLP|USD|...",
-  "metricas": [{"categoria":"...","nombre":"...","valor":0,"unidad":"$|%|x","nota":"..."}],
-  "ratios": [{"nombre":"...","valor":0,"formula":"...","interpretacion":"bueno|neutro|alerta"}],
-  "resumen_ejecutivo": "...",
-  "alertas": ["..."],
-  "confianza": "alta|media|baja"
-}`;
-
-  return callClaudeServer({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: [
-      { type: 'text', text: prompt },
-      buildContentBlock(f)
-    ]}]
-  }).then(function(resp) { return extractJSON(resp); });
-}
-
-// ── GESTION ──
-function analyzeGestion() {
-  const files = STATE.gestion.files;
-  const prompt = `Extrae todos los datos de los documentos financieros chilenos adjuntos.
-Si los adjuntos son páginas/imágenes de UN MISMO documento, responde UN solo objeto.
-Si son DOCUMENTOS DISTINTOS, responde {"documentos": [un objeto por documento]}.
-Esquema de cada documento — responde ÚNICAMENTE con JSON válido:
-{
-  "tipo_documento": "factura|boleta|nota_credito|nota_debito|contrato|otro",
-  "numero": "...",
-  "fecha": "DD/MM/YYYY",
-  "emisor": {"rut":"...","nombre":"...","giro":"...","direccion":"..."},
-  "receptor": {"rut":"...","nombre":"...","giro":"..."},
-  "items": [{"descripcion":"...","cantidad":0,"precio_unitario":0,"precio_total":0}],
-  "subtotal": 0,
-  "iva": 0,
-  "total": 0,
-  "moneda": "CLP",
-  "estado": "vigente|anulado|pagado|pendiente",
-  "observaciones": "...",
-  "confianza": "alta|media|baja"
-}`;
-
-  const content = [{ type: 'text', text: prompt }];
-  files.forEach(function(f) {
-    const block = buildContentBlock(f);
-    if (block) content.push(block);
-  });
-
-  return callClaudeServer({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: content }]
-  }).then(function(resp) {
-    const d = extractJSON(resp);
-    // Normalizar: array suelto → {documentos:[...]}
-    if (Array.isArray(d)) return { documentos: d };
-    return d;
-  });
-}
-
-// ── AUTOMATIZACION ──
-function analyzeAutomatizacion() {
-  const f = STATE.automatizacion.files.automatizacion;
-  const prompt = `Eres contador experto en contabilidad chilena (IFRS + normas locales SII).
-Analiza este documento y genera el asiento contable correspondiente.
-Usa cuentas del Plan de Cuentas estándar chileno.
-Responde ÚNICAMENTE con JSON válido:
-{
-  "tipo_operacion": "...",
-  "fecha": "DD/MM/YYYY",
-  "numero_documento": "...",
-  "glosa": "...",
-  "asientos": [
-    {"codigo":"...","cuenta":"...","debe":0,"haber":0,"centro_costo":"..."}
-  ],
-  "total_debe": 0,
-  "total_haber": 0,
-  "cuadrado": true,
-  "notas": "...",
-  "confianza": "alta|media|baja"
-}`;
-
-  return callClaudeServer({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: [
-      { type: 'text', text: prompt },
-      buildContentBlock(f)
-    ]}]
-  }).then(function(resp) { return extractJSON(resp); });
 }
 
 // ── PROVISIONES ──
@@ -2071,9 +1736,6 @@ function renderResult(mod, data) {
   LAST_RESULT[mod] = data;
   const renders = {
     conciliacion:   renderConciliacion,
-    reporteria:     renderReporteria,
-    gestion:        renderGestion,
-    automatizacion: renderAutomatizacion,
     provisiones:    renderProvisiones,
     icar:           renderIcar
   };
@@ -2210,335 +1872,6 @@ function renderConciliacion(d) {
 
   html += '</div>';
   return html;
-}
-
-// ── RENDER REPORTERIA ──
-function renderReporteria(d) {
-  const tipoLabels = { balance: 'Balance General', resultados: 'Estado de Resultados', flujo: 'Flujo de Caja', otro: 'Documento Financiero' };
-  const tipoColors = { balance: 'b-blue', resultados: 'b-green', flujo: 'b-purple', otro: 'b-gray' };
-
-  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
-
-  // Doc header
-  html += '<div class="doc-header result-section">';
-  html += '<div class="doc-type-icon" style="background:var(--blue-l)">📊</div>';
-  html += '<div style="flex:1">';
-  html += '<div style="display:flex;align-items:center;gap:8px">';
-  html += '<span class="badge ' + (tipoColors[d.tipo] || 'b-gray') + '">' + (tipoLabels[d.tipo] || esc(d.tipo) || 'Financiero') + '</span>';
-  html += '<span class="conf-badge conf-' + confCls(d.confianza) + '">' + confCls(d.confianza) + '</span>';
-  html += '</div>';
-  html += '<div class="doc-number" style="font-size:14px;margin-top:6px">' + esc(d.periodo || 'Período no especificado') + '</div>';
-  html += '<div class="doc-date">Moneda: ' + esc(d.moneda || 'CLP') + '</div>';
-  html += '</div></div>';
-
-  // Top 4 KPIs
-  const metricas = d.metricas || [];
-  if (metricas.length) {
-    const top4 = metricas.slice(0, 4);
-    html += '<div class="kpi-grid result-section">';
-    top4.forEach(function(m, i) {
-      const colors = ['neutral','good','warn','alert'];
-      const cls = colors[i % colors.length];
-      html += '<div class="kpi-card ' + cls + '">';
-      html += '<div class="kpi-accent"></div>';
-      html += '<div class="kpi-cat">' + esc(m.categoria || '') + '</div>';
-      html += '<div class="kpi-val">' + fmtMetricVal(m.valor, m.unidad) + '<span class="kpi-unit">' + esc(m.unidad || '') + '</span></div>';
-      html += '<div class="kpi-name">' + esc(m.nombre || '') + '</div>';
-      if (m.nota) html += '<div class="kpi-note">' + esc(m.nota) + '</div>';
-      html += '</div>';
-    });
-    html += '</div>';
-  }
-
-  // Ratios table
-  const ratios = d.ratios || [];
-  if (ratios.length) {
-    html += '<div class="card result-section">';
-    html += '<div class="card-header"><div class="card-icon" style="background:var(--purple-l)">📐</div><div class="card-title">Ratios Financieros</div></div>';
-    html += '<div class="tbl-wrap"><table>';
-    html += '<tr><th>Ratio</th><th style="text-align:right">Valor</th><th>Fórmula</th><th>Interpretación</th></tr>';
-    ratios.forEach(function(r) {
-      const cls = r.interpretacion === 'bueno' ? 'ratio-row-good' : r.interpretacion === 'alerta' ? 'ratio-row-alert' : 'ratio-row-neutro';
-      const badgeCls = r.interpretacion === 'bueno' ? 'b-green' : r.interpretacion === 'alerta' ? 'b-red' : 'b-gray';
-      html += '<tr class="' + cls + '">';
-      html += '<td><strong>' + esc(r.nombre || '') + '</strong></td>';
-      html += '<td class="num" style="text-align:right">' + (r.valor !== undefined ? esc(String(r.valor)) : '—') + '</td>';
-      html += '<td style="color:var(--n400);font-size:10px;font-family:var(--mono)">' + esc(r.formula || '') + '</td>';
-      html += '<td><span class="badge ' + badgeCls + '">' + esc(r.interpretacion || 'neutro') + '</span></td>';
-      html += '</tr>';
-    });
-    html += '</table></div></div>';
-  }
-
-  // More metrics
-  if (metricas.length > 4) {
-    html += '<div class="card result-section">';
-    html += '<div class="card-header"><div class="card-icon" style="background:var(--green-l)">📈</div><div class="card-title">Todas las métricas</div></div>';
-    html += '<div class="tbl-wrap"><table>';
-    html += '<tr><th>Categoría</th><th>Nombre</th><th style="text-align:right">Valor</th><th>Nota</th></tr>';
-    metricas.slice(4).forEach(function(m) {
-      html += '<tr><td>' + esc(m.categoria || '') + '</td><td>' + esc(m.nombre || '') + '</td>';
-      html += '<td class="num" style="text-align:right">' + fmtMetricVal(m.valor, m.unidad) + ' ' + esc(m.unidad || '') + '</td>';
-      html += '<td style="color:var(--n400);font-size:10px">' + esc(m.nota || '') + '</td></tr>';
-    });
-    html += '</table></div></div>';
-  }
-
-  // Executive summary
-  if (d.resumen_ejecutivo) {
-    html += '<div class="card result-section">';
-    html += '<div class="card-header"><div class="card-icon" style="background:var(--amber-l)">📝</div><div class="card-title">Resumen Ejecutivo</div></div>';
-    html += '<div class="card-body"><div class="exec-summary"><p>' + esc(d.resumen_ejecutivo) + '</p></div></div>';
-    html += '</div>';
-  }
-
-  // Alerts
-  const alertas = d.alertas || [];
-  if (alertas.length) {
-    html += '<div class="alerts-list result-section">';
-    alertas.forEach(function(a) {
-      html += '<div class="alert-item warn"><span class="alert-icon">⚠️</span><span>' + esc(a) + '</span></div>';
-    });
-    html += '</div>';
-  }
-
-  html += '</div>';
-  return html;
-}
-
-// ── RENDER GESTION ──
-function renderGestion(d) {
-  // Varios documentos distintos → una ficha por documento
-  if (d && d.documentos && d.documentos.length) {
-    return d.documentos.map(function(doc, i) {
-      const sep = i > 0 ? '<div style="height:4px;border-top:2px dashed var(--n200);margin:16px 0 12px"></div>' : '';
-      return sep + '<div style="font-size:11px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Documento ' + (i + 1) + ' de ' + d.documentos.length + '</div>' + renderGestionSingle(doc, i);
-    }).join('');
-  }
-  return renderGestionSingle(d, -1);
-}
-
-// Devuelve el documento i del último resultado de gestión (o el único)
-function gestionDocAt(i) {
-  const d = LAST_RESULT.gestion || {};
-  if (d.documentos && d.documentos.length) return d.documentos[i] || {};
-  return d;
-}
-
-function renderGestionSingle(d, docIdx) {
-  const tipoIcons = { factura: '🧾', boleta: '🏪', nota_credito: '📉', nota_debito: '📈', contrato: '📋', otro: '📄' };
-  const estadoClass = { vigente: 'st-vigente', pagado: 'st-pagado', pendiente: 'st-pendiente', anulado: 'st-anulado' };
-
-  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
-
-  // Doc header
-  html += '<div class="doc-header result-section">';
-  html += '<div class="doc-type-icon" style="background:var(--purple-l)">' + (tipoIcons[d.tipo_documento] || '📄') + '</div>';
-  html += '<div style="flex:1">';
-  html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
-  html += '<span class="badge b-purple">' + esc((d.tipo_documento || 'documento').toUpperCase()) + '</span>';
-  html += '<span class="st-badge ' + (estadoClass[d.estado] || 'st-pendiente') + '">' + esc(d.estado || 'pendiente') + '</span>';
-  html += '<span class="conf-badge conf-' + confCls(d.confianza) + '">' + confCls(d.confianza) + '</span>';
-  html += '</div>';
-  html += '<div class="doc-number">N° ' + esc(d.numero || '—') + '</div>';
-  html += '<div class="doc-date">Fecha: ' + esc(d.fecha || '—') + ' &nbsp;·&nbsp; Moneda: ' + esc(d.moneda || 'CLP') + '</div>';
-  html += '</div></div>';
-
-  // Party cards
-  html += '<div class="party-grid result-section">';
-
-  // Emisor
-  const em = d.emisor || {};
-  html += '<div class="party-card">';
-  html += '<div class="party-role">🏢 Emisor</div>';
-  html += '<div class="party-name">' + esc(em.nombre || '—') + '</div>';
-  if (em.rut) {
-    html += '<div class="party-row"><span class="party-key">RUT</span><span class="party-val" style="font-family:var(--mono)">' + esc(em.rut) + '</span>';
-    html += '<button class="copy-btn" onclick="copyText(\'' + esc(em.rut) + '\')" title="Copiar RUT">📋</button></div>';
-  }
-  if (em.giro) html += '<div class="party-row"><span class="party-key">Giro</span><span class="party-val">' + esc(em.giro) + '</span></div>';
-  if (em.direccion) html += '<div class="party-row"><span class="party-key">Dir.</span><span class="party-val">' + esc(em.direccion) + '</span></div>';
-  html += '</div>';
-
-  // Receptor
-  const re = d.receptor || {};
-  html += '<div class="party-card">';
-  html += '<div class="party-role">🏬 Receptor</div>';
-  html += '<div class="party-name">' + esc(re.nombre || '—') + '</div>';
-  if (re.rut) {
-    html += '<div class="party-row"><span class="party-key">RUT</span><span class="party-val" style="font-family:var(--mono)">' + esc(re.rut) + '</span>';
-    html += '<button class="copy-btn" onclick="copyText(\'' + esc(re.rut) + '\')" title="Copiar RUT">📋</button></div>';
-  }
-  if (re.giro) html += '<div class="party-row"><span class="party-key">Giro</span><span class="party-val">' + esc(re.giro) + '</span></div>';
-  html += '</div>';
-
-  html += '</div>';
-
-  // Items table
-  const items = d.items || [];
-  if (items.length) {
-    html += '<div class="card result-section">';
-    html += '<div class="card-header"><div class="card-icon" style="background:var(--blue-l)">📋</div><div class="card-title">Detalle de Items</div></div>';
-    html += '<div class="tbl-wrap"><table>';
-    html += '<tr><th>Descripción</th><th style="text-align:right">Cant.</th><th style="text-align:right">P. Unitario</th><th style="text-align:right">P. Total</th></tr>';
-    items.forEach(function(it) {
-      html += '<tr>';
-      html += '<td>' + esc(it.descripcion || '') + '</td>';
-      html += '<td class="num" style="text-align:right">' + (it.cantidad || 0) + '</td>';
-      html += '<td class="num" style="text-align:right">' + fmtMoney(it.precio_unitario || 0) + '</td>';
-      html += '<td class="num" style="text-align:right">' + fmtMoney(it.precio_total || 0) + '</td>';
-      html += '</tr>';
-    });
-    html += '</table></div></div>';
-  }
-
-  // Totals
-  html += '<div class="totals-row result-section">';
-  html += '<div class="total-item"><div class="total-label">Subtotal</div><div class="total-value">' + fmtMoney(d.subtotal || 0) + '</div></div>';
-  html += '<div class="total-divider"></div>';
-  html += '<div class="total-item"><div class="total-label">IVA 19%</div><div class="total-value">' + fmtMoney(d.iva || 0) + '</div></div>';
-  html += '<div class="total-divider"></div>';
-  html += '<div class="total-item grand">';
-  html += '<div class="total-label">TOTAL</div>';
-  html += '<div style="display:flex;align-items:center;gap:6px">';
-  html += '<div class="total-value">' + fmtMoney(d.total || 0) + '</div>';
-  html += '<button class="btn-icon" onclick="copyText(\'' + esc(String(d.total || 0)) + '\')" title="Copiar total">📋</button>';
-  html += '</div></div>';
-  html += '</div>';
-
-  // Observaciones
-  if (d.observaciones) {
-    html += '<div class="notes-box result-section">ℹ️ ' + esc(d.observaciones) + '</div>';
-  }
-
-  // Save to Sheets
-  html += '<div style="display:flex;gap:8px;padding-top:4px" class="result-section">';
-  html += '<button class="btn-secondary" onclick="saveGestionToSheets(gestionDocAt(' + docIdx + '))">📊 Guardar en Sheets</button>';
-  html += '</div>';
-
-  html += '</div>';
-  return html;
-}
-
-// ── RENDER AUTOMATIZACION ──
-function renderAutomatizacion(d) {
-  const asientos = d.asientos || [];
-
-  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
-
-  // Operation header
-  html += '<div class="asiento-header result-section">';
-  html += '<div class="ah-item"><div class="ah-label">Tipo de Operación</div><div class="ah-value">' + esc(d.tipo_operacion || '—') + '</div></div>';
-  html += '<div class="ah-item"><div class="ah-label">Fecha</div><div class="ah-value" style="font-family:var(--mono)">' + esc(d.fecha || '—') + '</div></div>';
-  html += '<div class="ah-item"><div class="ah-label">N° Documento</div><div class="ah-value" style="font-family:var(--mono)">' + esc(d.numero_documento || '—') + '</div></div>';
-  html += '<div class="ah-item"><div class="ah-label">Glosa</div><div class="ah-value">' + esc(d.glosa || '—') + '</div></div>';
-  html += '</div>';
-
-  // Accounting entry table
-  html += '<div class="card result-section">';
-  html += '<div class="card-header">';
-  html += '<div class="card-icon" style="background:var(--amber-l)">⚙️</div>';
-  html += '<div class="card-title">Asiento Contable</div>';
-  html += '<span class="conf-badge conf-' + confCls(d.confianza) + '" style="margin-left:auto">' + confCls(d.confianza) + '</span>';
-  html += '</div>';
-  html += '<div class="tbl-wrap"><table>';
-  html += '<tr><th>Código</th><th>Cuenta</th><th>Centro Costo</th><th style="text-align:right">Debe</th><th style="text-align:right">Haber</th></tr>';
-  asientos.forEach(function(a) {
-    html += '<tr>';
-    html += '<td style="font-family:var(--mono);font-size:11px">' + esc(a.codigo || '') + '</td>';
-    html += '<td>' + esc(a.cuenta || '') + '</td>';
-    html += '<td style="color:var(--n400);font-size:10px">' + esc(a.centro_costo || '') + '</td>';
-    html += '<td class="num" style="text-align:right;color:var(--green-d)">' + (a.debe > 0 ? fmtMoney(a.debe) : '—') + '</td>';
-    html += '<td class="num" style="text-align:right;color:var(--red-d)">' + (a.haber > 0 ? fmtMoney(a.haber) : '—') + '</td>';
-    html += '</tr>';
-  });
-  // Totals row
-  html += '<tr class="tbl-foot">';
-  html += '<td colspan="3" style="text-align:right">TOTAL</td>';
-  html += '<td class="num" style="text-align:right;color:var(--green-d)">' + fmtMoney(d.total_debe || 0) + '</td>';
-  html += '<td class="num" style="text-align:right;color:var(--red-d)">' + fmtMoney(d.total_haber || 0) + '</td>';
-  html += '</tr>';
-  html += '</table></div></div>';
-
-  // Balance indicator
-  const cuadrado = d.cuadrado !== false;
-  html += '<div class="balance-indicator ' + (cuadrado ? 'ok' : 'fail') + ' result-section">';
-  html += (cuadrado ? '✓ Asiento cuadrado' : '✗ Asiento descuadrado — revisar');
-  if (!cuadrado) {
-    const diff = Math.abs((d.total_debe || 0) - (d.total_haber || 0));
-    html += ' &nbsp; Diferencia: ' + fmtMoney(diff);
-  }
-  html += '</div>';
-
-  // Notes
-  if (d.notas) {
-    html += '<div class="notes-box result-section">ℹ️ ' + esc(d.notas) + '</div>';
-  }
-
-  // Actions
-  html += '<div style="display:flex;gap:8px;padding-top:4px" class="result-section">';
-  html += '<button class="btn-secondary" onclick="exportAsientoCSV(LAST_RESULT.automatizacion)">⬇️ Exportar CSV</button>';
-  html += '<button class="btn-secondary" onclick="saveAutoToSheets(LAST_RESULT.automatizacion)">📊 Guardar en Sheets</button>';
-  html += '</div>';
-
-  html += '</div>';
-  return html;
-}
-
-// ── SHEETS INTEGRATION ──
-function saveGestionToSheets(d) {
-  if (!(window.google && google.script && google.script.run)) {
-    showToast('Solo disponible en el Web App de Apps Script', 'error');
-    return;
-  }
-  const analista = document.getElementById('userInput').value || 'Sin nombre';
-  const now = new Date();
-  const payload = {
-    fecha: now.toLocaleDateString('es-CL'),
-    hora: now.toLocaleTimeString('es-CL'),
-    analista: analista,
-    herramienta: 'Finanzas · Gestión',
-    tipo_doc: d.tipo_documento || '',
-    // Mapeo al esquema de appendToSheet (SHEET_HEADERS): rut/nombre = emisor,
-    // el detalle del documento va en observaciones.
-    rut: (d.emisor || {}).rut || '',
-    nombre: (d.emisor || {}).nombre || '',
-    vigencia: d.estado || '',
-    confianza: d.confianza || '',
-    observaciones: 'N° ' + (d.numero || '—') +
-      ' · Receptor: ' + ((d.receptor || {}).nombre || '—') + ' (' + ((d.receptor || {}).rut || '—') + ')' +
-      ' · Neto: ' + (d.subtotal || 0) + ' · IVA: ' + (d.iva || 0) + ' · Total: ' + (d.total || 0)
-  };
-  google.script.run
-    .withSuccessHandler(function() { showToast('Guardado en Sheets ✓', 'success'); })
-    .withFailureHandler(function(e) { showToast('Error al guardar: ' + e.message, 'error'); })
-    .appendToSheet(payload);
-}
-
-function saveAutoToSheets(d) {
-  if (!(window.google && google.script && google.script.run)) {
-    showToast('Solo disponible en el Web App de Apps Script', 'error');
-    return;
-  }
-  const analista = document.getElementById('userInput').value || 'Sin nombre';
-  const now = new Date();
-  const payload = {
-    fecha: now.toLocaleDateString('es-CL'),
-    hora: now.toLocaleTimeString('es-CL'),
-    analista: analista,
-    herramienta: 'Finanzas · Automatización',
-    tipo_doc: 'asiento_contable',
-    nombre: d.glosa || '',
-    vigencia: d.cuadrado ? '' : 'Revisar',
-    confianza: d.confianza || '',
-    observaciones: 'N° ' + (d.numero_documento || '—') +
-      ' · Debe: ' + (d.total_debe || 0) + ' · Haber: ' + (d.total_haber || 0) +
-      ' · ' + (d.cuadrado ? 'Cuadrado' : 'DESCUADRADO')
-  };
-  google.script.run
-    .withSuccessHandler(function() { showToast('Guardado en Sheets ✓', 'success'); })
-    .withFailureHandler(function(e) { showToast('Error al guardar: ' + e.message, 'error'); })
-    .appendToSheet(payload);
 }
 
 // ── RENDER PROVISIONES ──
@@ -3143,41 +2476,13 @@ function saveDesgloseConciliacion(d) {
     .writeConciliacionDesglose(JSON.stringify(payload));
 }
 
-// ── CSV EXPORT ──
-function exportAsientoCSV(d) {
-  const asientos = d.asientos || [];
-  const rows = [['Codigo','Cuenta','Centro Costo','Debe','Haber']];
-  asientos.forEach(function(a) {
-    rows.push([a.codigo || '', a.cuenta || '', a.centro_costo || '', a.debe || 0, a.haber || 0]);
-  });
-  rows.push(['', 'TOTAL', '', d.total_debe || 0, d.total_haber || 0]);
-
-  const csv = rows.map(function(r) {
-    return r.map(function(v) { return '"' + String(v).replace(/"/g,'""') + '"'; }).join(',');
-  }).join('\n');
-
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'asiento_' + (d.numero_documento || 'sin_numero') + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('CSV exportado ✓', 'success');
-}
-
 // ── HISTORY ──
 function saveHistory(mod, data) {
   const hist = getHistory();
   const analista = document.getElementById('userInput').value || '';
   const resumenes = {
     conciliacion:   (data.conciliados || []).length + ' conciliados · Dif: ' + fmtMoney(Math.abs(data.diferencia_total || 0)),
-    reporteria:     (data.tipo || 'financiero') + ' · ' + (data.periodo || ''),
-    gestion:        (data.tipo_documento || 'doc') + ' N°' + (data.numero || '') + ' · ' + fmtMoney(data.total || 0),
-    automatizacion: (data.tipo_operacion || 'asiento') + ' · ' + fmtMoney(data.total_debe || 0),
-    provisiones:    (data.proveedores || []).length + ' proveedores · Sugerido: ' + fmtMoney(data.total_provision_sugerida || 0),
+    provisiones:   (data.proveedores || []).length + ' proveedores · Sugerido: ' + fmtMoney(data.total_provision_sugerida || 0),
     icar:           (data.nStocks || 0) + ' vehículos · Neg. por registrar: ' + fmtMoney((data.negPorRegistrar || {}).monto || 0)
   };
   const item = {
@@ -3218,7 +2523,7 @@ function renderHistory() {
     return;
   }
 
-  const modIcons = { conciliacion: '⚖️', reporteria: '📊', gestion: '📄', automatizacion: '⚙️', provisiones: '🧾', icar: '🚗' };
+  const modIcons = { conciliacion: '⚖️', provisiones: '🧾', icar: '🚗' };
 
   list.innerHTML = hist.map(function(h) {
     const ts = new Date(h.timestamp);

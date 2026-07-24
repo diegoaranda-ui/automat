@@ -1,52 +1,51 @@
 # Finance Suite — Kavak Finanzas Chile
 
 **Resumen ejecutivo, manual de uso y roadmap de fiabilidad**
-Versión 1.1 · Julio 2026
+Versión 2.0 · Julio 2026
 
 ---
 
 ## 1. Resumen ejecutivo
 
-La **Finance Suite** es un módulo de la biblioteca *Operations Center* de Kavak Supply Chile que automatiza tareas financieras repetitivas usando **Claude Vision (IA)**. Se accede desde una sola URL (Apps Script Web App), sin instalaciones, y todo el procesamiento de IA ocurre en el servidor — la API key nunca llega al navegador.
+La **Finance Suite** es un módulo de la biblioteca *Operations Center* de Kavak Finanzas Chile que automatiza tareas del cierre mensual. Se accede desde una sola URL (Apps Script Web App), sin instalaciones, y todo el procesamiento de IA ocurre en el servidor — la API key nunca llega al navegador.
+
+Tras la revisión de julio 2026, la suite se enfocó en **tres módulos deterministas** de cierre y se retiraron los módulos de lectura genérica (Reportería, Gestión Documental y Automatización Contable): los números que importan para el cierre se calculan 100 % en código y la IA solo redacta el análisis.
 
 ### ¿Qué problema resuelve?
-El área de Finanzas dedica horas a leer documentos (cartolas, facturas, estados financieros), transcribir datos a mano y cruzar información entre fuentes. La Finance Suite **lee, extrae y estructura esos datos automáticamente**, reduciendo el trabajo manual y los errores de transcripción.
+El área de Finanzas dedica horas a leer documentos (cartolas, mayores de NetSuite), transcribir datos a mano y cruzar información entre fuentes para el cierre. La Finance Suite **lee, cruza y estructura esos datos automáticamente**, produciendo papeles de trabajo trazables y reproducibles.
 
-### Los 4 módulos
+### Los 3 módulos
 
 | Módulo | Qué automatiza | Entrada | Salida |
 |---|---|---|---|
 | 🏦 **Conciliación Bancaria** | Cruce cartola banco vs. registros contables | 2 documentos (cartola + libro) | Transacciones conciliadas, diferencias, partidas sin match |
-| 📊 **Reportería Financiera** | Lectura de estados financieros | 1 documento (balance/P&L/flujo) | KPIs, ratios, resumen ejecutivo, alertas |
-| 📄 **Gestión Documental** | Extracción de datos de documentos tributarios | 1+ documentos (factura/boleta/contrato) | Emisor, receptor, ítems, totales, IVA |
-| ⚙️ **Automatización Contable** | Generación de asientos contables | 1 documento fuente | Asiento debe/haber, validación de cuadre, export CSV |
-| 🧾 **Control de Provisiones** | Facturas mensuales vs provisiones (NetSuite) | Export General Ledger (.xls/.xlsx/.csv) | Matriz F/P/FALTA, provisiones pendientes con monto sugerido, notas de auditoría |
+| 🧾 **Control de Provisiones** | Facturas mensuales vs provisiones (NetSuite) | Export General Ledger (.xls/.xlsx/.csv) | Matriz F/P/FALTA, provisiones accionables con monto sugerido, comparativa mensual, notas de auditoría |
+| 🚗 **Impuesto Transferencia (ICAR)** | Cruce por Stock ID del impuesto de transferencia facturado vs descontado del fondo ICAR (cuenta 2801-01) | Mayor 2801-01 / General Ledger NetSuite (.xls/.xlsx/.csv) | Cuadratura de la cuenta, análisis del asiento de ajuste por vehículo, pendientes de rendición ICAR, notas de auditoría |
 
 ### Beneficios clave
-- **Velocidad**: un análisis que tomaba 10–15 min se reduce a ~30 segundos.
-- **Trazabilidad**: cada análisis se guarda automáticamente en Google Sheets (panel `Registros` + `Dashboard`).
-- **Consistencia**: misma estructura de salida siempre, lista para copiar/exportar.
+- **Velocidad**: un cruce de cierre que tomaba horas se reduce a ~30 segundos.
+- **Trazabilidad**: cada análisis se guarda automáticamente en la planilla del equipo con cabecera de quién/cuándo/qué archivo/parámetros.
+- **Reproducibilidad**: el mismo archivo produce siempre los mismos números (cálculo determinista).
 - **Cero infraestructura**: corre en Apps Script, una URL compartida con el equipo.
 - **Seguridad**: la API key vive solo en el servidor (Script Properties).
 
 ### Tecnología
-- **Motor IA**: `claude-sonnet-4-6` (Messages API con visión)
+- **Motor IA**: `claude-opus-4-8` en Provisiones e ICAR (redacción del análisis), `claude-sonnet-4-6` en Conciliación (Messages API con visión)
 - **Backend**: Google Apps Script (`callClaude` como proxy server-side)
-- **Persistencia**: Google Sheets + historial local (`localStorage`)
-- **Procesamiento de archivos**: compresión de imágenes en cliente (máx. 1600px) + render de PDF con pdf.js
+- **Persistencia**: Google Sheets (una planilla por módulo) + historial local (`localStorage`)
+- **Procesamiento de archivos**: compresión de imágenes en cliente (máx. 1600px) + render de PDF con pdf.js; Excel/CSV parseados con SheetJS
 
 ---
 
 ## 2. Manual de uso
 
 ### Acceso general
-1. Abre la URL del Web App de Kavak Supply.
-2. En el *Operations Center*, haz clic en la tarjeta de Finanzas que necesites (Conciliación, Reportería, Gestión o Automatización).
-3. Escribe tu nombre en el campo "Tu nombre…" del sidebar (se guarda para el registro en Sheets).
+1. Abre la URL del Web App de Kavak Finanzas.
+2. En el *Operations Center*, haz clic en la tarjeta que necesites (Provisiones, Conciliación o Impuesto Transferencia).
+3. Escribe tu nombre en el campo "Tu nombre…" del sidebar (se guarda para la trazabilidad).
 4. Sube el/los documento(s), pulsa el botón de análisis y espera el resultado (~30 s).
 
-> **Atajo**: `Ctrl + Enter` ejecuta el análisis del módulo activo.
-> **Formatos aceptados**: PDF, JPG, PNG. Los PDF se renderizan a imagen automáticamente.
+> **Formatos aceptados**: PDF, JPG, PNG (Conciliación); .xls/.xlsx/.csv tal cual salen de NetSuite (Provisiones e ICAR).
 
 ---
 
@@ -61,160 +60,90 @@ El área de Finanzas dedica horas a leer documentos (cartolas, facturas, estados
 
 **Qué obtienes:**
 - **4 tarjetas KPI**: conciliados ✓, solo en cartola ⚠, solo en libro ⚠, diferencia total.
-- **Tabla de conciliados**: fecha cartola, descripción, monto, fecha libro, glosa y nivel de confianza (alta/media). El cruce se hace por monto y fecha cercana (±3 días).
-- **Tabla "Solo en cartola"**: movimientos del banco sin registro contable (posibles cargos/abonos no contabilizados).
-- **Tabla "Solo en libro"**: asientos contables que no aparecen en el banco (posibles cheques no cobrados, errores).
-- **Resumen** en texto.
+- **Tabla de conciliados**: fecha cartola, descripción, monto, fecha libro, glosa y nivel de confianza. El cruce se hace por monto y fecha cercana (±3 días).
+- **Tablas "Solo en cartola" / "Solo en libro"**: partidas sin match que requieren revisión manual.
+- **Resumen** en texto, escrito automáticamente en la pestaña `Desglose` de la planilla de conciliaciones.
 
-**Cómo interpretarlo:** una diferencia total de $0 y pocas partidas sin match indica buena conciliación. Las partidas en ámbar/azul son las que requieren revisión manual.
-
----
-
-### 📊 Módulo 2 — Reportería Financiera
-
-**Para qué sirve:** leer un estado financiero y extraer métricas, ratios y un resumen ejecutivo.
-
-**Pasos:**
-1. Sube el **Estado Financiero** (balance general, estado de resultados o flujo de caja).
-2. Pulsa **📊 Analizar**.
-
-**Qué obtienes:**
-- **Banner** con tipo de documento detectado, período, moneda y nivel de confianza.
-- **Tarjetas KPI** con las 4 métricas principales.
-- **Tabla de métricas** completa (categoría, nombre, valor, unidad, nota).
-- **Tabla de ratios** con interpretación semáforo (bueno / neutro / alerta).
-- **Resumen ejecutivo** redactado por la IA.
-- **Alertas** financieras detectadas (si las hay).
-
-**Cómo interpretarlo:** los ratios marcados "alerta" (rojo) son los que merecen atención. El resumen ejecutivo es un punto de partida, no un dictamen final.
+**Cómo interpretarlo:** una diferencia total de $0 y pocas partidas sin match indica buena conciliación. Las partidas en ámbar/azul son las que requieren revisión.
 
 ---
 
-### 📄 Módulo 3 — Gestión Documental Financiera
+### 🧾 Módulo 2 — Control de Provisiones
 
-**Para qué sirve:** extraer automáticamente todos los datos de facturas, boletas, notas de crédito/débito y contratos.
-
-**Pasos:**
-1. Sube uno o varios documentos (factura, boleta, etc.).
-2. Pulsa **🔍 Extraer datos**.
-
-**Qué obtienes:**
-- **Cabecera**: tipo de documento, número, fecha, estado (vigente/anulado/pagado/pendiente).
-- **Tarjetas Emisor / Receptor**: RUT (con botón de copiar), nombre, giro, dirección.
-- **Tabla de ítems**: descripción, cantidad, precio unitario, precio total.
-- **Totales**: subtotal, IVA (19%) y TOTAL destacado.
-- Se guarda automáticamente en Sheets con el RUT del emisor y el total.
-
-**Cómo interpretarlo:** verifica siempre el RUT y el total contra el documento original antes de usarlo en un pago o registro.
-
----
-
-### ⚙️ Módulo 4 — Automatización Contable
-
-**Para qué sirve:** generar el asiento contable de un documento fuente según el Plan de Cuentas chileno estándar.
+**Para qué sirve:** responder la pregunta de cierre mensual: *¿a qué proveedores de factura mensual recurrente les falta la factura del mes accionable y no tienen provisión registrada?* — y cuánto provisionar.
 
 **Pasos:**
-1. Sube el **documento fuente** (factura, boleta, recibo, comprobante).
-2. Pulsa **⚙️ Generar asiento**.
-
-**Qué obtienes:**
-- **Cabecera**: tipo de operación, número de documento, fecha y glosa.
-- **Tabla del asiento**: código de cuenta, nombre de cuenta, centro de costo, Debe y Haber.
-- **Indicador de cuadre**: ✓ Cuadrado / ✗ Descuadrado (con la diferencia si no cuadra).
-- **Notas** del "contador IA".
-- **Exportar CSV** y **Copiar asiento** para llevar a tu ERP/planilla.
-
-**Cómo interpretarlo:** el asiento es una **propuesta** que debe revisar un contador. Si aparece "Descuadrado", revisa montos antes de usarlo. Las cuentas sugeridas pueden requerir ajuste al plan de cuentas específico de Kavak.
-
----
-
-### 🧾 Módulo 5 — Control de Provisiones
-
-**Para qué sirve:** responder la pregunta de cierre mensual: *¿a qué proveedores de factura mensual recurrente les falta la factura del mes y no tienen provisión registrada?* — y cuánto provisionar.
-
-**Pasos:**
-1. Exporta desde NetSuite el reporte **"CL - General Ledger (Con filtro por Cuenta)"** del período (ej. enero a junio).
-2. Súbelo al módulo (acepta el .xls tal cual sale de NetSuite).
-3. Ajusta el **Último mes cerrado**. (Recurrente = proveedor con factura en 2 o más meses; no requiere configuración.)
+1. Exporta desde NetSuite el reporte **"CL - General Ledger (Con filtro por Cuenta)"** del período.
+2. Súbelo al módulo (acepta el .xls tal cual sale de NetSuite; soporta multi-cuenta).
+3. Ajusta el **Último mes cerrado** (el mes accionable que se analiza).
 4. Pulsa **🧾 Analizar provisiones**.
 
 **Qué obtienes:**
-- **Cabecera de trazabilidad**: analista, fecha/hora, archivo fuente, cuenta y parámetros — el encabezado del papel de trabajo.
-- **KPIs**: proveedores recurrentes, con meses sin cubrir, meses FALTA, provisión total sugerida.
-- **Matriz mensual** por proveedor: `F` factura / `P` provisión / `F+P` / `FALTA`. **Clic en un proveedor** abre sus movimientos reales del General Ledger (facturas, provisiones y reversos por mes).
-- **Provisiones pendientes**: proveedor, mes y monto estimado (= factura típica del proveedor: el valor que más se repite; mediana si no hay repetición — un cargo adicional de un solo mes no distorsiona la sugerencia).
-- **Notas para auditoría**: observaciones con cifras exactas (concentración del monto, patrones de facturación no mensual, reversos relevantes, sensibilidad al umbral) para justificar el análisis ante jefaturas y auditores.
-- Escritura automática en la planilla **Control Provisiones** (pestaña `Provisiones`) con semáforo y columnas de seguimiento (Registrada / N° asiento).
-- **🖨 Imprimir papel de trabajo**: versión imprimible del resultado completo.
+- **Cabecera de trazabilidad**: analista, fecha/hora, archivo fuente, cuenta y parámetros.
+- **KPIs**: proveedores recurrentes, con meses sin cubrir, meses FALTA, provisión sugerida del mes accionable.
+- **🎯 Accionable del mes**: proveedores que facturaron el mes anterior pero no el mes de cierre → sugerencia de provisión con monto.
+- **⏸ Confirmar vigencia**: recurrentes que llevan meses sin facturar (no se sugiere monto automático).
+- **Matriz mensual** por proveedor (`F`/`P`/`F+P`/`FALTA`). **Clic en un proveedor** abre sus movimientos reales del General Ledger, con los extractos de Memo/Nota que justifican devengos, provisiones y reclasificaciones.
+- **Comparativa mensual**: evolución de facturación por proveedor con deltas mes a mes (⚠ a ±50 % o factura faltante).
+- **Notas para auditoría** con cifras exactas, listas para copiar.
+- Escritura automática en la planilla **Control Provisiones** (pestaña `Provisiones` + `Dashboard` con comparativa, desglose de otros movimientos y gráfico de columnas).
 
-**Cómo se calcula (fiabilidad):** la IA clasifica y comenta, pero los números son deterministas: la factura típica se recalcula en el navegador desde las facturas reales del archivo (moda con tolerancia ±5%; mediana si no hay repetición), el monto sugerido es siempre esa factura típica (los montos de provisiones o reversos jamás entran al cálculo), y el total es la suma exacta de meses FALTA × promedio. El mismo archivo produce siempre el mismo resultado.
+**Cómo se calcula (fiabilidad):** la IA clasifica y comenta, pero los números son deterministas. La **factura típica** de cada proveedor se recalcula desde sus facturas reales (columna D empieza con "IR" = factura recepcionada; moda con tolerancia ±5 %, mediana si no hay repetición — nunca el promedio). Las provisiones (Type "Diario") y reversos jamás entran al monto sugerido. El monto sugerido solo aplica al proveedor/mes accionable; los meses anteriores son referencia (se regularizan a fin de año). El mismo archivo produce siempre el mismo resultado.
 
-**Cómo interpretarlo:** un proveedor con montos idénticos en meses separados puede facturar por trimestre — confirma el contrato antes de provisionar mensual (las notas de auditoría lo señalan). Subir el umbral de recurrencia excluye proveedores de facturación esporádica.
+**Cómo interpretarlo:** un proveedor con montos idénticos en meses separados puede facturar por trimestre — confirma el contrato antes de provisionar mensual (las notas de auditoría lo señalan).
+
+---
+
+### 🚗 Módulo 3 — Impuesto Transferencia (ICAR)
+
+**Para qué sirve:** cruzar por **Stock ID** el impuesto de transferencia facturado al cliente contra lo descontado del fondo ICAR en la cuenta 2801-01, para determinar el resultado por vehículo y armar el análisis del asiento de ajuste.
+
+**Pasos:**
+1. Exporta el **mayor de la cuenta 2801-01** (o el General Ledger de NetSuite filtrado por esa cuenta). Para el análisis completo, exporta desde el inicio del año.
+2. Súbelo al módulo.
+3. Pulsa **🚗 Analizar impuesto**.
+
+**Qué obtienes:**
+- **KPIs**: saldo de la cuenta, pendientes de rendición, resultado negativo por registrar, cruces OK.
+- **Banner de cuadratura** de la cuenta.
+- **🎯 Análisis del asiento de ajuste**: por Stock ID / patente / mes de venta, con facturado, descontado y diferencia, y total copiable. **El sistema analiza el asiento, nunca lo ejecuta** — el analista lo registra.
+- **Pivot por mes de venta** (incluye el bucket "Revisar fin de mes" para cruces sin mes cerrado).
+- **⏳ Facturado sin descontar**: vehículos a la espera de la rendición de ICAR (sin acción).
+- **📆 Fuera de ventana**: descuentos cuya factura al cliente quedó fuera del rango del export (sugerencia: exportar el mayor desde inicio de año).
+- **Notas de auditoría** y resumen, escritos en la pestaña `Análisis ICAR` de la planilla del equipo (no se toca ninguna otra pestaña).
+
+**Cómo se calcula (fiabilidad):** determinista como Provisiones. El resultado por Stock se clasifica en código (OK si el saldo ≤ tolerancia; resultado negativo por registrar si facturado + descontado > 0; facturado sin descontar si hay factura pero aún no descuento; fuera de ventana si el descuento no tiene su factura en el export). La IA solo redacta el resumen y las notas.
 
 ---
 
 ### Historial y Google Sheets
 - Cada análisis queda en el **historial local** (sidebar, hasta 50 ítems). Haz clic en un ítem para recuperar su resultado.
-- Conciliación, Gestión y Automatización **guardan automáticamente** un registro en la pestaña `Registros` de la planilla Kavak, visible en el `Dashboard`.
+- Cada módulo escribe (modo sobrescritura) en su propia planilla: Conciliación → `Desglose`; Provisiones → `Provisiones` + `Dashboard`; ICAR → `Análisis ICAR`.
 
 ---
 
 ## 3. Roadmap de fiabilidad — qué agregar
 
-Estas son mejoras priorizadas para convertir la herramienta de "asistente rápido" a "sistema confiable de producción". Importante: hoy la suite es un **apoyo a la decisión**, no un sistema de registro contable oficial.
+Hoy la suite es un **apoyo a la decisión**, no un sistema de registro contable oficial. Mejoras priorizadas:
 
-### 🔴 Prioridad alta (fiabilidad básica)
+### 🔴 Prioridad alta
+1. **Doble pasada / verificación** para montos críticos (self-consistency o comparar dos corridas).
+2. **Registro de auditoría persistente**: guardar quién analizó qué, cuándo, con qué archivo (hash), resultado y si fue revisado/aprobado.
+3. **Validación de cuadratura visible** en ICAR y Provisiones (recalcular en cliente y marcar en rojo cualquier descuadre inesperado).
 
-1. **Validación matemática automática**
-   - Verificar que `subtotal + IVA = total` en Gestión Documental.
-   - Verificar que `total_debe = total_haber` en Automatización (ya hay flag `cuadrado`, pero conviene recalcularlo en el cliente, no confiar solo en la IA).
-   - Validar el **dígito verificador del RUT** (ya existe `rutDV` en el proyecto — reutilizarlo) y marcar en rojo si no calza.
-   - **Por qué**: detecta errores de extracción de la IA sin intervención humana.
+### 🟡 Prioridad media
+4. **Soporte multi-página real en PDF** para cartolas largas en Conciliación.
+5. **Tolerancia configurable en conciliación** (rango de fechas ±N días, margen de monto, conciliaciones muchos-a-uno).
+6. **Edición manual del resultado antes de guardar**, sin re-subir el documento.
 
-2. **Indicador de confianza visible + umbral de revisión**
-   - Mostrar siempre el nivel de confianza (ya viene en el JSON) y **forzar revisión manual** cuando sea "baja".
-   - Resaltar campos individuales con baja certeza.
-
-3. **Validación cruzada del IVA chileno**
-   - Confirmar que el IVA corresponde al 19% del neto; si no, alertar (posible documento exento, error o boleta).
-
-4. **Doble pasada / verificación de la IA**
-   - Para montos críticos, pedir a Claude que re-verifique su propia extracción (self-consistency) o ejecutar el análisis 2 veces y comparar.
-
-### 🟡 Prioridad media (robustez operativa)
-
-5. **Soporte multi-página real en PDF**
-   - Hoy se procesa principalmente la primera página. Cartolas y estados financieros suelen tener varias páginas. Enviar todas las páginas como imágenes separadas.
-
-6. **Plan de cuentas configurable de Kavak**
-   - Cargar el plan de cuentas real de Kavak (desde una pestaña de Sheets) y pasarlo en el prompt de Automatización para que use los códigos correctos.
-
-7. **Conexión directa con SII / facturación electrónica**
-   - Validar facturas contra el **XML del DTE** o el portal del SII (folio, RUT, monto) en vez de solo leer la imagen. Esto elimina la mayor fuente de error.
-
-8. **Tolerancia configurable en conciliación**
-   - Permitir ajustar el rango de fechas (±N días) y un margen de monto, además de manejar conciliaciones muchos-a-uno (varios cargos = un asiento).
-
-9. **Registro de auditoría**
-   - Guardar en Sheets quién analizó qué, cuándo, con qué documento (hash), el resultado y si fue revisado/aprobado. Trazabilidad completa.
-
-10. **Edición manual del resultado antes de guardar**
-    - Permitir corregir un dato extraído antes de exportar/guardar, en lugar de re-subir el documento.
-
-### 🟢 Prioridad baja (escalabilidad y experiencia)
-
-11. **Exportación a formatos contables** (además de CSV): Excel con formato, o formato de importación del ERP de Kavak.
-12. **Procesamiento por lotes**: subir 20 facturas y procesarlas en cola.
-13. **Detección de duplicados**: avisar si un documento (por número + RUT) ya fue procesado.
-14. **Dashboard financiero dedicado** en Sheets: gráficos de gastos por categoría, conciliaciones por día, montos procesados.
-15. **Internacionalización**: parametrizar para otros mercados Kavak (México, Brasil) con sus formatos tributarios.
+### 🟢 Prioridad baja
+7. **Detección de duplicados** de archivos ya procesados (por hash/cuenta/período).
+8. **Internacionalización**: parametrizar para otros mercados Kavak (RUT, IVA, plan de cuentas).
 
 ### Recomendación de gobernanza
-Antes de usar la suite para decisiones con impacto monetario directo:
-- Definir un **flujo de aprobación humana** obligatorio (la IA propone, una persona aprueba).
-- Establecer un **período de validación en paralelo** (comparar salida de la IA vs. proceso manual durante X semanas y medir precisión).
-- Documentar que las salidas son **estimaciones asistidas por IA**, no documentos contables oficiales, hasta validar la precisión.
+- Definir un **flujo de aprobación humana** obligatorio (la IA propone y redacta, una persona aprueba y registra).
+- Documentar que las salidas son **análisis asistidos por IA con números deterministas**, no documentos contables oficiales.
 
 ---
 
-*Documento generado para el equipo de Finanzas — Kavak Supply Chile.*
+*Documento del equipo de Finanzas — Kavak Chile.*
