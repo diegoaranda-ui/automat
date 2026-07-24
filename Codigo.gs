@@ -234,12 +234,14 @@ function writeProvisionesSheet(payload) {
   const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const provs = p.proveedores || [];
   const mesCierre = Math.min(12, Math.max(1, parseInt(p.mes_cierre, 10) || 6));
+  const mesDesde = Math.min(mesCierre, Math.max(1, parseInt(p.mes_desde, 10) || 1));
+  const nMes = mesCierre - mesDesde + 1;   // cantidad de columnas-mes visibles
   const mesNombre = MESES[mesCierre - 1];
 
   const header = ['Proveedor', 'Recurrente'];
-  for (var m = 1; m <= mesCierre; m++) header.push(MESES[m-1]);
+  for (var m = mesDesde; m <= mesCierre; m++) header.push(MESES[m-1]);
   header.push('Fact. típica', 'Prov. sugerida/mes', 'Comentario');
-  const REAL_COLS = Math.max(header.length, mesCierre + 2); // matriz y comparativa caben
+  const REAL_COLS = Math.max(header.length, nMes + 2); // matriz y comparativa caben
 
   function fmtMoney(v) {
     const n = parseFloat(v) || 0;
@@ -315,7 +317,7 @@ function writeProvisionesSheet(payload) {
   var matDataStart = rows.length + 1;
   provs.forEach(function(pr) {
     const r = [pr.nombre || '', pr.recurrente ? 'Sí' : 'No'];
-    for (var m = 1; m <= mesCierre; m++) r.push((pr.meses && pr.meses[String(m)]) || '');
+    for (var m = mesDesde; m <= mesCierre; m++) r.push((pr.meses && pr.meses[String(m)]) || '');
     r.push(parseFloat(pr.factura_promedio) || 0);
     // 'Prov. sugerida/mes' solo para el proveedor accionable del cierre
     r.push(pr.accionable === true ? (parseFloat(pr.provision_sugerida_mensual) || 0) : '');
@@ -376,12 +378,12 @@ function writeProvisionesSheet(payload) {
         R.merge().setBackground('#e6f7f0').setFontColor('#0b6b3a').setFontWeight('bold'); break;
       case 'row-matriz':
         R.setFontSize(10);
-        sh.getRange(mk.r, 3 + mesCierre, 1, 2).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
-        sh.getRange(mk.r, 3, 1, mesCierre).setHorizontalAlignment('center').setFontWeight('bold'); break;
+        sh.getRange(mk.r, 3 + nMes, 1, 2).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 3, 1, nMes).setHorizontalAlignment('center').setFontWeight('bold'); break;
       case 'row-comp':
         R.setFontSize(10);
-        sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
-        sh.getRange(mk.r, 2 + mesCierre, 1, 1).setHorizontalAlignment('right').setFontWeight('bold'); break;
+        sh.getRange(mk.r, 2, 1, nMes).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 2 + nMes, 1, 1).setHorizontalAlignment('right').setFontWeight('bold'); break;
       case 'row-comp-total':
         R.setFontWeight('bold').setBackground('#f4f4f5').setFontSize(10);
         sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
@@ -402,7 +404,7 @@ function writeProvisionesSheet(payload) {
 
   // Semáforo F/P/FALTA en la matriz y resalte de la columna del mes de cierre
   if (provs.length > 0) {
-    const mesRange = sh.getRange(matDataStart, 3, provs.length, mesCierre);
+    const mesRange = sh.getRange(matDataStart, 3, provs.length, nMes);
     const rules = [
       SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('FALTA')
         .setBackground('#fde2e1').setFontColor('#b3261e').setRanges([mesRange]).build(),
@@ -415,7 +417,7 @@ function writeProvisionesSheet(payload) {
     ];
     sh.setConditionalFormatRules(rules);
     // Borde en la columna del mes accionable
-    sh.getRange(matDataStart - 1, 2 + mesCierre, provs.length + 1, 1)
+    sh.getRange(matDataStart - 1, 2 + nMes, provs.length + 1, 1)
       .setBorder(true, true, true, true, false, false, '#dc1a23', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   }
 
@@ -427,7 +429,7 @@ function writeProvisionesSheet(payload) {
   sh.setFrozenRows(1);
 
   // Tablas y gráficos en su propia hoja
-  writeProvisionesDashboard_(ss, p, mesCierre, MESES);
+  writeProvisionesDashboard_(ss, p, mesDesde, mesCierre, MESES);
 
   return ss.getUrl() + '#gid=' + sh.getSheetId();
 }
@@ -437,7 +439,7 @@ function writeProvisionesSheet(payload) {
  * proveedor, gráfico de facturación por mes y desglose de otros movimientos.
  * Se reconstruye completa en cada análisis.
  */
-function writeProvisionesDashboard_(ss, p, mesCierre, MESES) {
+function writeProvisionesDashboard_(ss, p, mesDesde, mesCierre, MESES) {
   let sh = ss.getSheetByName('Dashboard');
   if (!sh) sh = ss.insertSheet('Dashboard');
   else {
@@ -449,9 +451,10 @@ function writeProvisionesDashboard_(ss, p, mesCierre, MESES) {
   }
 
   const mesNombre = MESES[mesCierre - 1];
+  const nMes = mesCierre - mesDesde + 1;
   const comp = p.comparativa || { filas: [], totFact: [], totProv: [] };
   const otros = p.otros || [];
-  const NCOLS = Math.max(mesCierre + 2, 7);
+  const NCOLS = Math.max(nMes + 2, 7);
 
   function pad(arr, len) { while (arr.length < len) arr.push(''); return arr; }
   const rows = [];
@@ -469,7 +472,7 @@ function writeProvisionesDashboard_(ss, p, mesCierre, MESES) {
   push(['FACTURACIÓN (IR) Y PROVISIONES (DIARIO) POR MES'], 'sec-dark');
   push(['Mes', 'Total facturado', 'Provisiones'], 'colhead');
   var chartDataStart = rows.length + 1;
-  for (var m = 0; m < mesCierre; m++) {
+  for (var m = mesDesde - 1; m < mesCierre; m++) {
     push([MESES[m], comp.totFact[m] || 0, comp.totProv[m] || 0], 'row-money2');
   }
   var chartDataEnd = rows.length;
@@ -479,12 +482,12 @@ function writeProvisionesDashboard_(ss, p, mesCierre, MESES) {
   if (comp.filas && comp.filas.length) {
     push(['COMPARATIVA MENSUAL POR PROVEEDOR — Δ ' + mesNombre + ' vs mes anterior · ⚠ = ±50% o sin factura'], 'sec-dark');
     const ch = ['Proveedor'];
-    for (var m = 1; m <= mesCierre; m++) ch.push(MESES[m-1]);
+    for (var m = mesDesde; m <= mesCierre; m++) ch.push(MESES[m-1]);
     ch.push('Δ %');
     push(ch, 'colhead');
     comp.filas.forEach(function(fRow) {
       const r = [fRow.prov];
-      for (var m = 0; m < mesCierre; m++) r.push(fRow.montos[m] || '');
+      for (var m = mesDesde - 1; m < mesCierre; m++) r.push(fRow.montos[m] || '');
       r.push(fRow.delta || '');
       push(r, 'row-comp');
     });
@@ -525,8 +528,8 @@ function writeProvisionesDashboard_(ss, p, mesCierre, MESES) {
         sh.getRange(mk.r, 2, 1, 2).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
       case 'row-comp':
         R.setFontSize(10);
-        sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
-        sh.getRange(mk.r, 2 + mesCierre, 1, 1).setHorizontalAlignment('right').setFontWeight('bold'); break;
+        sh.getRange(mk.r, 2, 1, nMes).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 2 + nMes, 1, 1).setHorizontalAlignment('right').setFontWeight('bold'); break;
       case 'row-otro':
         R.setFontSize(10).setFontColor('#52525b');
         sh.getRange(mk.r, 5, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;

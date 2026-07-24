@@ -486,18 +486,17 @@ tr.prov-detail>td{padding:0 8px 8px}
               <button class="file-remove" onclick="removeFile('provisiones')">✕</button>
             </div>
 
-            <div class="no-print" style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap">
+            <div class="no-print" style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap;align-items:flex-end">
               <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
-                Último mes cerrado
-                <select id="prov-mes-cierre" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
-                  <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
-                  <option value="4">Abril</option><option value="5">Mayo</option><option value="6" selected>Junio</option>
-                  <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
-                  <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
-                </select>
+                Desde
+                <input type="date" id="prov-desde" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
               </label>
-              <div style="display:flex;align-items:flex-end;padding-bottom:6px;font-size:11px;color:var(--n400)">
-                Recurrente = factura en 2+ meses · sugerencia = valor que más se repite de cada proveedor
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Hasta <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--n400)">(mes de cierre)</span>
+                <input type="date" id="prov-hasta" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <div style="display:flex;align-items:flex-end;padding-bottom:6px;font-size:11px;color:var(--n400);max-width:340px">
+                Filtra por fecha contable. Recurrente = factura en 2+ meses del rango · sugerencia = valor que más se repite. Para avances semanales, adelanta la fecha "Hasta" cada semana.
               </div>
             </div>
 
@@ -687,8 +686,9 @@ function handleFile(key, input) {
              : processFile(file);
   proc.then(function(fd) {
     const mod = getModuleForKey(key);
-    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [], icar: fd.icar || null };
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [], icar: fd.icar || null, filas: fd.filas || null, tokenIdx: fd.tokenIdx || null, ymdMin: fd.ymdMin || null, ymdMax: fd.ymdMax || null };
     showFilePreview(key, file);
+    if (key === 'provisiones') initProvRango(STATE[mod].files[key]);
     updateAnalyzeButton(mod);
   }).catch(function(err) {
     showToast('Error procesando archivo: ' + err.message, 'error');
@@ -840,11 +840,91 @@ function csvToText(file) {
 }
 
 /**
+ * Helpers de clasificación de provisiones, compartidos entre el parseo
+ * inicial y la re-agregación con filtro de fechas (rango Desde/Hasta).
+ */
+const PROV_MES_ABBR = {ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+const PROV_MES_FULL = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+const PROV_GENERICAS = ['SERVICIOS','SERVICIO','INFORMACION','INFORMATICA','TELECOMUNICACIONES','SOCIEDAD','COMERCIAL','CHILE','LIMITADA','LTDA','TECHNOLOGIES','TECNOLOGIAS','SOLUCIONES','WORKING','GASTO','ARRIENDO','AMERICA'];
+
+// El Memo/Nota dice PARA QUÉ MES es la provisión ("prov. servicios junio",
+// "prov. mayo 2026"). Si nombra un mes, la provisión se asigna a ese mes.
+function provMesDeMemo(memo, anio) {
+  const t = ' ' + String(memo || '').toLowerCase() + ' ';
+  for (const nombre in PROV_MES_FULL) { if (t.indexOf(nombre) !== -1) return PROV_MES_FULL[nombre]; }
+  if (anio) {
+    const mNum = t.match(new RegExp('(0?[1-9]|1[0-2])[\\.\\-\\/ ]' + anio));
+    if (mNum) return parseInt(mNum[1], 10);
+  }
+  const m = t.match(/[\s\.\-_\/](ene|feb|mar|abr|jun|jul|ago|sept|sep|oct|nov|dic)[\s\.\-_\/0-9]/);
+  if (m) return PROV_MES_ABBR[m[1].slice(0,3)];
+  return null;
+}
+function provTipoDeMemo(memo) {
+  const t = String(memo || '').toLowerCase();
+  if (t.indexOf('reclasific') !== -1 || t.indexOf('reclas') !== -1) return 'reclasificación';
+  if (t.indexOf('devengo') !== -1 || t.indexOf('devenga') !== -1) return 'devengo';
+  if (t.indexOf('provisi') !== -1 || t.indexOf('provi') !== -1) return 'provisión';
+  return '';
+}
+function provDesdeMemo(tokenIdx, cta, memo) {
+  const idx = (tokenIdx && tokenIdx[cta]) || {};
+  const palabras = normName(memo).split(/[^A-ZÁÉÍÓÚÑ0-9]+/);
+  for (let i = 0; i < palabras.length; i++) { const hit = idx[palabras[i]]; if (hit) return hit; }
+  return null;
+}
+
+/**
+ * Re-agrega las filas ya parseadas aplicando el filtro por fecha contable
+ * [ymdDesde, ymdHasta] (YYYYMMDD). Un movimiento entra solo si su fecha
+ * contable cae en el rango; el Memo/Nota sigue mandando el mes destino y el
+ * proveedor de los diarios sin nombre. Devuelve {movs, otros}. Misma lógica
+ * determinista del parseo original — el rango solo acota qué filas entran.
+ */
+function aggregateProvisionesFilas(filas, tokenIdx, anio, ymdDesde, ymdHasta) {
+  const agg = {}, aggOtros = {};
+  (filas || []).forEach(function(fRow) {
+    if (fRow.ymd < ymdDesde || fRow.ymd > ymdHasta) return;
+    let prov = fRow.prov, clas, mesEfectivo = fRow.mes;
+    if (/diario/i.test(fRow.type)) {
+      clas = (fRow.memo.indexOf('reverso') !== -1 || fRow.monto < 0) ? 'REVERSO' : 'PROVISION';
+      const mm = provMesDeMemo(fRow.memo, anio);
+      if (mm) mesEfectivo = mm;
+      if (prov === '(sin nombre)') { const pMemo = provDesdeMemo(tokenIdx, fRow.cuenta, fRow.memo); if (pMemo) prov = pMemo; }
+    } else if (fRow.docNum.indexOf('IR') === 0) {
+      clas = 'FACTURA';
+    } else {
+      const ko = fRow.cuenta + '|' + fRow.type + '|' + prov + '|' + fRow.mes;
+      if (!aggOtros[ko]) aggOtros[ko] = { cuenta: fRow.cuenta, tipo: fRow.type, prov: prov, mes: fRow.mes, monto: 0, n: 0 };
+      aggOtros[ko].monto += fRow.monto; aggOtros[ko].n++;
+      return;
+    }
+    const key = fRow.cuenta + '|' + prov + '|' + mesEfectivo + '|' + clas;
+    if (!agg[key]) agg[key] = { cuenta: fRow.cuenta, prov: prov, mes: mesEfectivo, clas: clas, monto: 0, n: 0, memos: [] };
+    agg[key].monto += fRow.monto; agg[key].n++;
+    if (clas !== 'FACTURA' && fRow.memo.trim()) {
+      const tipo = provTipoDeMemo(fRow.memo);
+      const excerpt = (tipo ? '[' + tipo + '] ' : '') + fRow.memo.trim().slice(0, 90);
+      if (agg[key].memos.indexOf(excerpt) === -1 && agg[key].memos.length < 3) agg[key].memos.push(excerpt);
+    }
+  });
+  const movs = Object.keys(agg).sort().map(function(k) {
+    const a = agg[k];
+    return { cuenta: a.cuenta, prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n, memos: a.memos || [] };
+  });
+  const otros = Object.keys(aggOtros).sort().map(function(k) {
+    const a = aggOtros[k];
+    return { cuenta: a.cuenta, tipo: a.tipo, prov: a.prov, mes: a.mes, monto: Math.round(a.monto), n: a.n };
+  });
+  return { movs: movs, otros: otros };
+}
+
+/**
  * Parser del export "CL - General Ledger (Con filtro por Cuenta)" de NetSuite.
  * Lee el workbook (SheetJS también soporta el XML SpreadsheetML de NetSuite),
- * localiza la fila de encabezados, clasifica cada movimiento como
- * FACTURA / PROVISION / REVERSO y agrega por proveedor+mes.
- * Devuelve texto compacto para enviar a la IA (evita respuestas truncadas).
+ * localiza la fila de encabezados y guarda las filas crudas (con fecha
+ * contable). La clasificación/agregación se hace con aggregateProvisionesFilas
+ * para poder re-aplicar el filtro de fechas al analizar.
  */
 function processProvisionesGL(file) {
   return new Promise(function(resolve, reject) {
@@ -878,61 +958,41 @@ function processProvisionesGL(file) {
         const cMemoH= col('Memo/Nota a nivel');
         const cMemoL= col('Memo/Nota (Linea)');
 
-        const MES_ABBR = {ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
-        // El Memo/Nota dice PARA QUÉ MES es la provisión (ej. "provisión
-        // servicios junio", "prov. mayo 2026"). Si nombra un mes, la
-        // provisión se asigna a ese mes — no al mes del asiento.
-        const MES_FULL = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
-        function mesDeMemo(memo, anio) {
-          const t = ' ' + String(memo || '').toLowerCase() + ' ';
-          // 1º el mes escrito con nombre ("enero", "junio 2026"): es la
-          // aclaración explícita del analista y gana sobre el numérico
-          for (const nombre in MES_FULL) {
-            if (t.indexOf(nombre) !== -1) return MES_FULL[nombre];
-          }
-          // 2º formato numérico con año: "04-2026", "05.2026", "01/2026"
-          if (anio) {
-            const mNum = t.match(new RegExp('(0?[1-9]|1[0-2])[\\.\\-\\/ ]' + anio));
-            if (mNum) return parseInt(mNum[1], 10);
-          }
-          // 3º abreviaturas ("prov. jun", "recla mar")
-          const m = t.match(/[\s\.\-_\/](ene|feb|mar|abr|jun|jul|ago|sept|sep|oct|nov|dic)[\s\.\-_\/0-9]/);
-          if (m) return MES_ABBR[m[1].slice(0,3)];
-          return null;
-        }
-        // Tipo de asiento según el memo (para justificación contable)
-        function tipoDeMemo(memo) {
-          const t = String(memo || '').toLowerCase();
-          if (t.indexOf('reclasific') !== -1 || t.indexOf('reclas') !== -1) return 'reclasificación';
-          if (t.indexOf('devengo') !== -1 || t.indexOf('devenga') !== -1) return 'devengo';
-          if (t.indexOf('provisi') !== -1 || t.indexOf('provi') !== -1) return 'provisión';
-          return '';
-        }
+        // Mes + año + día de la fecha CONTABLE. El Período da el mes/año
+        // contable; la columna Date aporta el día (para el corte por semana).
         function parseMes(row) {
+          let mes = null, anio = null, dia = null;
           const per = String(row[cPer] || '');
-          const m = per.toLowerCase().match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
-          if (m) return { mes: MES_ABBR[m[1]], anio: parseInt(m[2],10) };
+          const pm = per.toLowerCase().match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
+          if (pm) { mes = PROV_MES_ABBR[pm[1]]; anio = parseInt(pm[2], 10); }
           const dstr = String(row[cDate] || '');
-          let d = dstr.match(/(\d{4})-(\d{1,2})/);                    // ISO YYYY-MM-DD
-          if (d) return { mes: parseInt(d[2],10), anio: parseInt(d[1],10) };
-          d = dstr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);   // DD/MM/YYYY o DD-MM-YYYY
-          if (d) return { mes: parseInt(d[2],10), anio: parseInt(d[3],10) };
-          const serial = parseFloat(dstr);                             // serial de Excel
-          if (isFinite(serial) && serial > 25569 && serial < 80000) {
-            const dt = new Date(Math.round((serial - 25569) * 86400 * 1000));
-            return { mes: dt.getUTCMonth() + 1, anio: dt.getUTCFullYear() };
+          let d = dstr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);              // ISO YYYY-MM-DD
+          if (d) { dia = parseInt(d[3],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[1],10); } }
+          else {
+            d = dstr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);     // DD/MM/YYYY o DD-MM-YYYY
+            if (d) { dia = parseInt(d[1],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[3],10); } }
+            else {
+              const serial = parseFloat(dstr);                           // serial de Excel
+              if (isFinite(serial) && serial > 25569 && serial < 80000) {
+                const dt = new Date(Math.round((serial - 25569) * 86400 * 1000));
+                dia = dt.getUTCDate();
+                if (mes == null) { mes = dt.getUTCMonth() + 1; anio = dt.getUTCFullYear(); }
+              }
+            }
           }
-          return null;
+          if (mes == null) return null;
+          if (dia == null) dia = 1;   // sin día legible → inicio de mes
+          return { mes: mes, anio: anio, dia: dia, ymd: anio * 10000 + mes * 100 + dia };
         }
 
         let cuenta = '';
         const cuentas = [];   // todas las cuentas detectadas (archivo multi-cuenta)
-        const agg = {};       // cuenta|proveedor|mes|clas -> {monto, n, memos}
-        const aggOtros = {};  // movimientos que no son factura IR ni diario: desglose informativo
         let anioDetectado = null;
         let omitidas = 0;     // movimientos sin período legible
 
-        // ── PASADA 1: parsear filas y conocer los proveedores por cuenta ──
+        // ── PASADA 1: parsear filas crudas y conocer los proveedores por cuenta ──
+        // Las filas se guardan tal cual (con la fecha contable ymd) para poder
+        // re-agregar con el filtro Desde/Hasta al analizar, sin re-leer el archivo.
         const filas = [];
         const provsPorCuenta = {};
         for (let i = hIdx + 1; i < grid.length; i++) {
@@ -955,7 +1015,7 @@ function processProvisionesGL(file) {
           const prov = String(row[cNameD] || row[cName] || '').trim() || '(sin nombre)';
           const memo = (String(row[cMemoH] || '') + ' ' + String(row[cMemoL] || '')).toLowerCase();
           filas.push({
-            cuenta: cuenta, type: type, prov: prov, pm: pm, memo: memo,
+            cuenta: cuenta, type: type, prov: prov, mes: pm.mes, anio: pm.anio, ymd: pm.ymd, memo: memo,
             docNum: String(row[cDoc] || '').trim().toUpperCase(),
             monto: (parseFloat(row[cDeb]) || 0) - (parseFloat(row[cCre]) || 0)
           });
@@ -968,93 +1028,36 @@ function processProvisionesGL(file) {
         // Índice token→proveedor por cuenta (solo tokens que identifican a UN
         // único proveedor): "PROVISION CREDEX 04-2026" → Credex; "Provision
         // Hiya 01-2026" → Hiya. Así los diarios sin Name (Diario) se asignan.
-        const GENERICAS = ['SERVICIOS','SERVICIO','INFORMACION','INFORMATICA','TELECOMUNICACIONES','SOCIEDAD','COMERCIAL','CHILE','LIMITADA','LTDA','TECHNOLOGIES','TECNOLOGIAS','SOLUCIONES','WORKING','GASTO','ARRIENDO','AMERICA'];
         const tokenIdx = {};
         Object.keys(provsPorCuenta).forEach(function(cta) {
           const idx = {};
           provsPorCuenta[cta].forEach(function(nombre) {
             normName(nombre).split(/[^A-ZÁÉÍÓÚÑ0-9]+/).forEach(function(tok) {
-              if (tok.length < 4 || GENERICAS.indexOf(tok) !== -1) return;
+              if (tok.length < 4 || PROV_GENERICAS.indexOf(tok) !== -1) return;
               if (idx[tok] === undefined) idx[tok] = nombre;
               else if (idx[tok] !== nombre) idx[tok] = null; // ambiguo entre proveedores
             });
           });
           tokenIdx[cta] = idx;
         });
-        function provDesdeMemo(cta, memo) {
-          const idx = tokenIdx[cta] || {};
-          const palabras = normName(memo).split(/[^A-ZÁÉÍÓÚÑ0-9]+/);
-          for (let i = 0; i < palabras.length; i++) {
-            const hit = idx[palabras[i]];
-            if (hit) return hit;
-          }
-          return null;
-        }
 
-        // ── PASADA 2: clasificar y agregar (memo manda en proveedor y mes) ──
-        filas.forEach(function(fRow) {
-          let prov = fRow.prov;
-          let clas;
-          let mesEfectivo = fRow.pm.mes;
-
-          // Regla contable Kavak:
-          //  · FACTURA recepcionada = Document Number empieza con "IR"
-          //  · PROVISION = Type "Diario"; negativo o memo "reverso" = REVERSO
-          //  · Resto (pagos, NC, facturas sin IR) → desglose "otros"
-          if (/diario/i.test(fRow.type)) {
-            clas = (fRow.memo.indexOf('reverso') !== -1 || fRow.monto < 0) ? 'REVERSO' : 'PROVISION';
-            // El Memo/Nota manda: mes al que corresponde la provisión...
-            const mm = mesDeMemo(fRow.memo, anioDetectado);
-            if (mm) mesEfectivo = mm;
-            // ...y proveedor, cuando el asiento viene sin Name (Diario)
-            if (prov === '(sin nombre)') {
-              const pMemo = provDesdeMemo(fRow.cuenta, fRow.memo);
-              if (pMemo) prov = pMemo;
-            }
-          } else if (fRow.docNum.indexOf('IR') === 0) {
-            clas = 'FACTURA';
-          } else {
-            const ko = fRow.cuenta + '|' + fRow.type + '|' + prov + '|' + fRow.pm.mes;
-            if (!aggOtros[ko]) aggOtros[ko] = { cuenta: fRow.cuenta, tipo: fRow.type, prov: prov, mes: fRow.pm.mes, monto: 0, n: 0 };
-            aggOtros[ko].monto += fRow.monto;
-            aggOtros[ko].n++;
-            return;
-          }
-
-          const key = fRow.cuenta + '|' + prov + '|' + mesEfectivo + '|' + clas;
-          if (!agg[key]) agg[key] = { cuenta: fRow.cuenta, prov: prov, mes: mesEfectivo, clas: clas, monto: 0, n: 0, memos: [] };
-          agg[key].monto += fRow.monto;
-          agg[key].n++;
-          // El texto del memo en diarios es la justificación contable
-          // (devengo / provisión / reclasificación y a qué mes corresponde)
-          if (clas !== 'FACTURA' && fRow.memo.trim()) {
-            const tipo = tipoDeMemo(fRow.memo);
-            const excerpt = (tipo ? '[' + tipo + '] ' : '') + fRow.memo.trim().slice(0, 90);
-            if (agg[key].memos.indexOf(excerpt) === -1 && agg[key].memos.length < 3) {
-              agg[key].memos.push(excerpt);
-            }
-          }
-        });
-
-        const keys = Object.keys(agg);
-        const otros = Object.keys(aggOtros).sort().map(function(k) {
-          const a = aggOtros[k];
-          return { cuenta: a.cuenta, tipo: a.tipo, prov: a.prov, mes: a.mes, monto: Math.round(a.monto), n: a.n };
-        });
-        if (!keys.length && !otros.length) throw new Error('No se encontraron movimientos con período legible. ¿Es el reporte "CL - General Ledger con filtro por Cuenta" de NetSuite?');
+        // Agregado inicial sin filtro (rango completo) para el primer render.
+        const full = aggregateProvisionesFilas(filas, tokenIdx, anioDetectado, 0, 99999999);
+        if (!full.movs.length && !full.otros.length) throw new Error('No se encontraron movimientos con período legible. ¿Es el reporte "CL - General Ledger con filtro por Cuenta" de NetSuite?');
         if (omitidas > 0) {
           showToast('⚠ ' + omitidas + ' movimiento(s) sin período legible fueron omitidos del análisis', 'error');
         }
-        if (otros.length > 0) {
-          showToast('ℹ ' + otros.reduce(function(a,x){ return a + x.n; }, 0) + ' movimiento(s) sin "IR" ni Diario se desglosan aparte (no entran a la lógica de provisiones)', 'info');
+        if (full.otros.length > 0) {
+          showToast('ℹ ' + full.otros.reduce(function(a,x){ return a + x.n; }, 0) + ' movimiento(s) sin "IR" ni Diario se desglosan aparte (no entran a la lógica de provisiones)', 'info');
         }
 
-        const movs = keys.sort().map(function(k) {
-          const a = agg[k];
-          return { cuenta: a.cuenta, prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n, memos: a.memos || [] };
-        });
+        // Rango de fechas contables presentes (para inicializar los selectores)
+        let ymdMin = 99999999, ymdMax = 0;
+        filas.forEach(function(fRow) { if (fRow.ymd < ymdMin) ymdMin = fRow.ymd; if (fRow.ymd > ymdMax) ymdMax = fRow.ymd; });
 
-        resolve({ b64: null, isText: true, text: null, cuenta: cuentas.join('  ·  ') || cuenta, cuentas: cuentas, anio: anioDetectado, movs: movs, otros: otros, omitidas: omitidas });
+        resolve({ b64: null, isText: true, text: null, cuenta: cuentas.join('  ·  ') || cuenta, cuentas: cuentas, anio: anioDetectado,
+          movs: full.movs, otros: full.otros, omitidas: omitidas,
+          filas: filas, tokenIdx: tokenIdx, ymdMin: ymdMin, ymdMax: ymdMax });
       } catch(err) { reject(err); }
     };
     reader.onerror = reject;
@@ -1408,9 +1411,9 @@ function captureAnalysisMeta(mod) {
   }
   let params = '';
   if (mod === 'provisiones') {
-    const sel = document.getElementById('prov-mes-cierre');
-    const mesTxt = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : sel.value;
-    params = 'Período: Enero–' + mesTxt + ' · Criterio: factura típica (valor más frecuente por proveedor) · Recurrente = factura en 2+ meses';
+    const desde = document.getElementById('prov-desde').value || '—';
+    const hasta = document.getElementById('prov-hasta').value || '—';
+    params = 'Rango (fecha contable): ' + desde + ' → ' + hasta + ' · Criterio: factura típica (valor más frecuente por proveedor) · Recurrente = factura en 2+ meses del rango';
     const f = st.provisiones;
     if (f && f.cuenta) params += ' · Cuenta: ' + f.cuenta;
   }
@@ -1501,12 +1504,12 @@ function facturaTipica(montos) {
  *  - FALTA = ni factura ni provisión (solo para proveedores con factura
  *            en 2+ meses — con un solo mes no hay patrón mensual que exigir)
  */
-function computeProvisionesLocal(f, mesCierre) {
+function computeProvisionesLocal(f, mesDesde, mesCierre) {
   const movs = f.movs || [];
   const map = {};
   const orden = [];
   movs.forEach(function(a) {
-    if (a.mes > mesCierre || a.prov === '(sin nombre)') return;
+    if (a.mes < mesDesde || a.mes > mesCierre || a.prov === '(sin nombre)') return;
     const key = normCuenta(a.cuenta) + '|' + normName(a.prov);
     if (!map[key]) {
       map[key] = { nombre: a.prov, cuenta: normCuenta(a.cuenta), fact: {}, prov: {} };
@@ -1521,7 +1524,7 @@ function computeProvisionesLocal(f, mesCierre) {
     const e = map[key];
     const montosF = [];
     const mesesConF = [];
-    for (let m = 1; m <= mesCierre; m++) {
+    for (let m = mesDesde; m <= mesCierre; m++) {
       if ((e.fact[m] || 0) > 0) { mesesConF.push(m); montosF.push(e.fact[m]); }
     }
     const recurrente = mesesConF.length >= 2;
@@ -1530,7 +1533,7 @@ function computeProvisionesLocal(f, mesCierre) {
 
     const meses = {};
     const falta = [];
-    for (let m = 1; m <= mesCierre; m++) {
+    for (let m = mesDesde; m <= mesCierre; m++) {
       const tieneF = (e.fact[m] || 0) > 0;
       const tieneP = (e.prov[m] || 0) > 0;
       if (tieneF && tieneP)      meses[String(m)] = 'F+P';
@@ -1546,7 +1549,7 @@ function computeProvisionesLocal(f, mesCierre) {
     // automática — pasa a "confirmar vigencia" (dato de meses anteriores,
     // no del mes que estamos cerrando).
     const faltaEnCierre = falta.indexOf(mesCierre) !== -1;
-    const facturoMesAnterior = mesCierre > 1 && (e.fact[mesCierre - 1] || 0) > 0;
+    const facturoMesAnterior = mesCierre > mesDesde && (e.fact[mesCierre - 1] || 0) > 0;
     const accionable = faltaEnCierre && facturoMesAnterior;
 
     // La provisión SOLO se sugiere para el mes accionable. Los meses
@@ -1570,11 +1573,13 @@ function computeProvisionesLocal(f, mesCierre) {
   });
 
   const cierreNombre = MESES_G[mesCierre - 1];
+  const desdeNombre = MESES_G[mesDesde - 1];
   const accionables = proveedores.filter(function(p) { return p.accionable; });
   return {
     cuenta: (f.cuentas && f.cuentas.length) ? f.cuentas.join('  ·  ') : (f.cuenta || '—'),
     cuentas: f.cuentas || [],
-    periodo: 'Ene–' + cierreNombre + (f.anio ? ' ' + f.anio : ''),
+    periodo: desdeNombre + '–' + cierreNombre + (f.anio ? ' ' + f.anio : ''),
+    mes_desde: mesDesde,
     mes_cierre: mesCierre,
     proveedores: proveedores,
     total_provision_sugerida: total,
@@ -1585,12 +1590,53 @@ function computeProvisionesLocal(f, mesCierre) {
   };
 }
 
+// Fecha YYYYMMDD (int) ↔ valor de <input type="date"> ("YYYY-MM-DD")
+function ymdToInput(ymd) {
+  const s = String(ymd || 0).padStart(8, '0');
+  return s.slice(0,4) + '-' + s.slice(4,6) + '-' + s.slice(6,8);
+}
+function inputToYmd(str) {
+  if (!str) return null;
+  const p = str.split('-');
+  if (p.length !== 3) return null;
+  return parseInt(p[0],10) * 10000 + parseInt(p[1],10) * 100 + parseInt(p[2],10);
+}
+// Inicializa los selectores Desde/Hasta con el rango de fechas del archivo
+function initProvRango(f) {
+  const dEl = document.getElementById('prov-desde');
+  const hEl = document.getElementById('prov-hasta');
+  if (!dEl || !hEl || !f || !f.ymdMin) return;
+  const min = ymdToInput(f.ymdMin), max = ymdToInput(f.ymdMax);
+  [dEl, hEl].forEach(function(el) { el.min = min; el.max = max; });
+  dEl.value = min;
+  hEl.value = max;
+}
+
 function analyzeProvisiones() {
   const f = STATE.provisiones.files.provisiones;
-  const mesCierre = parseInt(document.getElementById('prov-mes-cierre').value, 10) || 6;
+
+  // Rango Desde/Hasta (fecha contable). Si el archivo trae filas crudas,
+  // re-agregamos aplicando el filtro; si no (análisis restaurado), usamos
+  // el rango completo ya agregado.
+  let ymdDesde = inputToYmd(document.getElementById('prov-desde').value);
+  let ymdHasta = inputToYmd(document.getElementById('prov-hasta').value);
+  if (ymdDesde && ymdHasta && ymdDesde > ymdHasta) {
+    const t = ymdDesde; ymdDesde = ymdHasta; ymdHasta = t;   // corregir si están invertidos
+    showToast('Corregí el rango: "Desde" era posterior a "Hasta"', 'info');
+  }
+  if (ymdDesde == null) ymdDesde = f.ymdMin || 0;
+  if (ymdHasta == null) ymdHasta = f.ymdMax || 99999999;
+
+  if (f.filas && f.filas.length) {
+    const re = aggregateProvisionesFilas(f.filas, f.tokenIdx, f.anio, ymdDesde, ymdHasta);
+    f.movs = re.movs;      // sobrescribe: drill-down, comparativa y "otros" leen esto
+    f.otros = re.otros;
+  }
+  const mesDesde = (Math.floor(ymdDesde / 100) % 100) || 1;
+  const mesCierre = (Math.floor(ymdHasta / 100) % 100) || 12;
 
   // 1) Resultado completo calculado en código — nunca depende de la IA
-  const base = computeProvisionesLocal(f, mesCierre);
+  const base = computeProvisionesLocal(f, mesDesde, mesCierre);
 
   // 2) IA solo como redactora de resumen/comentarios/notas de auditoría.
   // Los Memo/Nota de los diarios van incluidos: son la justificación contable
@@ -1881,6 +1927,7 @@ function renderProvisiones(d) {
   const conFalta = recurrentes.filter(function(p){ return (p.meses_falta || []).length > 0; });
   const totalFalta = recurrentes.reduce(function(a,p){ return a + (p.meses_falta || []).length; }, 0);
   const mesCierre = d.mes_cierre || 6;
+  const mesDesde = d.mes_desde || 1;
   const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   let html = '<div style="display:flex;flex-direction:column;gap:12px">';
@@ -1932,7 +1979,7 @@ function renderProvisiones(d) {
     html += '<div class="card result-section" style="border:2px solid var(--red-b);box-shadow:0 4px 16px rgba(220,26,35,.08)">';
     html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">🎯</div>';
     html += '<div><div class="card-title" style="font-size:14px">Provisionar en ' + MESES[mesCierre-1] + ' — sin factura ni provisión</div>';
-    html += '<div style="font-size:10px;color:var(--n500)">Venían facturando hasta ' + (mesCierre > 1 ? MESES[mesCierre-2] : '—') + ' y en ' + MESES[mesCierre-1] + ' no llegó la factura: registra la provisión para no comerte el gasto</div></div>';
+    html += '<div style="font-size:10px;color:var(--n500)">Venían facturando hasta ' + (mesCierre > mesDesde ? MESES[mesCierre-2] : '—') + ' y en ' + MESES[mesCierre-1] + ' no llegó la factura: registra la provisión para no comerte el gasto</div></div>';
     html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(accionable) + '</span></div>';
     html += '<div style="display:flex;flex-direction:column;gap:6px;padding:8px 14px 12px">';
     pendCierre.sort(function(a,b){ return b.monto - a.monto; }).forEach(function(x, i) {
@@ -1973,8 +2020,9 @@ function renderProvisiones(d) {
   html += '<div class="card-header"><div class="card-icon" style="background:var(--red-l)">🧾</div><div class="card-title">Matriz mensual — F factura · P provisión · FALTA provisionar</div>';
   html += '<span class="no-print" style="margin-left:auto;font-size:10px;color:var(--n400)">clic en un proveedor = ver sus movimientos</span></div>';
   html += '<div class="tbl-wrap"><table>';
+  const nMeses = mesCierre - mesDesde + 1;   // columnas de mes visibles
   html += '<tr><th>Proveedor</th><th>Rec.</th>';
-  for (let m = 1; m <= mesCierre; m++) html += '<th style="text-align:center">' + MESES[m-1] + '</th>';
+  for (let m = mesDesde; m <= mesCierre; m++) html += '<th style="text-align:center">' + MESES[m-1] + '</th>';
   html += '<th style="text-align:right">Fact. típica</th></tr>';
   // Agrupar por cuenta cuando el archivo trae varias
   const ctasOrden = [];
@@ -1986,14 +2034,14 @@ function renderProvisiones(d) {
 
   ctasOrden.forEach(function(cta) {
     if (multiCta) {
-      html += '<tr><td colspan="' + (mesCierre + 3) + '" style="background:#0a0a0a;color:#fff;font-weight:800;font-size:11px;letter-spacing:.4px;padding:7px 12px">📁 CUENTA ' + esc(cta) + '</td></tr>';
+      html += '<tr><td colspan="' + (nMeses + 3) + '" style="background:#0a0a0a;color:#fff;font-weight:800;font-size:11px;letter-spacing:.4px;padding:7px 12px">📁 CUENTA ' + esc(cta) + '</td></tr>';
     }
     provs.forEach(function(p, pi) {
       if (normCuenta(p.cuenta || '') !== cta) return;
       html += '<tr class="prov-row' + (p.recurrente && (p.meses_falta||[]).length ? ' row-amber' : '') + '" onclick="toggleProvDetail(' + pi + ')" title="Ver movimientos del proveedor">';
       html += '<td style="font-weight:600">' + esc(p.nombre) + '</td>';
       html += '<td>' + (p.recurrente ? 'Sí' : 'No') + '</td>';
-      for (let m = 1; m <= mesCierre; m++) {
+      for (let m = mesDesde; m <= mesCierre; m++) {
         const v = (p.meses && p.meses[String(m)]) || '';
         let style = 'text-align:center;font-weight:700;';
         if (v === 'FALTA') style += 'background:var(--red-l);color:var(--red-d)';
@@ -2003,7 +2051,7 @@ function renderProvisiones(d) {
       }
       html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(p.factura_promedio || 0) + '</td>';
       html += '</tr>';
-      html += '<tr class="prov-detail" id="provdet-' + pi + '" style="display:none"><td colspan="' + (mesCierre + 3) + '"></td></tr>';
+      html += '<tr class="prov-detail" id="provdet-' + pi + '" style="display:none"><td colspan="' + (nMeses + 3) + '"></td></tr>';
     });
   });
   html += '</table></div></div>';
@@ -2041,10 +2089,10 @@ function renderProvisiones(d) {
   }
 
   // Dashboard comparativo mensual (determinístico, desde el archivo cargado)
-  html += buildComparativaMensual(mesCierre);
+  html += buildComparativaMensual(mesDesde, mesCierre);
 
   // Desglose de otros movimientos (sin "IR" ni Diario) — visibilidad total del archivo
-  html += buildOtrosDesglose(mesCierre);
+  html += buildOtrosDesglose(mesDesde, mesCierre);
 
   // Notas para auditoría
   const notas = d.notas_auditoria || [];
@@ -2112,9 +2160,9 @@ function toggleProvDetail(idx) {
 // Desglose de movimientos que NO entran a la lógica de provisiones
 // (Type sin "Diario" y Document Number sin "IR": facturas de compra, pagos, NC).
 // Se muestran para que el analista vea TODO lo que trajo el archivo.
-function buildOtrosDesglose(mesCierre) {
+function buildOtrosDesglose(mesDesde, mesCierre) {
   const f = STATE.provisiones.files.provisiones;
-  const otros = (f && f.otros) || [];
+  const otros = (f && f.otros) || [];   // ya filtrado por el rango de fechas
   if (!otros.length) return '';
   const total = otros.reduce(function(a, x) { return a + x.monto; }, 0);
   const nMovs = otros.reduce(function(a, x) { return a + x.n; }, 0);
@@ -2145,7 +2193,7 @@ function buildOtrosDesglose(mesCierre) {
 // Dashboard comparativo mensual para auditoría: totales por mes (barras),
 // evolución por proveedor y variaciones vs mes anterior. Todo calculado en
 // código desde el archivo cargado — cifras exactas y reproducibles.
-function buildComparativaMensual(mesCierre) {
+function buildComparativaMensual(mesDesde, mesCierre) {
   const f = STATE.provisiones.files.provisiones;
   const movs = (f && f.movs) || [];
   if (!movs.length) return '';
@@ -2154,7 +2202,7 @@ function buildComparativaMensual(mesCierre) {
   const multiCta = (f.cuentas || []).length > 1;
   const totFact = {}, totProv = {}, porProv = {};
   movs.forEach(function(a) {
-    if (a.mes > mesCierre || a.prov === '(sin nombre)') return;
+    if (a.mes < mesDesde || a.mes > mesCierre || a.prov === '(sin nombre)') return;
     if (a.clas === 'FACTURA') {
       totFact[a.mes] = (totFact[a.mes] || 0) + a.monto;
       const label = multiCta ? a.prov + '  ·  ' + normCuenta(a.cuenta) : a.prov;
@@ -2174,7 +2222,7 @@ function buildComparativaMensual(mesCierre) {
   html += '<div style="padding:10px 14px 4px">';
   html += '<div style="font-size:10px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Total facturado (IR) por mes</div>';
   html += '<div style="display:flex;align-items:flex-end;gap:10px;height:110px">';
-  for (let m = 1; m <= mesCierre; m++) {
+  for (let m = mesDesde; m <= mesCierre; m++) {
     const v = totFact[m] || 0;
     const h = Math.max(3, Math.round((v / maxTot) * 78));
     const isLast = m === mesCierre;
@@ -2191,12 +2239,12 @@ function buildComparativaMensual(mesCierre) {
   if (provNames.length) {
     html += '<div class="tbl-wrap" style="margin-top:6px"><table>';
     html += '<tr><th>Proveedor</th>';
-    for (let m = 1; m <= mesCierre; m++) html += '<th style="text-align:right' + (m === mesCierre ? ';background:var(--red-l)' : '') + '">' + MESES_G[m-1] + '</th>';
-    html += '<th style="text-align:right">Δ ' + MESES_G[mesCierre-1] + ' vs ' + (mesCierre > 1 ? MESES_G[mesCierre-2] : '—') + '</th></tr>';
+    for (let m = mesDesde; m <= mesCierre; m++) html += '<th style="text-align:right' + (m === mesCierre ? ';background:var(--red-l)' : '') + '">' + MESES_G[m-1] + '</th>';
+    html += '<th style="text-align:right">Δ ' + MESES_G[mesCierre-1] + ' vs ' + (mesCierre > mesDesde ? MESES_G[mesCierre-2] : '—') + '</th></tr>';
     provNames.forEach(function(nombre) {
       const meses = porProv[nombre];
       const vCierre = meses[mesCierre] || 0;
-      const vPrevio = mesCierre > 1 ? (meses[mesCierre-1] || 0) : 0;
+      const vPrevio = mesCierre > mesDesde ? (meses[mesCierre-1] || 0) : 0;
       let deltaHtml = '<span style="color:var(--n300)">—</span>';
       if (vPrevio > 0 && vCierre > 0) {
         const pct = ((vCierre - vPrevio) / vPrevio) * 100;
@@ -2209,7 +2257,7 @@ function buildComparativaMensual(mesCierre) {
         deltaHtml = '<span style="color:var(--n400)">nuevo/retomado</span>';
       }
       html += '<tr><td style="font-weight:600">' + esc(nombre) + '</td>';
-      for (let m = 1; m <= mesCierre; m++) {
+      for (let m = mesDesde; m <= mesCierre; m++) {
         const v = meses[m] || 0;
         html += '<td style="text-align:right;font-family:var(--mono);font-size:10px' + (m === mesCierre ? ';background:var(--red-l);font-weight:700' : '') + '">' + (v ? fmtMoney(v) : '<span style="color:var(--n300)">·</span>') + '</td>';
       }
@@ -2217,12 +2265,12 @@ function buildComparativaMensual(mesCierre) {
     });
     // Fila de totales
     html += '<tr class="tbl-foot"><td style="font-weight:800">TOTAL FACTURADO</td>';
-    for (let m = 1; m <= mesCierre; m++) {
+    for (let m = mesDesde; m <= mesCierre; m++) {
       html += '<td style="text-align:right;font-family:var(--mono);font-weight:700">' + fmtMoney(totFact[m] || 0) + '</td>';
     }
     html += '<td></td></tr>';
     html += '<tr><td style="font-weight:600;color:var(--n500)">Provisiones (Diario) del mes</td>';
-    for (let m = 1; m <= mesCierre; m++) {
+    for (let m = mesDesde; m <= mesCierre; m++) {
       html += '<td style="text-align:right;font-family:var(--mono);font-size:10px;color:var(--n500)">' + (totProv[m] ? fmtMoney(totProv[m]) : '<span style="color:var(--n300)">·</span>') + '</td>';
     }
     html += '<td></td></tr>';
