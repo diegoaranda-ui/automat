@@ -1303,8 +1303,10 @@ function processIcarGL(file) {
         const cSt   = findIdx(head, ['Stock ID Línea', 'Stock ID (Linea)', 'Stock ID (Línea)', 'Stock ID Linea', 'Stock ID']);
         const cNota = findIdx(head, ['Nota', 'Memo/Nota', 'Memo']);
         const cNotaP = findIdx(head, ['Nota (principal)', 'Memo/Nota a nivel']);
+        const cMemoL = findIdx(head, ['Memo/Nota (Linea)', 'Memo/Nota (Línea)']);
         const cTReg = findIdx(head, ['Tipo de registro']);
         const cMesV = findIdx(head, ['Mes de venta']);
+        const cPer  = findIdx(head, ['Período contable', 'Período', 'Period']);
 
         const stocks = {};   // stockId -> {fact, nc, desc, n03, saldo, patente, mesVenta, nMovs, notas}
         let sumFact = 0, sumNC = 0, sumDesc = 0, sinStock = 0, nMovs = 0;
@@ -1347,12 +1349,22 @@ function processIcarGL(file) {
           if (!o.notaP && cNotaP !== -1 && /diario/i.test(tipo)) o.notaP = String(row[cNotaP] || '').slice(0, 40);
 
           // Tipos en español (libro del equipo) o inglés (export crudo NetSuite)
-          if (/factura de venta|^invoice$/i.test(tipo)) { o.fact += imp; sumFact += imp; }
+          if (/factura de venta|^invoice$/i.test(tipo)) {
+            o.fact += imp; sumFact += imp;
+            // Sin columna "Mes de venta" (export crudo): el mes sale del
+            // Período contable de la factura de venta
+            if (!o.mesVenta && cMesV === -1 && cPer !== -1 && row[cPer]) {
+              o.mesVenta = String(row[cPer]).trim();
+            }
+          }
           else if (/nota de cr|credit memo/i.test(tipo))  { o.nc += imp; sumNC += imp; }
           else if (/diario|^journal$/i.test(tipo)) {
             o.desc += imp; sumDesc += imp;
+            // Pérdida ya registrada: columna del analista ("03. ...") o el
+            // memo de línea del export crudo ("Resultado negativo kavak <mes>")
             const tr = cTReg !== -1 ? String(row[cTReg] || '') : '';
-            if (tr.indexOf('03') === 0) o.n03++;
+            const memoL = (cMemoL !== -1 ? String(row[cMemoL] || '') : '') + ' ' + nota;
+            if (tr.indexOf('03') === 0 || /resultado negativo/i.test(memoL)) o.n03++;
           }
         }
 
@@ -1392,12 +1404,17 @@ const ICAR_TOL = 50;
  *    facturado): alimenta el análisis del ajuste — el asiento lo hace el analista
  */
 function computeIcarLocal(ic) {
-  const cats = { ok: [], pendiente: [], negRegistrado: [], negPorRegistrar: [] };
+  const cats = { ok: [], pendiente: [], negRegistrado: [], negPorRegistrar: [], sinFactura: [] };
   ic.stocks.forEach(function(o) {
     if (Math.abs(o.saldo) <= ICAR_TOL) {
       (o.n03 > 0 ? cats.negRegistrado : cats.ok).push(o);
     } else if (o.saldo < 0) {
       cats.pendiente.push(o);
+    } else if (o.fact === 0 && o.nc === 0) {
+      // Descuentos/pérdidas cuya factura NO está en el archivo cargado:
+      // la venta es de un período anterior a la ventana del export.
+      // NO van al ajuste — amplía el rango del export para cruzarlos.
+      cats.sinFactura.push(o);
     } else {
       cats.negPorRegistrar.push(o);
     }
@@ -1423,6 +1440,7 @@ function computeIcarLocal(ic) {
     negRegistrado: cats.negRegistrado.length,
     pendiente: { n: cats.pendiente.length, monto: suma(cats.pendiente), items: cats.pendiente },
     negPorRegistrar: { n: cats.negPorRegistrar.length, monto: suma(cats.negPorRegistrar), items: cats.negPorRegistrar },
+    sinFactura: { n: cats.sinFactura.length, monto: suma(cats.sinFactura) },
     pivot: pivot,
     resumen: '', notas_auditoria: []
   };
@@ -1987,7 +2005,7 @@ function analyzeIcar() {
 
 RESULTADO CALCULADO:
 - Saldo cuenta: ${base.saldoCuenta} (facturado ${base.sumFact} + NC ${base.sumNC} + diarios/descuentos ${base.sumDesc})
-- ${base.nStocks} vehículos: ${base.ok} ok (cuadrados), ${base.negRegistrado} con resultado negativo YA registrado, ${base.pendiente.n} facturados sin descontar del fondo por ${base.pendiente.monto} (se espera la rendición de ICAR), ${base.negPorRegistrar.n} con resultado negativo Kavak POR registrar por ${base.negPorRegistrar.monto} (se descontó del fondo más de lo facturado — insumo del asiento de ajuste que registra EL ANALISTA, no el sistema).
+- ${base.nStocks} vehículos: ${base.ok} ok (cuadrados), ${base.negRegistrado} con resultado negativo YA registrado, ${base.pendiente.n} facturados sin descontar del fondo por ${base.pendiente.monto} (se espera la rendición de ICAR), ${base.negPorRegistrar.n} con resultado negativo Kavak POR registrar por ${base.negPorRegistrar.monto} (se descontó del fondo más de lo facturado — insumo del asiento de ajuste que registra EL ANALISTA, no el sistema), y ${base.sinFactura.n} con descuentos por ${base.sinFactura.monto} cuya factura está FUERA de la ventana del export (ventas de períodos anteriores — no entran al ajuste; sugerir exportar desde inicio de año si es relevante).
 
 PIVOT POR MES DE VENTA (mes|pendiente|negativo):
 ${pivotTxt}
@@ -2948,6 +2966,13 @@ function renderIcar(d) {
   html += '⏳ <strong>' + d.pendiente.n + ' vehículo(s)</strong> facturados al cliente y aún no descontados del fondo por <strong>' + fmtMoney(Math.abs(d.pendiente.monto)) + '</strong> — se esperan en próximas rendiciones de ICAR (sin acción en este cierre).' ;
   if (d.sinStock) html += ' · ⚠ ' + d.sinStock + ' movimiento(s) sin Stock ID fuera del cruce.';
   html += '</div>';
+
+  // Fuera de la ventana del export (factura no incluida en el archivo)
+  if (d.sinFactura && d.sinFactura.n) {
+    html += '<div class="result-section" style="padding:12px 16px;background:var(--n100);border:1px solid var(--n200);border-radius:12px;font-size:12px;color:var(--n600)">';
+    html += '📆 <strong>' + d.sinFactura.n + ' vehículo(s)</strong> con descuentos/pérdidas por <strong>' + fmtMoney(d.sinFactura.monto) + '</strong> cuya factura de venta <strong>no está en el archivo</strong> (venta de un período anterior a la ventana del export). No entran al análisis del ajuste — para cruzarlos, exporta el mayor desde el inicio del año.';
+    html += '</div>';
+  }
 
   // Notas para auditoría (IA)
   const notas = d.notas_auditoria || [];
