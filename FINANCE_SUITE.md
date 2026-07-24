@@ -101,7 +101,8 @@ El área de Finanzas dedica horas a leer documentos (cartolas, mayores de NetSui
 **Pasos:**
 1. Exporta el **mayor de la cuenta 2801-01** (o el General Ledger de NetSuite filtrado por esa cuenta). Para el análisis completo, exporta desde el inicio del año.
 2. Súbelo al módulo.
-3. Pulsa **🚗 Analizar impuesto**.
+3. Ajusta el rango **Desde / Hasta** (fecha contable). Se inicializa con el rango del archivo; para avances semanales adelanta la fecha "Hasta". Acotar la ventana pasa los descuentos cuya factura queda fuera al bucket "fuera de ventana" (no a un falso resultado por registrar).
+4. Pulsa **🚗 Analizar impuesto**.
 
 **Qué obtienes:**
 - **KPIs**: saldo de la cuenta, pendientes de rendición, resultado negativo por registrar, cruces OK.

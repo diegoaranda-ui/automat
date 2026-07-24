@@ -540,8 +540,18 @@ tr.prov-detail>td{padding:0 8px 8px}
               <button class="file-remove" onclick="removeFile('icar')">✕</button>
             </div>
 
-            <div class="no-print" style="display:flex;align-items:center;gap:12px;margin:12px 0;font-size:11px;color:var(--n400)">
-              Cruce por Stock ID · saldo 0 = ok · saldo negativo = facturado sin descontar (esperar rendición ICAR) · saldo positivo = resultado negativo Kavak · el asiento de ajuste lo registra el analista (aquí solo se analiza)
+            <div class="no-print" style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap;align-items:flex-end">
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Desde
+                <input type="date" id="icar-desde" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Hasta
+                <input type="date" id="icar-hasta" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <div style="display:flex;align-items:flex-end;padding-bottom:6px;font-size:11px;color:var(--n400);max-width:360px">
+                Filtra por fecha contable. Cruce por Stock ID · saldo 0 = ok · negativo = facturado sin descontar (esperar rendición ICAR) · positivo = resultado negativo Kavak. El asiento lo registra el analista. Para avances semanales, adelanta la fecha "Hasta".
+              </div>
             </div>
 
             <div id="results-icar">
@@ -689,6 +699,7 @@ function handleFile(key, input) {
     STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [], icar: fd.icar || null, filas: fd.filas || null, tokenIdx: fd.tokenIdx || null, ymdMin: fd.ymdMin || null, ymdMax: fd.ymdMax || null };
     showFilePreview(key, file);
     if (key === 'provisiones') initProvRango(STATE[mod].files[key]);
+    if (key === 'icar') initIcarRango(fd.icar);
     updateAnalyzeButton(mod);
   }).catch(function(err) {
     showToast('Error procesando archivo: ' + err.message, 'error');
@@ -1066,11 +1077,54 @@ function processProvisionesGL(file) {
 }
 
 /**
+ * Re-agrega las filas ICAR ya parseadas (cada una con su fecha contable ymd)
+ * aplicando el filtro por rango [ymdD, ymdH]. Un movimiento entra solo si su
+ * fecha cae en el rango (o si no tiene fecha legible → siempre entra). Misma
+ * lógica de cruce POR STOCK ID del parseo original. Devuelve el objeto `icar`.
+ */
+function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
+  const stocks = {};
+  let sumFact = 0, sumNC = 0, sumDesc = 0, sinStock = 0, nMovs = 0;
+  (filas || []).forEach(function(f) {
+    if (f.ymd != null && (f.ymd < ymdD || f.ymd > ymdH)) return;
+    nMovs++;
+    if (!f.st) { sinStock++; return; }
+    if (!stocks[f.st]) stocks[f.st] = { st: f.st, fact: 0, nc: 0, desc: 0, n03: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '' };
+    const o = stocks[f.st];
+    o.nMovs++;
+    if (!o.patente) { const mp = f.nota.match(/Patente:?\s*([A-Z0-9\-]{5,8})/i); if (mp) o.patente = mp[1].toUpperCase(); }
+    if (!o.mesVenta && f.mesVentaCol && f.mesVentaCol.indexOf('N/A') === -1) o.mesVenta = f.mesVentaCol;
+    if (!o.notaP && f.notaP && /diario/i.test(f.tipo)) o.notaP = f.notaP.slice(0, 40);
+    if (/factura de venta|^invoice$/i.test(f.tipo)) {
+      o.fact += f.imp; sumFact += f.imp;
+      if (!o.mesVenta && !hasMesVCol && f.perCol) o.mesVenta = f.perCol;
+    } else if (/nota de cr|credit memo/i.test(f.tipo)) {
+      o.nc += f.imp; sumNC += f.imp;
+    } else if (/diario|^journal$/i.test(f.tipo)) {
+      o.desc += f.imp; sumDesc += f.imp;
+      const memoL = (f.memoL || '') + ' ' + f.nota;
+      if ((f.tReg || '').indexOf('03') === 0 || /resultado negativo/i.test(memoL)) o.n03++;
+    }
+  });
+  const lista = Object.keys(stocks).map(function(k) {
+    const o = stocks[k];
+    o.saldo = Math.round(o.fact + o.nc + o.desc);
+    o.fact = Math.round(o.fact); o.nc = Math.round(o.nc); o.desc = Math.round(o.desc);
+    return o;
+  });
+  return {
+    stocks: lista, nMovs: nMovs, sinStock: sinStock,
+    sumFact: Math.round(sumFact), sumNC: Math.round(sumNC), sumDesc: Math.round(sumDesc),
+    saldoCuenta: Math.round(sumFact + sumNC + sumDesc)
+  };
+}
+
+/**
  * Parser del mayor 2801-01 (Impuesto Transferencia). Busca en el libro la
- * hoja del mayor (headers "Tipo" + "Importe" + "Stock ID"), y agrega POR
- * STOCK ID: facturado al cliente (Factura de venta, negativo), notas de
- * crédito, y descontado del fondo (Diario: pagos ICAR, provisiones y
- * resultados negativos ya registrados). Todo queda en el navegador.
+ * hoja del mayor (headers "Tipo" + "Importe" + "Stock ID"), guarda las filas
+ * crudas (con fecha contable ymd) y cruza POR STOCK ID: facturado al cliente
+ * (Factura de venta, negativo), notas de crédito, y descontado del fondo
+ * (Diario). El rango Desde/Hasta se re-aplica al analizar. Todo en el navegador.
  */
 function processIcarGL(file) {
   return new Promise(function(resolve, reject) {
@@ -1119,10 +1173,42 @@ function processIcarGL(file) {
         const cTReg = findIdx(head, ['Tipo de registro']);
         const cMesV = findIdx(head, ['Mes de venta']);
         const cPer  = findIdx(head, ['Período contable', 'Período', 'Period']);
+        const cFecha = findIdx(head, ['Fecha', 'Date']);   // fecha contable (día)
 
-        const stocks = {};   // stockId -> {fact, nc, desc, n03, saldo, patente, mesVenta, nMovs, notas}
-        let sumFact = 0, sumNC = 0, sumDesc = 0, sinStock = 0, nMovs = 0;
+        // Fecha contable YYYYMMDD: mes/año del Período + día de la columna Fecha/Date
+        function icarYmd(row) {
+          let mes = null, anio = null, dia = null;
+          if (cPer !== -1) {
+            const per = String(row[cPer] || '').toLowerCase();
+            const m = per.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
+            if (m) { mes = PROV_MES_ABBR[m[1]]; anio = parseInt(m[2],10); }
+            else { const m2 = per.match(/(\d{4})[\-\/](\d{1,2})/); if (m2) { anio = parseInt(m2[1],10); mes = parseInt(m2[2],10); } }
+          }
+          if (cFecha !== -1) {
+            const ds = String(row[cFecha] || '');
+            let d = ds.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+            if (d) { dia = parseInt(d[3],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[1],10); } }
+            else {
+              d = ds.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+              if (d) { dia = parseInt(d[1],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[3],10); } }
+              else {
+                const s = parseFloat(ds);
+                if (isFinite(s) && s > 25569 && s < 80000) {
+                  const dt = new Date(Math.round((s - 25569) * 86400 * 1000));
+                  dia = dt.getUTCDate();
+                  if (mes == null) { mes = dt.getUTCMonth() + 1; anio = dt.getUTCFullYear(); }
+                }
+              }
+            }
+          }
+          if (mes == null) return null;
+          if (dia == null) dia = 1;
+          return anio * 10000 + mes * 100 + dia;
+        }
 
+        // PASADA 1: filas crudas con fecha contable, para re-agregar por rango.
+        const hasMesVCol = cMesV !== -1;
+        const filas = [];
         for (let i = hIdx + 1; i < ws.length; i++) {
           const row = ws[i] || [];
           const tipo = String(row[cTipo] || '').trim();
@@ -1138,64 +1224,33 @@ function processIcarGL(file) {
           let st = (cSt !== -1) ? row[cSt] : null;
           st = (st === undefined || st === null || String(st).trim() === '') ? null : String(parseInt(st, 10));
           const nota = String(row[cNota] || '');
-          nMovs++;
-
           if (!st) {
-            // Fallback: Stock ID desde la Nota ("Stock ID: 476190 ...")
-            const m = nota.match(/Stock ID:?\s*(\d{4,})/i);
-            if (m) st = m[1]; else { sinStock++; continue; }
+            const m = nota.match(/Stock ID:?\s*(\d{4,})/i);   // fallback desde la Nota
+            if (m) st = m[1];
           }
-
-          if (!stocks[st]) {
-            stocks[st] = { st: st, fact: 0, nc: 0, desc: 0, n03: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '' };
-          }
-          const o = stocks[st];
-          o.nMovs++;
-          if (!o.patente) {
-            const mp = nota.match(/Patente:?\s*([A-Z0-9\-]{5,8})/i);
-            if (mp) o.patente = mp[1].toUpperCase();
-          }
-          if (!o.mesVenta && cMesV !== -1 && row[cMesV] && String(row[cMesV]).indexOf('N/A') === -1) {
-            o.mesVenta = String(row[cMesV]).trim();
-          }
-          if (!o.notaP && cNotaP !== -1 && /diario/i.test(tipo)) o.notaP = String(row[cNotaP] || '').slice(0, 40);
-
-          // Tipos en español (libro del equipo) o inglés (export crudo NetSuite)
-          if (/factura de venta|^invoice$/i.test(tipo)) {
-            o.fact += imp; sumFact += imp;
-            // Sin columna "Mes de venta" (export crudo): el mes sale del
-            // Período contable de la factura de venta
-            if (!o.mesVenta && cMesV === -1 && cPer !== -1 && row[cPer]) {
-              o.mesVenta = String(row[cPer]).trim();
-            }
-          }
-          else if (/nota de cr|credit memo/i.test(tipo))  { o.nc += imp; sumNC += imp; }
-          else if (/diario|^journal$/i.test(tipo)) {
-            o.desc += imp; sumDesc += imp;
-            // Pérdida ya registrada: columna del analista ("03. ...") o el
-            // memo de línea del export crudo ("Resultado negativo kavak <mes>")
-            const tr = cTReg !== -1 ? String(row[cTReg] || '') : '';
-            const memoL = (cMemoL !== -1 ? String(row[cMemoL] || '') : '') + ' ' + nota;
-            if (tr.indexOf('03') === 0 || /resultado negativo/i.test(memoL)) o.n03++;
-          }
+          filas.push({
+            tipo: tipo, imp: imp, st: st, nota: nota, ymd: icarYmd(row),
+            mesVentaCol: cMesV !== -1 ? String(row[cMesV] || '').trim() : '',
+            perCol: cPer !== -1 ? String(row[cPer] || '').trim() : '',
+            notaP: cNotaP !== -1 ? String(row[cNotaP] || '') : '',
+            tReg: cTReg !== -1 ? String(row[cTReg] || '') : '',
+            memoL: cMemoL !== -1 ? String(row[cMemoL] || '') : ''
+          });
         }
 
-        const lista = Object.keys(stocks).map(function(k) {
-          const o = stocks[k];
-          o.saldo = Math.round(o.fact + o.nc + o.desc);
-          o.fact = Math.round(o.fact); o.nc = Math.round(o.nc); o.desc = Math.round(o.desc);
-          return o;
-        });
-        if (!lista.length) throw new Error('No se encontraron movimientos con Stock ID en el mayor.');
-        if (sinStock > 0) showToast('⚠ ' + sinStock + ' movimiento(s) sin Stock ID quedaron fuera del cruce', 'error');
+        // Agregado inicial sin filtro (rango completo)
+        const full = aggregateIcarFilas(filas, hasMesVCol, 0, 99999999);
+        if (!full.stocks.length) throw new Error('No se encontraron movimientos con Stock ID en el mayor.');
+        if (full.sinStock > 0) showToast('⚠ ' + full.sinStock + ' movimiento(s) sin Stock ID quedaron fuera del cruce', 'error');
+
+        // Rango de fechas contables presentes (para inicializar los selectores)
+        let ymdMin = 99999999, ymdMax = 0;
+        filas.forEach(function(f) { if (f.ymd != null) { if (f.ymd < ymdMin) ymdMin = f.ymd; if (f.ymd > ymdMax) ymdMax = f.ymd; } });
+        if (ymdMax === 0) { ymdMin = 0; ymdMax = 99999999; }   // sin fechas legibles
 
         resolve({
           b64: null, isText: true, text: null,
-          icar: {
-            stocks: lista, nMovs: nMovs, sinStock: sinStock,
-            sumFact: Math.round(sumFact), sumNC: Math.round(sumNC), sumDesc: Math.round(sumDesc),
-            saldoCuenta: Math.round(sumFact + sumNC + sumDesc)
-          }
+          icar: Object.assign({}, full, { filas: filas, hasMesV: hasMesVCol, ymdMin: ymdMin, ymdMax: ymdMax })
         });
       } catch (err) { reject(err); }
     };
@@ -1416,6 +1471,11 @@ function captureAnalysisMeta(mod) {
     params = 'Rango (fecha contable): ' + desde + ' → ' + hasta + ' · Criterio: factura típica (valor más frecuente por proveedor) · Recurrente = factura en 2+ meses del rango';
     const f = st.provisiones;
     if (f && f.cuenta) params += ' · Cuenta: ' + f.cuenta;
+  }
+  if (mod === 'icar') {
+    const desde = document.getElementById('icar-desde').value || '—';
+    const hasta = document.getElementById('icar-hasta').value || '—';
+    params = 'Rango (fecha contable): ' + desde + ' → ' + hasta + ' · Cuenta 2801-01 · cruce por Stock ID (facturado vs descontado del fondo ICAR)';
   }
   ANALYSIS_META[mod] = {
     analista: document.getElementById('userInput').value || 'Anónimo',
@@ -1698,9 +1758,38 @@ Responde ÚNICAMENTE con JSON válido:
 }
 
 // ── ICAR (Impuesto Transferencia) ──
+// Inicializa los selectores Desde/Hasta con el rango de fechas del archivo
+function initIcarRango(ic) {
+  const dEl = document.getElementById('icar-desde');
+  const hEl = document.getElementById('icar-hasta');
+  if (!dEl || !hEl || !ic || !ic.ymdMin) return;
+  const min = ymdToInput(ic.ymdMin), max = ymdToInput(ic.ymdMax);
+  [dEl, hEl].forEach(function(el) { el.min = min; el.max = max; });
+  dEl.value = min;
+  hEl.value = max;
+}
+
 function analyzeIcar() {
   const f = STATE.icar.files.icar;
-  const base = computeIcarLocal(f.icar);
+
+  // Rango Desde/Hasta (fecha contable): re-agrega por Stock ID acotando la
+  // ventana. Si el archivo trae filas crudas, se re-aplica; si no, rango completo.
+  let ymdDesde = inputToYmd(document.getElementById('icar-desde').value);
+  let ymdHasta = inputToYmd(document.getElementById('icar-hasta').value);
+  if (ymdDesde && ymdHasta && ymdDesde > ymdHasta) {
+    const t = ymdDesde; ymdDesde = ymdHasta; ymdHasta = t;
+    showToast('Corregí el rango: "Desde" era posterior a "Hasta"', 'info');
+  }
+  if (ymdDesde == null) ymdDesde = (f.icar && f.icar.ymdMin) || 0;
+  if (ymdHasta == null) ymdHasta = (f.icar && f.icar.ymdMax) || 99999999;
+
+  let ic = f.icar;
+  if (ic && ic.filas && ic.filas.length) {
+    const re = aggregateIcarFilas(ic.filas, ic.hasMesV, ymdDesde, ymdHasta);
+    ic = Object.assign({}, ic, re);   // stocks/sumas filtrados; conserva filas/rango
+  }
+  const base = computeIcarLocal(ic);
+  base.periodo = ymdToInput(ymdDesde) + ' → ' + ymdToInput(ymdHasta);
 
   // IA solo redacta: recibe el resultado calculado + top descuadres
   const topNeg = base.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 20)
@@ -2298,6 +2387,7 @@ function renderIcar(d) {
   html += '<span><strong>Cuadratura:</strong></span>';
   html += '<span>Facturado ' + fmtMoney(d.sumFact) + '</span><span>+ NC ' + fmtMoney(d.sumNC) + '</span><span>+ Diarios ' + fmtMoney(d.sumDesc) + '</span>';
   html += '<span style="font-weight:700;color:var(--n700)">= ' + fmtMoney(d.saldoCuenta) + '</span>';
+  if (d.periodo) html += '<span style="padding:2px 8px;border-radius:12px;background:var(--n100);font-weight:700;color:var(--n600)">📅 ' + esc(d.periodo) + '</span>';
   html += '<span style="margin-left:auto">' + d.nMovs + ' movs · ' + d.nStocks + ' vehículos · ' + d.negRegistrado + ' con pérdida ya registrada</span>';
   html += '</div>';
 

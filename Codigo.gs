@@ -97,7 +97,7 @@ function writeIcarSheet(payload) {
 
   push(['ANÁLISIS IMPUESTO TRANSFERENCIA (ICAR) — cuenta 2801-01  ·  Kavak Finanzas Chile'], 'title');
   push(['Analista: ' + (p.analista || 'Anónimo'), 'Fecha análisis: ' + (p.fecha || '') + ' ' + (p.hora || ''),
-    'Saldo cuenta: ' + fmtM(p.saldoCuenta), 'Vehículos: ' + (p.nStocks || 0), 'Movimientos: ' + (p.nMovs || 0)], 'meta');
+    'Período: ' + (p.periodo || '—'), 'Saldo cuenta: ' + fmtM(p.saldoCuenta), 'Vehículos: ' + (p.nStocks || 0), 'Movimientos: ' + (p.nMovs || 0)], 'meta');
   push([]);
 
   // Cuadratura
