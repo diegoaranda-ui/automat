@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAVAK · Finanzas</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#000;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5;color:#fafafa}
+:root{
+  --black:#000000;--ink:#0a0a0a;--ink2:#141414;--ink3:#1e1e1e;
+  --line:rgba(255,255,255,.09);--line2:rgba(255,255,255,.16);
+  --txt:#fafafa;--txt2:#d4d4d8;--txt3:#8b8b92;--txt4:#5b5b63;
+  --red:#dc1a23;--red-d:#b01019;
+  --shadow-card:0 2px 10px rgba(0,0,0,.5),0 16px 42px rgba(0,0,0,.45);
+  --shadow-hover:0 6px 22px rgba(220,26,35,.14),0 26px 64px rgba(0,0,0,.6);
+  --r-lg:20px;--r-xl:24px;
+  --t:all .22s cubic-bezier(.4,0,.2,1);
+  --t-spring:all .36s cubic-bezier(.34,1.56,.64,1);
+  --blur:blur(20px) saturate(160%);
+}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:3px}
+
+/* ── PANELS ── */
+.oc-root{height:100vh;overflow:hidden;position:relative}
+.oc-panel{position:absolute;inset:0;background:var(--black);display:flex;flex-direction:column;opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity .28s cubic-bezier(.4,0,.2,1),transform .28s cubic-bezier(.4,0,.2,1)}
+.oc-panel.visible{opacity:1;pointer-events:all;transform:translateY(0)}
+
+/* ── HOME ── */
+#oc-home{position:absolute;inset:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:52px 24px 64px;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .28s cubic-bezier(.4,0,.2,1),transform .28s cubic-bezier(.4,0,.2,1);
+  background:radial-gradient(1100px 500px at 50% -10%, rgba(220,26,35,.10), transparent 60%), #000}
+#oc-home.visible{opacity:1;pointer-events:all;transform:translateY(0)}
+
+/* wordmark KAVAK */
+.kv-wordmark{font-size:clamp(40px,6vw,58px);font-weight:900;letter-spacing:6px;color:#fff;line-height:1;user-select:none;font-stretch:condensed;transform:skewX(-4deg)}
+.kv-wordmark .kv-cut{color:var(--red)}
+.kv-sub{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:4px;color:var(--txt3);text-transform:uppercase;margin-top:10px;margin-bottom:26px}
+
+/* badge */
+.oc-badge{display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--txt3);text-transform:uppercase;margin-bottom:22px;padding:6px 16px;border:1px solid var(--line);border-radius:30px;background:rgba(255,255,255,.03)}
+.oc-badge-dot{width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0;animation:pulse-dot 2.4s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.85)}}
+
+/* headline */
+.oc-title{font-size:clamp(30px,4.6vw,44px);font-weight:800;letter-spacing:-1.4px;line-height:1.06;text-align:center;color:var(--txt);margin-bottom:10px}
+.oc-title em{color:var(--red);font-style:normal}
+
+/* date */
+.oc-date{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt3);letter-spacing:.2px;margin-bottom:16px;text-align:center;text-transform:capitalize}
+
+/* sheets status */
+.oc-status{display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:40px;background:var(--ink2);border:1px solid var(--line);font-size:12px;font-weight:500;color:var(--txt3);margin-bottom:44px;transition:var(--t)}
+.oc-status.ok{color:#4ade80;border-color:rgba(74,222,128,.3)}
+.oc-status.err{color:#f87171;border-color:rgba(248,113,113,.3)}
+.oc-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.14);border-top-color:var(--txt3);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.oc-status.ok .oc-spinner,.oc-status.err .oc-spinner{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* cards */
+.cards-wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;max-width:860px;width:100%}
+.oc-card{background:linear-gradient(160deg,var(--ink2),var(--ink));border-radius:var(--r-xl);border:1px solid var(--line);box-shadow:var(--shadow-card);padding:26px 24px 22px;width:240px;cursor:pointer;transition:var(--t-spring);position:relative;overflow:hidden}
+.oc-card::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);opacity:0;transition:var(--t)}
+.oc-card:hover{transform:translateY(-4px) scale(1.015);box-shadow:var(--shadow-hover);border-color:var(--line2)}
+.oc-card:hover::before{opacity:1}
+.oc-card:active{transform:translateY(-1px) scale(1.005)}
+
+.card-icon-wrap{width:50px;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;background:#fff;transition:var(--t)}
+.oc-card:hover .card-icon-wrap{transform:scale(1.08) rotate(-3deg)}
+
+.card-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.9px;margin-bottom:10px;border:1px solid rgba(220,26,35,.4);color:#ff6b71;background:rgba(220,26,35,.12)}
+.card-badge.accent{border-color:rgba(255,255,255,.25);color:#fff;background:rgba(255,255,255,.08)}
+
+.card-title{font-size:16px;font-weight:800;color:var(--txt);letter-spacing:-.3px;margin-bottom:6px}
+.card-desc{font-size:12px;color:var(--txt3);line-height:1.6;font-weight:400}
+
+.oc-foot{margin-top:40px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--txt4);letter-spacing:1px;text-transform:uppercase}
+
+/* ── PANEL BAR ── */
+.panel-bar{height:52px;background:rgba(0,0,0,.85);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:14px;flex-shrink:0;z-index:10}
+.back-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:var(--ink2);border:1px solid var(--line2);font-size:13px;font-weight:600;color:#fff;cursor:pointer;transition:var(--t);white-space:nowrap;font-family:inherit}
+.back-btn:hover{background:var(--ink3);border-color:var(--red);transform:translateX(-2px)}
+.bar-wordmark{font-weight:900;letter-spacing:3px;color:#fff;font-size:14px;transform:skewX(-4deg)}
+.bar-wordmark span{color:var(--red)}
+.panel-breadcrumb{font-size:14px;font-weight:600;color:var(--txt);flex:1;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panel-chip{font-size:9px;font-weight:700;padding:4px 10px;border-radius:7px;letter-spacing:.8px;border:1px solid rgba(220,26,35,.4);color:#ff6b71;background:rgba(220,26,35,.12);font-family:'JetBrains Mono',monospace;text-transform:uppercase;flex-shrink:0}
+
+/* ── FINANCE PANEL ── */
+.finanzas-frame{flex:1;border:none;display:block;width:100%;height:100%;background:#f5f5f7}
+</style>
+</head>
+<body>
+<div class="oc-root">
+
+  <!-- ═══════════════════════════════ HOME ═══════════════════════════════ -->
+  <div id="oc-home">
+
+    <div class="kv-wordmark">KAVA<span class="kv-cut">K</span></div>
+    <div class="kv-sub">Finanzas · Chile</div>
+
+    <div class="oc-badge">
+      <div class="oc-badge-dot"></div>
+      Finance Operations Center
+    </div>
+
+    <div class="oc-title">Papeles de trabajo <em>asistidos por IA</em></div>
+
+    <div class="oc-date" id="oc-date"></div>
+
+    <div class="oc-status" id="oc-status">
+      <div class="oc-spinner"></div>
+      <span id="oc-status-text">Conectando con Google Sheets…</span>
+    </div>
+
+    <div class="cards-wrap">
+
+      <!-- 1 · Control de Provisiones (prioridad del equipo) -->
+      <div class="oc-card" onclick="openFinanzas('provisiones')">
+        <div class="card-icon-wrap">🧾</div>
+        <div class="card-badge">CIERRE MENSUAL</div>
+        <div class="card-title">Provisiones</div>
+        <div class="card-desc">Facturas IR vs provisiones Diario · General Ledger NetSuite · accionable del mes</div>
+      </div>
+
+      <!-- 2 · Conciliación Bancaria -->
+      <div class="oc-card" onclick="openFinanzas('conciliacion')">
+        <div class="card-icon-wrap">🏦</div>
+        <div class="card-badge accent">FINANZAS</div>
+        <div class="card-title">Conciliación</div>
+        <div class="card-desc">Cartola bancaria vs registros contables · detección de diferencias</div>
+      </div>
+
+      <!-- 3 · Impuesto Transferencia ICAR -->
+      <div class="oc-card" onclick="openFinanzas('icar')">
+        <div class="card-icon-wrap">🚗</div>
+        <div class="card-badge">CIERRE MENSUAL</div>
+        <div class="card-title">Imp. Transferencia</div>
+        <div class="card-desc">Balance ICAR cuenta 2801-01 · cruce por Stock ID · análisis del ajuste</div>
+      </div>
+
+    </div>
+
+    <div class="oc-foot">Kavak Finanzas · v<?= VERSION ?> · uso interno</div>
+  </div><!-- #oc-home -->
+
+  <!-- ═══════════════════════════════ FINANCE PANEL ════════════════════ -->
+  <div id="panel-finanzas" class="oc-panel">
+
+    <div class="panel-bar">
+      <button class="back-btn" onclick="goHome()">← Inicio</button>
+      <span class="bar-wordmark">KAVA<span>K</span></span>
+      <span class="panel-breadcrumb" id="finanzas-breadcrumb">Finanzas</span>
+      <span class="panel-chip">FINANZAS</span>
+    </div>
+
+    <iframe class="finanzas-frame" id="frame-finanzas"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"></iframe>
+
+  </div><!-- #panel-finanzas -->
+
+</div><!-- .oc-root -->
+
+<script>
+const BASE_URL = '<?= BASE_URL ?>';
+
+/* ── Date ── */
+(function(){
+  const d = new Date();
+  document.getElementById('oc-date').textContent =
+    d.toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+})();
+
+/* ── Sheets status ── */
+(function(){
+  const el  = document.getElementById('oc-status');
+  const txt = document.getElementById('oc-status-text');
+  if(typeof google !== 'undefined' && google.script && google.script.run){
+    el.classList.add('ok');
+    txt.textContent = 'Google Sheets conectado ✓';
+  } else {
+    el.classList.add('err');
+    txt.textContent = 'Sheets no disponible (vista previa)';
+  }
+})();
+
+/* ── Panel helpers ── */
+function showHome(){
+  document.getElementById('oc-home').classList.add('visible');
+}
+function hideHome(){
+  document.getElementById('oc-home').classList.remove('visible');
+}
+function showPanel(id){
+  document.querySelectorAll('.oc-panel').forEach(p => p.classList.remove('visible'));
+  document.getElementById('panel-' + id).classList.add('visible');
+}
+function hidePanels(){
+  document.querySelectorAll('.oc-panel').forEach(p => p.classList.remove('visible'));
+}
+
+/* ── openFinanzas ── */
+var _finanzasLoaded = false;
+function openFinanzas(tab){
+  hideHome();
+  showPanel('finanzas');
+
+  const labels = {
+    conciliacion : 'Conciliación Bancaria',
+    provisiones  : 'Control de Provisiones',
+    icar         : 'Impuesto Transferencia (ICAR)'
+  };
+  document.getElementById('finanzas-breadcrumb').textContent = labels[tab] || tab;
+
+  const frame = document.getElementById('frame-finanzas');
+
+  if(!_finanzasLoaded){
+    /* primera vez: cargar el iframe con el tab pedido (lo inyecta el server) */
+    frame.src = BASE_URL + '?page=finanzas&tab=' + encodeURIComponent(tab);
+    _finanzasLoaded = true;
+  } else {
+    /* ya cargado: cambiar de módulo sin recargar (no se pierden archivos subidos).
+       postMessage no cruza el wrapper de Apps Script, pero el evento 'storage'
+       de localStorage sí llega a los frames del mismo origen de sandbox. */
+    try { frame.contentWindow.postMessage({ tab: tab }, '*'); } catch(e) {}
+    try { localStorage.setItem('finz_tab_req', tab + '@' + Date.now()); } catch(e) {}
+  }
+}
+
+/* ── goHome ── */
+function goHome(){
+  hidePanels();
+  showHome();
+}
+
+/* show home on load */
+showHome();
+</script>
+</body>
+</html>

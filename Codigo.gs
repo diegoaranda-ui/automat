@@ -1,0 +1,858 @@
+/**
+ * Kavak Finanzas Tools — Apps Script Web App
+ */
+
+function doGet(e) {
+  const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'hub';
+  const validPages = ['hub', 'finanzas'];
+  const target = validPages.includes(page) ? page : 'hub';
+  const tab = (e && e.parameter && e.parameter.tab) ? String(e.parameter.tab) : '';
+  return buildPage(target, tab);
+}
+
+function buildPage(name, tab) {
+  const template = HtmlService.createTemplateFromFile(name);
+  template.VERSION     = '1.1.0';
+  template.ACTIVE_PAGE = name;
+  template.BASE_URL    = ScriptApp.getService().getUrl();
+  // El sandbox de HtmlService no expone la query string al JS del cliente,
+  // así que el tab activo se inyecta server-side (solo minúsculas, anti-inyección).
+  template.ACTIVE_TAB  = /^[a-z]{1,30}$/.test(tab || '') ? tab : '';
+  return template.evaluate()
+    .setTitle('Kavak Finanzas Tools')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/**
+ * Proxy server-side a la Messages API de Claude.
+ * La API key vive en Configuración del proyecto → Propiedades del script → ANTHROPIC_KEY,
+ * nunca en el cliente. El frontend la invoca con google.script.run.callClaude(payload).
+ *
+ * Devuelve un JSON string: {"status": <httpCode>, "body": "<respuesta cruda de Anthropic>"}
+ * para que el cliente conserve su lógica de reintentos/overload.
+ */
+function callClaude(payload) {
+  const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_KEY');
+  if (!key) {
+    return JSON.stringify({ status: 500, body: JSON.stringify({ error: { message: 'Falta ANTHROPIC_KEY en Propiedades del script.' } }) });
+  }
+  try {
+    const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    return JSON.stringify({ status: res.getResponseCode(), body: res.getContentText() });
+  } catch (err) {
+    // Errores de transporte (red, timeout, payload demasiado grande) también
+    // vuelven en el sobre {status, body} para que el cliente los muestre/reintente.
+    return JSON.stringify({ status: 529, body: JSON.stringify({ error: { type: 'fetch_error', message: 'Error de red al llamar a la API: ' + String(err) } }) });
+  }
+}
+
+// Planilla de papel de trabajo de conciliaciones
+var CONCIL_SHEET_ID = '1p3TYuzbwMw1Iijd07lTpsJMM_e73VUmnIlBkeM57Txc';
+
+// Planilla de Control de Provisiones (facturas de proveedores vs provisiones)
+var PROVISIONES_SHEET_ID = '1oOWGLYN7X28lennVGvp58n1LXmjU8-MoltVj7GeSIaU';
+
+// Planilla del equipo "2801-01 Impuesto transferencia" — el análisis ICAR se
+// escribe ahí, en la pestaña "Análisis ICAR" (no se toca ninguna otra pestaña)
+var ICAR_SHEET_ID = '1D1SleLGZccIgXhVQ1TE99W1fllQsLgZkw8nGVO2ArEE';
+
+/**
+ * Escribe (sobreescribe) la pestaña "Análisis ICAR" de la planilla de
+ * impuesto transferencia con el resultado del cruce por Stock ID.
+ * payload: { analista, fecha, hora, saldoCuenta, sumFact, sumNC, sumDesc,
+ *   nMovs, nStocks, ok, negRegistrado,
+ *   pendiente: {n, monto, items:[{st,patente,mesVenta,fact,nc,desc,saldo}]},
+ *   negPorRegistrar: {n, monto, items:[...]},
+ *   pivot: {mes: {pendiente, pendienteN, negativo, negativoN}},
+ *   resumen, notas_auditoria }
+ */
+function writeIcarSheet(payload) {
+  const p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+  const ssId = PropertiesService.getScriptProperties().getProperty('ICAR_SHEET_ID') || ICAR_SHEET_ID;
+  const ss   = SpreadsheetApp.openById(ssId);
+
+  let sh = ss.getSheetByName('Análisis ICAR');
+  if (!sh) sh = ss.insertSheet('Análisis ICAR');
+  else {
+    sh.clearContents();
+    sh.clearFormats();
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.setConditionalFormatRules([]);
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+
+  const NCOLS = 7;
+  function fmtM(v) { return (parseFloat(v) || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
+  function pad(arr) { while (arr.length < NCOLS) arr.push(''); return arr; }
+  const rows = [], marks = [];
+  function push(arr, kind) { rows.push(pad(arr)); if (kind) marks.push({ r: rows.length, kind: kind }); }
+
+  push(['ANÁLISIS IMPUESTO TRANSFERENCIA (ICAR) — cuenta 2801-01  ·  Kavak Finanzas Chile'], 'title');
+  push(['Analista: ' + (p.analista || 'Anónimo'), 'Fecha análisis: ' + (p.fecha || '') + ' ' + (p.hora || ''),
+    'Período: ' + (p.periodo || '—'), 'Saldo cuenta: ' + fmtM(p.saldoCuenta), 'Vehículos: ' + (p.nStocks || 0), 'Movimientos: ' + (p.nMovs || 0)], 'meta');
+  push([]);
+
+  // Cuadratura
+  push(['CUADRATURA DEL SALDO'], 'sec-dark');
+  push(['Facturado a clientes', 'Notas de crédito', 'Diarios (descuentos/pérdidas)', 'SALDO CUENTA', 'Veh. ok', 'Pérdida ya registrada (veh.)'], 'colhead');
+  push([p.sumFact || 0, p.sumNC || 0, p.sumDesc || 0, p.saldoCuenta || 0, p.ok || 0, p.negRegistrado || 0], 'row-money4');
+  push([]);
+
+  // Análisis del ajuste
+  const neg = p.negPorRegistrar || { n: 0, monto: 0, items: [] };
+  push(['🎯 RESULTADO NEGATIVO KAVAK POR REGISTRAR — ' + neg.n + ' vehículo(s) · ' + fmtM(neg.monto) + ' · insumo del asiento de ajuste (lo registra el analista)'], 'sec-red');
+  push(['Stock ID', 'Patente', 'Mes venta', 'Facturado', 'Descontado', 'Diferencia', 'Registrado (Sí/No)'], 'colhead');
+  (neg.items || []).forEach(function(o) {
+    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), o.desc || 0, o.saldo || 0, ''], 'row-neg');
+  });
+  if (!(neg.items || []).length) push(['✓ Sin resultados negativos por registrar'], 'row-ok');
+  push([]);
+
+  // Pivot por mes
+  const pivot = p.pivot || {};
+  push(['DESCUADRES POR MES DE VENTA'], 'sec-dark');
+  push(['Mes de venta', 'Facturado sin descontar', 'Veh.', 'Resultado negativo', 'Veh.', '', ''], 'colhead');
+  Object.keys(pivot).sort().forEach(function(m) {
+    const v = pivot[m];
+    push([m, v.pendiente || 0, v.pendienteN || 0, v.negativo || 0, v.negativoN || 0, '', ''], 'row-pivot');
+  });
+  push([]);
+
+  // Pendientes de rendición
+  const pend = p.pendiente || { n: 0, monto: 0, items: [] };
+  push(['⏳ FACTURADO SIN DESCONTAR DEL FONDO — ' + pend.n + ' vehículo(s) · ' + fmtM(pend.monto) + ' · esperar rendición ICAR (sin acción este cierre)'], 'sec-gray');
+  push(['Stock ID', 'Patente', 'Mes venta', 'Facturado', 'Descontado', 'Saldo pendiente', 'Rendido (Sí/No)'], 'colhead');
+  (pend.items || []).forEach(function(o) {
+    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), o.desc || 0, o.saldo || 0, ''], 'row-pend');
+  });
+  push([]);
+
+  // Notas y resumen
+  const notas = p.notas_auditoria || [];
+  push(['NOTAS PARA AUDITORÍA (' + notas.length + ')'], 'sec-purple');
+  notas.forEach(function(n, i) { push([(i + 1) + '. ' + n], 'row-nota'); });
+  push([]);
+  push(['RESUMEN'], 'sec-gray');
+  push([p.resumen || ''], 'row-resumen');
+
+  sh.getRange(1, 1, rows.length, NCOLS).setValues(rows);
+
+  marks.forEach(function(mk) {
+    const R = sh.getRange(mk.r, 1, 1, NCOLS);
+    switch (mk.kind) {
+      case 'title':
+        R.merge().setBackground('#000000').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 38); break;
+      case 'meta':
+        R.setBackground('#f4f4f5').setFontColor('#3f3f46').setFontSize(10); break;
+      case 'sec-dark':
+        R.merge().setBackground('#18181b').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-red':
+        R.merge().setBackground('#dc1a23').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-gray':
+        R.merge().setBackground('#e4e4e7').setFontColor('#3f3f46').setFontWeight('bold').setFontSize(11); break;
+      case 'sec-purple':
+        R.merge().setBackground('#7c3aed').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11); break;
+      case 'colhead':
+        R.setBackground('#27272a').setFontColor('#e4e4e7').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center'); break;
+      case 'row-money4':
+        R.setFontSize(10).setFontWeight('bold');
+        sh.getRange(mk.r, 1, 1, 4).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-neg':
+        R.setFontSize(10).setBackground('#fde8e9');
+        sh.getRange(mk.r, 4, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 6, 1, 1).setFontWeight('bold').setFontColor('#b01019'); break;
+      case 'row-pend':
+        R.setFontSize(10).setFontColor('#52525b');
+        sh.getRange(mk.r, 4, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-pivot':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 2, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 4, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right').setFontColor('#b01019'); break;
+      case 'row-ok':
+        R.merge().setBackground('#e6f7f0').setFontColor('#0b6b3a').setFontWeight('bold'); break;
+      case 'row-nota':
+        R.merge().setWrap(true).setBackground('#f5f3ff').setFontColor('#4c1d95').setFontSize(10).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 34); break;
+      case 'row-resumen':
+        R.merge().setWrap(true).setFontColor('#3f3f46').setFontSize(10);
+        sh.setRowHeight(mk.r, 80); break;
+    }
+  });
+
+  sh.setColumnWidth(1, 110); sh.setColumnWidth(2, 100); sh.setColumnWidth(3, 150);
+  sh.setColumnWidth(4, 130); sh.setColumnWidth(5, 130); sh.setColumnWidth(6, 130); sh.setColumnWidth(7, 150);
+  sh.setFrozenRows(1);
+
+  return ss.getUrl() + '#gid=' + sh.getSheetId();
+}
+
+/**
+ * Escribe (sobreescribe) la hoja "Provisiones" de la planilla de Control de
+ * Provisiones con el resultado del análisis del módulo Provisiones.
+ * Llamado desde finanzas.html.
+ *
+ * payload: {
+ *   analista, fecha, hora, cuenta, periodo, mes_cierre,
+ *   proveedores: [{nombre, recurrente, meses:{"1":"F"|"P"|"F+P"|"FALTA"|""},
+ *                  factura_promedio, meses_falta:[n], provision_sugerida_mensual, comentario}],
+ *   total_provision_sugerida, resumen, notas_auditoria: [str],
+ *   comparativa: {filas:[{prov,montos:[],delta}], totFact:[], totProv:[]},
+ *   otros: [{cuenta,tipo,prov,mes,monto,n}], cuentas: [str]
+ * }
+ * Escribe la pestaña "Provisiones" y delega tablas/gráficos en "Dashboard".
+ */
+function writeProvisionesSheet(payload) {
+  const p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+
+  const ssId = PropertiesService.getScriptProperties().getProperty('PROVISIONES_SHEET_ID') || PROVISIONES_SHEET_ID;
+  const ss   = SpreadsheetApp.openById(ssId);
+
+  let sh = ss.getSheetByName('Provisiones');
+  if (!sh) sh = ss.insertSheet('Provisiones');
+  else {
+    sh.clearContents();
+    sh.clearFormats();
+    // clearFormats() NO deshace merges ni borra reglas condicionales:
+    // sin esto, los merges de la corrida anterior ocultan datos o rompen merge().
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.setConditionalFormatRules([]);
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+
+  const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const provs = p.proveedores || [];
+  const mesCierre = Math.min(12, Math.max(1, parseInt(p.mes_cierre, 10) || 6));
+  const mesDesde = Math.min(mesCierre, Math.max(1, parseInt(p.mes_desde, 10) || 1));
+  const nMes = mesCierre - mesDesde + 1;   // cantidad de columnas-mes visibles
+  const mesNombre = MESES[mesCierre - 1];
+
+  const header = ['Proveedor', 'Recurrente'];
+  for (var m = mesDesde; m <= mesCierre; m++) header.push(MESES[m-1]);
+  header.push('Fact. típica', 'Prov. sugerida/mes', 'Comentario');
+  const REAL_COLS = Math.max(header.length, nMes + 2); // matriz y comparativa caben
+
+  function fmtMoney(v) {
+    const n = parseFloat(v) || 0;
+    return n.toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 });
+  }
+  function pad(arr, len) { while (arr.length < len) arr.push(''); return arr; }
+
+  // Filas + marcas de formato: cada push registra qué tipo de fila es,
+  // así el formateo no depende de aritmética manual de offsets.
+  const rows = [];
+  const marks = [];
+  function push(arr, kind) {
+    rows.push(pad(arr, REAL_COLS));
+    if (kind) marks.push({ r: rows.length, kind: kind });
+  }
+
+  // Pendientes: accionables (con actividad reciente) vs revisar vigencia
+  // (falta en el cierre pero sin facturar hace meses) vs referencia (previos)
+  const pendCierre = [], pendRevisar = [], pendPrevios = [];
+  provs.forEach(function(pr) {
+    (pr.meses_falta || []).forEach(function(m) {
+      // Solo el accionable lleva monto a provisionar; el resto muestra la
+      // factura típica como contexto (meses previos se regularizan a fin de año)
+      const esAccionable = (m === mesCierre && pr.accionable === true);
+      const item = { prov: pr.nombre, mesNum: m, mes: MESES[m-1],
+        monto: esAccionable ? (parseFloat(pr.provision_sugerida_mensual) || 0) : (parseFloat(pr.factura_promedio) || 0),
+        ultimoF: pr.ultimo_mes_factura || 0 };
+      if (m === mesCierre) {
+        (esAccionable ? pendCierre : pendRevisar).push(item);
+      } else {
+        pendPrevios.push(item);
+      }
+    });
+  });
+  var totalAccionable = pendCierre.reduce(function(a, x) { return a + x.monto; }, 0);
+
+  // ── Título y metadata ──
+  push(['CONTROL DE PROVISIONES — ' + mesNombre + '  ·  Kavak Finanzas Chile'], 'title');
+  push([
+    'Analista: ' + (p.analista || 'Anónimo'),
+    'Fecha análisis: ' + (p.fecha || '') + ' ' + (p.hora || ''),
+    'Cuenta: ' + (p.cuenta || '—'),
+    'Período: ' + (p.periodo || '—'),
+    'ACCIONABLE ' + mesNombre + ': ' + fmtMoney(totalAccionable)
+  ], 'meta');
+  push([]);
+
+  // ── ACCIONABLE: provisionar en el mes de cierre ──
+  push(['🎯 PROVISIONAR EN ' + mesNombre.toUpperCase() + ' (ACCIONABLE) — ' + pendCierre.length + ' proveedor(es) · ' + fmtMoney(totalAccionable)], 'sec-red');
+  push(['Proveedor', 'Monto a provisionar', 'Base del cálculo', 'Registrada (Sí/No)', 'Nº asiento', 'Notas'], 'colhead');
+  if (pendCierre.length) {
+    pendCierre.forEach(function(x) {
+      push([x.prov, x.monto, 'Factura típica del proveedor (valor más frecuente)', '', '', ''], 'row-accionable');
+    });
+  } else {
+    push(['✓ ' + mesNombre + ' al día: todos los proveedores con actividad reciente tienen factura o provisión.'], 'row-ok');
+  }
+  push([]);
+
+  // ── Revisar vigencia: sin factura en el cierre y sin actividad reciente ──
+  if (pendRevisar.length) {
+    push(['⏸ SIN FACTURA HACE MESES — CONFIRMAR VIGENCIA DEL SERVICIO (' + pendRevisar.length + ') · sin provisión automática'], 'sec-gray');
+    push(['Proveedor', 'Última factura', 'Fact. típica (referencia)', 'Vigente (Sí/No)', 'Acción', 'Notas'], 'colhead');
+    pendRevisar.forEach(function(x) {
+      push([x.prov, x.ultimoF ? MESES[x.ultimoF - 1] : '—', x.monto, '', '', ''], 'row-ref');
+    });
+    push([]);
+  }
+
+  // ── Matriz mensual ──
+  push(['MATRIZ MENSUAL  ·  F = factura (IR) · P = provisión (Diario) · FALTA = provisionar'], 'sec-dark');
+  push(header.slice(), 'colhead');
+  var matDataStart = rows.length + 1;
+  provs.forEach(function(pr) {
+    const r = [pr.nombre || '', pr.recurrente ? 'Sí' : 'No'];
+    for (var m = mesDesde; m <= mesCierre; m++) r.push((pr.meses && pr.meses[String(m)]) || '');
+    r.push(parseFloat(pr.factura_promedio) || 0);
+    // 'Prov. sugerida/mes' solo para el proveedor accionable del cierre
+    r.push(pr.accionable === true ? (parseFloat(pr.provision_sugerida_mensual) || 0) : '');
+    r.push(pr.comentario || '');
+    push(r, 'row-matriz');
+  });
+  push([]);
+
+  // ── Referencia: meses anteriores ──
+  if (pendPrevios.length) {
+    push(['REFERENCIA — meses anteriores ya cerrados (' + pendPrevios.length + ') · sin monto a provisionar (se regulariza a fin de año)'], 'sec-gray');
+    push(['Proveedor', 'Mes', 'Fact. típica (contexto)', '', '', ''], 'colhead');
+    pendPrevios.forEach(function(x) {
+      push([x.prov, x.mes, x.monto, '', '', ''], 'row-ref');
+    });
+    push([]);
+  }
+
+  // ── Notas para auditoría ──
+  const notas = p.notas_auditoria || [];
+  push(['NOTAS PARA AUDITORÍA — variaciones y justificaciones (' + notas.length + ')'], 'sec-purple');
+  notas.forEach(function(n, i) {
+    push([(i + 1) + '. ' + n], 'row-nota');
+  });
+  push([]);
+
+  // ── Resumen ──
+  push(['RESUMEN'], 'sec-gray');
+  push([p.resumen || ''], 'row-resumen');
+
+  sh.getRange(1, 1, rows.length, REAL_COLS).setValues(rows);
+
+  // ══ Formato por tipo de fila ══
+  marks.forEach(function(mk) {
+    const R = sh.getRange(mk.r, 1, 1, REAL_COLS);
+    switch (mk.kind) {
+      case 'title':
+        R.merge().setBackground('#000000').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 38); break;
+      case 'meta':
+        R.setBackground('#f4f4f5').setFontColor('#3f3f46').setFontSize(10); break;
+      case 'sec-red':
+        R.merge().setBackground('#dc1a23').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-dark':
+        R.merge().setBackground('#18181b').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-gray':
+        R.merge().setBackground('#e4e4e7').setFontColor('#3f3f46').setFontWeight('bold').setFontSize(11); break;
+      case 'sec-purple':
+        R.merge().setBackground('#7c3aed').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11); break;
+      case 'colhead':
+        R.setBackground('#27272a').setFontColor('#e4e4e7').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center'); break;
+      case 'row-accionable':
+        R.setBackground('#fde8e9').setFontSize(10);
+        sh.getRange(mk.r, 2, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right').setFontWeight('bold').setFontColor('#b01019'); break;
+      case 'row-ok':
+        R.merge().setBackground('#e6f7f0').setFontColor('#0b6b3a').setFontWeight('bold'); break;
+      case 'row-matriz':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 3 + nMes, 1, 2).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 3, 1, nMes).setHorizontalAlignment('center').setFontWeight('bold'); break;
+      case 'row-comp':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 2, 1, nMes).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 2 + nMes, 1, 1).setHorizontalAlignment('right').setFontWeight('bold'); break;
+      case 'row-comp-total':
+        R.setFontWeight('bold').setBackground('#f4f4f5').setFontSize(10);
+        sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-comp-prov':
+        R.setFontColor('#71717a').setFontSize(10);
+        sh.getRange(mk.r, 2, 1, mesCierre).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-ref':
+        R.setFontColor('#52525b').setFontSize(10);
+        sh.getRange(mk.r, 3, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-nota':
+        R.merge().setWrap(true).setBackground('#f5f3ff').setFontColor('#4c1d95').setFontSize(10).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 34); break;
+      case 'row-resumen':
+        R.merge().setWrap(true).setFontColor('#3f3f46').setFontSize(10);
+        sh.setRowHeight(mk.r, 80); break;
+    }
+  });
+
+  // Semáforo F/P/FALTA en la matriz y resalte de la columna del mes de cierre
+  if (provs.length > 0) {
+    const mesRange = sh.getRange(matDataStart, 3, provs.length, nMes);
+    const rules = [
+      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('FALTA')
+        .setBackground('#fde2e1').setFontColor('#b3261e').setRanges([mesRange]).build(),
+      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('F')
+        .setBackground('#d6f5e3').setFontColor('#0b6b3a').setRanges([mesRange]).build(),
+      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('F+P')
+        .setBackground('#d6f5e3').setFontColor('#0b6b3a').setRanges([mesRange]).build(),
+      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('P')
+        .setBackground('#fff1d6').setFontColor('#9a6700').setRanges([mesRange]).build()
+    ];
+    sh.setConditionalFormatRules(rules);
+    // Borde en la columna del mes accionable
+    sh.getRange(matDataStart - 1, 2 + nMes, provs.length + 1, 1)
+      .setBorder(true, true, true, true, false, false, '#dc1a23', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  }
+
+  // Anchos
+  sh.setColumnWidth(1, 230);
+  sh.setColumnWidth(2, 110);
+  for (var c = 3; c <= REAL_COLS; c++) sh.setColumnWidth(c, 84);
+  sh.setColumnWidth(REAL_COLS, 240);
+  sh.setFrozenRows(1);
+
+  // Tablas y gráficos en su propia hoja
+  writeProvisionesDashboard_(ss, p, mesDesde, mesCierre, MESES);
+
+  return ss.getUrl() + '#gid=' + sh.getSheetId();
+}
+
+/**
+ * Hoja "Dashboard" de la planilla de Provisiones: comparativa mensual por
+ * proveedor, gráfico de facturación por mes y desglose de otros movimientos.
+ * Se reconstruye completa en cada análisis.
+ */
+function writeProvisionesDashboard_(ss, p, mesDesde, mesCierre, MESES) {
+  let sh = ss.getSheetByName('Dashboard');
+  if (!sh) sh = ss.insertSheet('Dashboard');
+  else {
+    sh.clearContents();
+    sh.clearFormats();
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.getCharts().forEach(function(c) { sh.removeChart(c); });
+    sh.getBandings().forEach(function(b){ b.remove(); });
+  }
+
+  const mesNombre = MESES[mesCierre - 1];
+  const nMes = mesCierre - mesDesde + 1;
+  const comp = p.comparativa || { filas: [], totFact: [], totProv: [] };
+  const otros = p.otros || [];
+  const NCOLS = Math.max(nMes + 2, 7);
+
+  function pad(arr, len) { while (arr.length < len) arr.push(''); return arr; }
+  const rows = [];
+  const marks = [];
+  function push(arr, kind) {
+    rows.push(pad(arr, NCOLS));
+    if (kind) marks.push({ r: rows.length, kind: kind });
+  }
+
+  push(['DASHBOARD PROVISIONES — comparativas y desgloses  ·  ' + (p.periodo || '')], 'title');
+  push(['Analista: ' + (p.analista || 'Anónimo'), 'Fecha análisis: ' + (p.fecha || '') + ' ' + (p.hora || ''), 'Cuentas: ' + ((p.cuentas || []).join(' · ') || p.cuenta || '—')], 'meta');
+  push([]);
+
+  // ── Tabla base del gráfico: total facturado y provisiones por mes ──
+  push(['FACTURACIÓN (IR) Y PROVISIONES (DIARIO) POR MES'], 'sec-dark');
+  push(['Mes', 'Total facturado', 'Provisiones'], 'colhead');
+  var chartDataStart = rows.length + 1;
+  for (var m = mesDesde - 1; m < mesCierre; m++) {
+    push([MESES[m], comp.totFact[m] || 0, comp.totProv[m] || 0], 'row-money2');
+  }
+  var chartDataEnd = rows.length;
+  push([]);
+
+  // ── Comparativa por proveedor ──
+  if (comp.filas && comp.filas.length) {
+    push(['COMPARATIVA MENSUAL POR PROVEEDOR — Δ ' + mesNombre + ' vs mes anterior · ⚠ = ±50% o sin factura'], 'sec-dark');
+    const ch = ['Proveedor'];
+    for (var m = mesDesde; m <= mesCierre; m++) ch.push(MESES[m-1]);
+    ch.push('Δ %');
+    push(ch, 'colhead');
+    comp.filas.forEach(function(fRow) {
+      const r = [fRow.prov];
+      for (var m = mesDesde - 1; m < mesCierre; m++) r.push(fRow.montos[m] || '');
+      r.push(fRow.delta || '');
+      push(r, 'row-comp');
+    });
+    push([]);
+  }
+
+  // ── Otros movimientos (sin IR ni Diario) ──
+  push(['OTROS MOVIMIENTOS DEL ARCHIVO — fuera de la lógica de provisiones (' + otros.length + ' líneas)'], 'sec-gray');
+  push(['Cuenta', 'Tipo (NetSuite)', 'Proveedor', 'Mes', 'Monto neto', 'N° movs'], 'colhead');
+  if (otros.length) {
+    otros.forEach(function(x) {
+      push([x.cuenta || '', x.tipo || '', x.prov || '', MESES[(x.mes || 1) - 1] || x.mes, parseFloat(x.monto) || 0, x.n || ''], 'row-otro');
+    });
+  } else {
+    push(['— El archivo no trae movimientos fuera de la regla IR/Diario —'], 'row-empty');
+  }
+
+  sh.getRange(1, 1, rows.length, NCOLS).setValues(rows);
+
+  // ══ Formato ══
+  marks.forEach(function(mk) {
+    const R = sh.getRange(mk.r, 1, 1, NCOLS);
+    switch (mk.kind) {
+      case 'title':
+        R.merge().setBackground('#000000').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+        sh.setRowHeight(mk.r, 38); break;
+      case 'meta':
+        R.setBackground('#f4f4f5').setFontColor('#3f3f46').setFontSize(10); break;
+      case 'sec-dark':
+        R.merge().setBackground('#18181b').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+        sh.setRowHeight(mk.r, 30); break;
+      case 'sec-gray':
+        R.merge().setBackground('#e4e4e7').setFontColor('#3f3f46').setFontWeight('bold').setFontSize(11); break;
+      case 'colhead':
+        R.setBackground('#27272a').setFontColor('#e4e4e7').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center'); break;
+      case 'row-money2':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 2, 1, 2).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-comp':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 2, 1, nMes).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 2 + nMes, 1, 1).setHorizontalAlignment('right').setFontWeight('bold'); break;
+      case 'row-otro':
+        R.setFontSize(10).setFontColor('#52525b');
+        sh.getRange(mk.r, 5, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-empty':
+        R.merge().setFontColor('#a1a1aa').setFontStyle('italic'); break;
+    }
+  });
+
+  // ── Gráfico de columnas: facturación y provisiones por mes ──
+  const chart = sh.newChart()
+    .setChartType(Charts.ChartType.COLUMN)
+    .addRange(sh.getRange(chartDataStart - 1, 1, chartDataEnd - chartDataStart + 2, 3))
+    .setPosition(4, Math.min(NCOLS, 5), 0, 0)
+    .setOption('title', 'Facturación (IR) vs Provisiones (Diario) por mes')
+    .setOption('titleTextStyle', { color: '#18181b', fontSize: 13, bold: true })
+    .setOption('colors', ['#18181b', '#dc1a23'])
+    .setOption('backgroundColor', { fill: '#ffffff' })
+    .setOption('legend', { position: 'bottom' })
+    .setOption('hAxis', { textStyle: { color: '#52525b', fontSize: 10 } })
+    .setOption('vAxis', { textStyle: { color: '#52525b', fontSize: 10 }, minValue: 0, format: 'short' })
+    .setOption('width', 560)
+    .setOption('height', 300);
+  sh.insertChart(chart.build());
+
+  // Anchos
+  sh.setColumnWidth(1, 230);
+  for (var c = 2; c <= NCOLS; c++) sh.setColumnWidth(c, 105);
+  sh.setFrozenRows(1);
+}
+
+/**
+ * Ejecutar UNA vez desde el editor de Apps Script (▶ Run → setupDesgloseTemplate).
+ * Deja la hoja "Desglose" con estructura, headers y formato listos.
+ * No borra datos existentes si ya hay análisis — limpia y reconstruye la plantilla vacía.
+ */
+function setupDesgloseTemplate() {
+  const ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
+  const ss   = SpreadsheetApp.openById(ssId);
+
+  let sh = ss.getSheetByName('Desglose');
+  if (!sh) sh = ss.insertSheet('Desglose');
+  else {
+    sh.clearContents();
+    sh.clearFormats();
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+
+  // Anchos de columna: Fecha | Descripción/Glosa | Monto | Fecha libro | Glosa | Referencia | Confianza/Tipo
+  var cols = [100, 270, 120, 100, 220, 140, 90];
+  cols.forEach(function(w, i){ sh.setColumnWidth(i + 1, w); });
+
+  var rows = [];
+
+  // Fila 1 — Título principal
+  rows.push(['CONCILIACIÓN BANCARIA — Papel de Trabajo  ·  Kavak Finanzas Chile', '', '', '', '', '', '']);
+
+  // Fila 2 — Metadata (se llenará con cada análisis)
+  rows.push(['Analista: —', 'Fecha: —', 'Hora: —', '', 'Saldo Cartola: —', 'Saldo Libro: —', 'Diferencia Total: —']);
+
+  // Fila 3 — Separador
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección ✓ Conciliados ──
+  rows.push(['✓  ÍTEMS CONCILIADOS', '', '', '', '', '', '']);           // fila 4
+  rows.push(['Fecha Cartola', 'Descripción', 'Monto', 'Fecha Libro', 'Glosa', 'Referencia', 'Confianza']); // fila 5
+  rows.push(['← Los ítems conciliados aparecerán aquí al ejecutar el análisis', '', '', '', '', '', '']);   // fila 6
+
+  // Fila 7 — Separador
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección ⚠ Solo en Cartola ──
+  rows.push(['⚠  SOLO EN CARTOLA — sin registro contable', '', '', '', '', '', '']); // fila 8
+  rows.push(['Fecha', 'Descripción', 'Monto', 'Tipo', '', '', '']);                   // fila 9
+  rows.push(['← Movimientos del banco sin asiento contable', '', '', '', '', '', '']); // fila 10
+
+  // Fila 11 — Separador
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección ⚠ Solo en Libro ──
+  rows.push(['⚠  SOLO EN LIBRO — sin movimiento bancario', '', '', '', '', '', '']); // fila 12
+  rows.push(['Fecha', 'Glosa', 'Monto', 'Referencia', '', '', '']);                   // fila 13
+  rows.push(['← Asientos contables sin movimiento en cartola', '', '', '', '', '', '']); // fila 14
+
+  // Fila 15 — Separador
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Resumen ──
+  rows.push(['RESUMEN', '', '', '', '', '', '']);                        // fila 16
+  rows.push(['← El resumen del análisis aparecerá aquí', '', '', '', '', '', '']); // fila 17
+
+  sh.getRange(1, 1, rows.length, 7).setValues(rows);
+
+  // ── Formato fila 1: Título ──
+  sh.getRange(1, 1, 1, 7).merge().setBackground('#1c1c1e').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(14).setHorizontalAlignment('left')
+    .setVerticalAlignment('middle');
+  sh.setRowHeight(1, 40);
+
+  // ── Formato fila 2: Metadata ──
+  sh.getRange(2, 1, 1, 7).setBackground('#f1f5f9').setFontColor('#475569')
+    .setFontSize(10).setFontStyle('italic');
+  sh.setRowHeight(2, 26);
+
+  // ── Formato fila 4: Header sección Conciliados ──
+  sh.getRange(4, 1, 1, 7).merge().setBackground('#00a060').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(12);
+  sh.setRowHeight(4, 32);
+
+  // ── Formato fila 5: Columnas Conciliados ──
+  sh.getRange(5, 1, 1, 7).setBackground('#0f172a').setFontColor('#e2e8f0')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(5, 26);
+
+  // ── Formato fila 6: Placeholder Conciliados ──
+  sh.getRange(6, 1, 1, 7).merge().setBackground('#f0fdf7').setFontColor('#94a3b8')
+    .setFontStyle('italic').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(6, 32);
+
+  // ── Formato fila 8: Header sección Solo Cartola ──
+  sh.getRange(8, 1, 1, 7).merge().setBackground('#d97706').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(12);
+  sh.setRowHeight(8, 32);
+
+  // ── Formato fila 9: Columnas Solo Cartola ──
+  sh.getRange(9, 1, 1, 7).setBackground('#0f172a').setFontColor('#e2e8f0')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(9, 26);
+
+  // ── Formato fila 10: Placeholder Solo Cartola ──
+  sh.getRange(10, 1, 1, 7).merge().setBackground('#fffdf0').setFontColor('#94a3b8')
+    .setFontStyle('italic').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(10, 32);
+
+  // ── Formato fila 12: Header sección Solo Libro ──
+  sh.getRange(12, 1, 1, 7).merge().setBackground('#2563eb').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(12);
+  sh.setRowHeight(12, 32);
+
+  // ── Formato fila 13: Columnas Solo Libro ──
+  sh.getRange(13, 1, 1, 7).setBackground('#0f172a').setFontColor('#e2e8f0')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(13, 26);
+
+  // ── Formato fila 14: Placeholder Solo Libro ──
+  sh.getRange(14, 1, 1, 7).merge().setBackground('#f0f5ff').setFontColor('#94a3b8')
+    .setFontStyle('italic').setFontSize(10).setHorizontalAlignment('center');
+  sh.setRowHeight(14, 32);
+
+  // ── Formato fila 16: Header Resumen ──
+  sh.getRange(16, 1, 1, 7).merge().setBackground('#f1f5f9').setFontColor('#334155')
+    .setFontWeight('bold').setFontSize(11);
+  sh.setRowHeight(16, 28);
+
+  // ── Formato fila 17: Texto Resumen ──
+  sh.getRange(17, 1, 1, 7).merge().setBackground('#ffffff').setFontColor('#94a3b8')
+    .setFontStyle('italic').setFontSize(10).setWrap(true);
+  sh.setRowHeight(17, 60);
+
+  sh.setFrozenRows(1);
+  ss.setActiveSheet(sh);
+
+  return 'Plantilla Desglose lista: ' + ss.getUrl();
+}
+
+/**
+ * Escribe (sobreescribe) la hoja "Desglose" de la planilla de conciliaciones
+ * con el resultado completo del análisis. Llamado desde finanzas.html tras
+ * analizar Conciliación Bancaria.
+ *
+ * payload: {
+ *   analista, fecha, hora,
+ *   cartola: [{fecha, descripcion, monto, tipo}],
+ *   libro:   [{fecha, glosa, monto, referencia}],
+ *   conciliados: [{cartola_idx, libro_idx, confianza, diferencia}],
+ *   solo_cartola: [idx,...],
+ *   solo_libro:   [idx,...],
+ *   saldo_cartola, saldo_libro, diferencia_total, resumen
+ * }
+ */
+function writeConciliacionDesglose(payload) {
+  const p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+
+  const ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
+  const ss    = SpreadsheetApp.openById(ssId);
+
+  // Obtener o crear la hoja "Desglose"
+  let sh = ss.getSheetByName('Desglose');
+  if (!sh) {
+    sh = ss.insertSheet('Desglose');
+  } else {
+    sh.clearContents();
+    sh.clearFormats();
+    // clearFormats() no deshace merges: romperlos evita filas de datos ocultas
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+
+  const cartola      = p.cartola      || [];
+  const libro        = p.libro        || [];
+  const conciliados  = p.conciliados  || [];
+  const soloCartola  = (p.solo_cartola || []).map(Number);
+  const soloLibro    = (p.solo_libro   || []).map(Number);
+
+  function fmtMoney(v) {
+    const n = parseFloat(v) || 0;
+    return n.toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 });
+  }
+
+  const rows = [];
+
+  // ── Título ──
+  rows.push(['CONCILIACIÓN BANCARIA — Papel de Trabajo Kavak Finanzas Chile', '', '', '', '', '', '']);
+  rows.push([
+    'Analista: ' + (p.analista || 'Anónimo'),
+    'Fecha: ' + (p.fecha || ''),
+    'Hora: ' + (p.hora || ''),
+    '',
+    'Saldo Cartola: ' + fmtMoney(p.saldo_cartola),
+    'Saldo Libro: ' + fmtMoney(p.saldo_libro),
+    'Diferencia Total: ' + fmtMoney(p.diferencia_total)
+  ]);
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección: Conciliados ──
+  rows.push(['✓ ÍTEMS CONCILIADOS (' + conciliados.length + ')', '', '', '', '', '', '']);
+  rows.push(['Fecha Cartola', 'Descripción', 'Monto', 'Fecha Libro', 'Glosa', 'Referencia', 'Confianza']);
+  conciliados.forEach(function(c) {
+    const ct = cartola[c.cartola_idx] || {};
+    const lb = libro[c.libro_idx]     || {};
+    rows.push([
+      ct.fecha || '', ct.descripcion || '', parseFloat(ct.monto) || 0,
+      lb.fecha || '', lb.glosa || '', lb.referencia || '',
+      c.confianza || ''
+    ]);
+  });
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección: Solo en cartola ──
+  rows.push(['⚠ SOLO EN CARTOLA — sin registro contable (' + soloCartola.length + ')', '', '', '', '', '', '']);
+  rows.push(['Fecha', 'Descripción', 'Monto', 'Tipo', '', '', '']);
+  soloCartola.forEach(function(idx) {
+    const ct = cartola[idx] || {};
+    rows.push([ct.fecha || '', ct.descripcion || '', parseFloat(ct.monto) || 0, ct.tipo || '', '', '', '']);
+  });
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Sección: Solo en libro ──
+  rows.push(['⚠ SOLO EN LIBRO — sin movimiento bancario (' + soloLibro.length + ')', '', '', '', '', '', '']);
+  rows.push(['Fecha', 'Glosa', 'Monto', 'Referencia', '', '', '']);
+  soloLibro.forEach(function(idx) {
+    const lb = libro[idx] || {};
+    rows.push([lb.fecha || '', lb.glosa || '', parseFloat(lb.monto) || 0, lb.referencia || '', '', '', '']);
+  });
+  rows.push(['', '', '', '', '', '', '']);
+
+  // ── Resumen ──
+  rows.push(['RESUMEN', '', '', '', '', '', '']);
+  rows.push([p.resumen || '', '', '', '', '', '', '']);
+
+  // Escribir todo de una vez
+  sh.getRange(1, 1, rows.length, 7).setValues(rows);
+
+  // ── Formato: Título ──
+  const titleR = sh.getRange(1, 1, 1, 7);
+  titleR.merge().setBackground('#1c1c1e').setFontColor('#ffffff')
+        .setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle');
+  sh.setRowHeight(1, 36);
+
+  // ── Formato: Metadata ──
+  sh.getRange(2, 1, 1, 7).setBackground('#f1f5f9').setFontColor('#334155').setFontSize(10);
+  sh.setRowHeight(2, 28);
+
+  // Localizar filas de sección y formatearlas
+  var currentRow = 4;
+
+  // Conciliados
+  var concilHeader = currentRow;
+  sh.getRange(concilHeader, 1, 1, 7).merge().setBackground('#00a060').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+  sh.getRange(concilHeader + 1, 1, 1, 7).setBackground('#0f172a').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+  if (conciliados.length > 0) {
+    sh.getRange(concilHeader + 2, 1, conciliados.length, 7)
+      .setBackground('#e6f7f0').setFontColor('#0b6b3a');
+    // Columna monto alineada a la derecha y formato moneda
+    sh.getRange(concilHeader + 2, 3, conciliados.length, 1)
+      .setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+  }
+  currentRow += 2 + conciliados.length + 1; // headers + data + blank
+
+  // Solo cartola
+  var soloCartHeader = currentRow;
+  sh.getRange(soloCartHeader, 1, 1, 7).merge().setBackground('#d97706').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+  sh.getRange(soloCartHeader + 1, 1, 1, 7).setBackground('#0f172a').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+  if (soloCartola.length > 0) {
+    sh.getRange(soloCartHeader + 2, 1, soloCartola.length, 7)
+      .setBackground('#fffbeb').setFontColor('#92400e');
+    sh.getRange(soloCartHeader + 2, 3, soloCartola.length, 1)
+      .setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+  }
+  currentRow += 2 + soloCartola.length + 1;
+
+  // Solo libro
+  var soloLibHeader = currentRow;
+  sh.getRange(soloLibHeader, 1, 1, 7).merge().setBackground('#2563eb').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+  sh.getRange(soloLibHeader + 1, 1, 1, 7).setBackground('#0f172a').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+  if (soloLibro.length > 0) {
+    sh.getRange(soloLibHeader + 2, 1, soloLibro.length, 7)
+      .setBackground('#eff6ff').setFontColor('#1e3a8a');
+    sh.getRange(soloLibHeader + 2, 3, soloLibro.length, 1)
+      .setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+  }
+  currentRow += 2 + soloLibro.length + 1;
+
+  // Resumen
+  sh.getRange(currentRow, 1, 1, 7).merge().setBackground('#f1f5f9').setFontColor('#334155').setFontWeight('bold').setFontSize(11);
+  sh.getRange(currentRow + 1, 1, 1, 7).merge().setWrap(true).setFontColor('#475569').setFontSize(10);
+  sh.setRowHeight(currentRow + 1, 72);
+
+  // Anchos de columna
+  [100, 260, 110, 100, 220, 130, 80].forEach(function(w, i) { sh.setColumnWidth(i + 1, w); });
+  sh.setFrozenRows(1);
+
+  return ss.getUrl() + '#gid=' + sh.getSheetId();
+}

@@ -1,0 +1,2797 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Suite — Kavak Finanzas</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;font-size:13px;line-height:1.5;overflow:hidden;background:#f5f5f7;color:#0f172a;-webkit-font-smoothing:antialiased}
+:root{
+  --n0:#ffffff;--n50:#f5f5f7;--n100:#f1f5f9;--n200:#e2e8f0;--n300:#cbd5e1;--n400:#94a3b8;--n500:#64748b;--n600:#475569;--n700:#334155;--n800:#1e293b;--n900:#0f172a;
+  --green:#00a060;--green-d:#007a4a;--green-l:#e6f7f0;--green-b:#b3e8d3;
+  --red:#dc1a23;--red-d:#b01019;--red-l:#fde8e9;--red-b:#f9b3b6;
+  --amber:#d97706;--amber-l:#fffbeb;--amber-b:#fde68a;
+  --purple:#7c3aed;--purple-l:#f5f3ff;--purple-b:#ddd6fe;
+  --blue:#2563eb;--blue-d:#1d4ed8;--blue-l:#eff6ff;--blue-b:#bfdbfe;
+  --sidebar-bg:rgba(24,24,27,.95);
+  --s1:0 1px 2px rgba(0,0,0,.05);--s2:0 1px 3px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.05);--s3:0 4px 6px rgba(0,0,0,.07),0 10px 20px rgba(0,0,0,.07);
+  --mono:'JetBrains Mono','Fira Code','SF Mono',monospace;
+  --t:.15s cubic-bezier(.4,0,.2,1);
+}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:4px}
+.main ::-webkit-scrollbar-thumb{background:#cbd5e1}
+
+/* ── LAYOUT ── */
+.shell{display:grid;grid-template-columns:230px 1fr;height:100vh;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{background:var(--sidebar-bg);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,255,255,.06)}
+
+.brand{padding:16px 14px 12px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0}
+.brand-lockup{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.brand-mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#dc1a23,#8f0d14);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff;letter-spacing:-.5px;flex-shrink:0;box-shadow:0 2px 8px rgba(220,26,35,.45);transform:skewX(-4deg)}
+.brand-wordmark{font-size:13px;font-weight:800;color:#fff;letter-spacing:-.3px;line-height:1.2}
+.brand-sub{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.1px;margin-top:1px}
+.brand-badge{display:inline-flex;padding:2px 8px;background:rgba(220,26,35,.16);border:1px solid rgba(220,26,35,.4);border-radius:20px;font-size:9px;font-weight:700;color:#ff6b71;letter-spacing:.5px;text-transform:uppercase;margin-top:6px}
+
+.nav-section{padding:8px 8px 4px;flex-shrink:0}
+.nav-label{font-size:9px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1px;padding:0 6px;margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent;transition:var(--t);margin-bottom:2px;border-left:3px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.07)}
+.nav-item.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.1);border-left-color:var(--red)}
+.nav-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.nav-text{flex:1;min-width:0}
+.nav-name{font-size:11px;font-weight:700;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-item.active .nav-name{color:#fff}
+.nav-desc{font-size:9px;color:rgba(255,255,255,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.nav-badge{font-size:8px;font-weight:700;padding:2px 5px;border-radius:4px;background:rgba(220,26,35,.18);color:#ff6b71;border:1px solid rgba(220,26,35,.35);letter-spacing:.3px;white-space:nowrap;flex-shrink:0}
+
+.sidebar-divider{height:1px;background:rgba(255,255,255,.06);margin:4px 12px}
+
+.user-section{padding:8px 10px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.user-lbl{font-size:9px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px}
+.user-inp{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.85);font-size:11px;padding:7px 10px;border-radius:8px;outline:none;font-family:inherit;transition:var(--t)}
+.user-inp:focus{border-color:var(--red);background:rgba(220,26,35,.08)}
+.user-inp::placeholder{color:rgba(255,255,255,.2)}
+
+.hist-head{padding:8px 14px 4px;flex-shrink:0;display:flex;align-items:center;gap:4px}
+.hist-lbl{font-size:9px;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1px;font-weight:700;flex:1}
+.hist-count{font-size:9px;color:#ff6b71;font-weight:700}
+.hist-clear{background:none;border:none;color:rgba(255,255,255,.25);font-size:10px;cursor:pointer;padding:2px 4px;border-radius:4px;transition:var(--t)}
+.hist-clear:hover{color:var(--red);background:rgba(220,26,35,.1)}
+
+.hist-scroll{flex:1;overflow-y:auto;padding:2px 8px 8px}
+.hi{padding:8px 9px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:var(--t);margin-bottom:2px}
+.hi:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.07)}
+.hi-mod{font-size:9px;font-weight:700;color:#ff6b71;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.hi-title{font-size:11px;font-weight:600;color:rgba(255,255,255,.75);line-height:1.3}
+.hi-ts{font-size:9px;color:rgba(255,255,255,.25);margin-top:1px}
+.hi-empty{padding:24px 10px;text-align:center;color:rgba(255,255,255,.2);font-size:11px;line-height:1.8}
+
+/* ── MAIN ── */
+.main{display:flex;flex-direction:column;overflow:hidden;background:var(--n50)}
+
+/* ── TOPBAR ── */
+.topbar{height:46px;padding:0 16px;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:8px;flex-shrink:0;background:var(--n0);box-shadow:var(--s1)}
+.topbar-icon{font-size:16px}
+.topbar-title{font-size:13px;font-weight:700;color:var(--n900);letter-spacing:-.2px;flex:1}
+.badge{padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.1px;border:1px solid}
+.b-green{background:var(--green-l);color:var(--green-d);border-color:var(--green-b)}
+.b-red{background:var(--red-l);color:var(--red-d);border-color:var(--red-b)}
+.b-amber{background:var(--amber-l);color:var(--amber);border-color:var(--amber-b)}
+.b-purple{background:var(--purple-l);color:var(--purple);border-color:var(--purple-b)}
+.b-blue{background:var(--blue-l);color:var(--blue-d);border-color:var(--blue-b)}
+.b-gray{background:var(--n100);color:var(--n500);border-color:var(--n200)}
+
+/* ── PROGRESS ── */
+.prog{height:2px;background:var(--n100);flex-shrink:0;overflow:hidden}
+.prog.hidden{display:none}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--red),#ff6b71);animation:prog 1s ease-in-out infinite;width:35%}
+@keyframes prog{0%{margin-left:-35%}100%{margin-left:100%}}
+
+/* ── VIEWS ── */
+.views{flex:1;overflow:hidden;position:relative}
+.view{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.view.active{display:flex}
+
+/* ── CONTENT AREA ── */
+.content{flex:1;overflow-y:auto;padding:16px}
+.content-inner{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+/* ── UPLOAD ZONES ── */
+.upload-grid{display:grid;gap:12px}
+.upload-grid.two-col{grid-template-columns:1fr 1fr}
+.upload-zone{border:2px dashed var(--n200);border-radius:16px;background:var(--n0);padding:32px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:var(--t);position:relative;min-height:140px;text-align:center}
+.upload-zone:hover,.upload-zone.over{border-color:var(--green);background:var(--green-l)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:28px;opacity:.45;line-height:1}
+.upload-title{font-size:13px;font-weight:700;color:var(--n800)}
+.upload-sub{font-size:11px;color:var(--n400);line-height:1.5}
+.upload-kbd{display:inline-flex;padding:2px 8px;background:var(--n100);border-radius:6px;font-size:10px;color:var(--n500);font-family:var(--mono);border:1px solid var(--n200)}
+.upload-zone.has-file{border-style:solid;border-color:var(--green);background:var(--green-l)}
+.file-preview{display:none;width:100%;align-items:center;gap:10px;padding:8px 12px;background:var(--n0);border-radius:10px;border:1px solid var(--n200);margin-top:4px}
+.file-preview.show{display:flex}
+.file-thumb{width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--n200);flex-shrink:0}
+.file-pdf-icon{width:40px;height:40px;border-radius:6px;background:var(--red-l);border:1px solid var(--red-b);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.file-name{font-size:11px;font-weight:600;color:var(--n700);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-size{font-size:10px;color:var(--n400)}
+.file-remove{background:none;border:none;color:var(--n400);cursor:pointer;font-size:14px;padding:2px;border-radius:4px;transition:var(--t);flex-shrink:0}
+.file-remove:hover{color:var(--red);background:var(--red-l)}
+
+/* ── ACTION BAR ── */
+.action-bar{padding:10px 16px;border-top:1px solid var(--n200);background:var(--n0);display:flex;gap:8px;align-items:center;flex-shrink:0}
+.btn-primary{padding:9px 20px;border-radius:9px;background:#0a0a0a;color:#fff;font-size:12px;font-weight:700;border:1px solid #0a0a0a;cursor:pointer;transition:var(--t);display:flex;align-items:center;gap:6px;letter-spacing:-.1px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.btn-primary:hover:not(:disabled){background:var(--red);border-color:var(--red);box-shadow:0 4px 14px rgba(220,26,35,.4);transform:translateY(-1px)}
+.btn-primary:active:not(:disabled){transform:translateY(0)}
+.btn-primary:disabled{background:var(--n200);color:var(--n400);cursor:not-allowed;box-shadow:none}
+.btn-secondary{padding:9px 14px;border-radius:9px;border:1px solid var(--n200);background:var(--n50);color:var(--n600);font-size:11px;font-weight:600;cursor:pointer;transition:var(--t);font-family:inherit}
+.btn-secondary:hover{background:var(--n100);border-color:var(--n300);color:var(--n800)}
+.btn-icon{width:34px;height:34px;border-radius:8px;border:1px solid var(--n200);background:var(--n50);color:var(--n500);cursor:pointer;transition:var(--t);display:flex;align-items:center;justify-content:center;font-size:14px;font-family:inherit}
+.btn-icon:hover{background:var(--n100);border-color:var(--n300)}
+.action-hint{font-size:11px;color:var(--n400);flex:1}
+
+/* ── SPINNER ── */
+.spinner-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:48px 20px}
+.spinner{width:28px;height:28px;border:2.5px solid var(--n200);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin-msg{font-size:12px;color:var(--n500);text-align:center;max-width:220px;line-height:1.6;font-weight:500}
+
+/* ── EMPTY STATE ── */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:10px;text-align:center}
+.empty-icon{font-size:40px;opacity:.3}
+.empty-title{font-size:14px;font-weight:700;color:var(--n700)}
+.empty-sub{font-size:12px;color:var(--n400);max-width:260px;line-height:1.6}
+
+/* ── CARDS ── */
+.card{background:var(--n0);border-radius:16px;border:1px solid var(--n200);box-shadow:var(--s1);overflow:hidden}
+.card-header{padding:12px 16px;border-bottom:1px solid var(--n100);display:flex;align-items:center;gap:8px}
+.card-title{font-size:12px;font-weight:700;color:var(--n800);flex:1}
+.card-body{padding:14px 16px}
+.card-icon{font-size:14px;width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ── SUMMARY ROW ── */
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.summary-item{background:var(--n0);border-radius:12px;border:1px solid var(--n200);padding:12px 14px;text-align:center}
+.summary-item.green{background:var(--green-l);border-color:var(--green-b)}
+.summary-item.amber{background:var(--amber-l);border-color:var(--amber-b)}
+.summary-item.blue{background:var(--blue-l);border-color:var(--blue-b)}
+.summary-item.red{background:var(--red-l);border-color:var(--red-b)}
+.si-val{font-size:22px;font-weight:800;color:var(--n900);font-family:var(--mono);letter-spacing:-1px;line-height:1.1}
+.si-lbl{font-size:10px;color:var(--n500);font-weight:500;margin-top:4px}
+.summary-item.green .si-val{color:var(--green-d)}
+.summary-item.amber .si-val{color:var(--amber)}
+.summary-item.blue .si-val{color:var(--blue-d)}
+.summary-item.red .si-val{color:var(--red-d)}
+
+/* ── TABLES ── */
+.tbl-wrap{overflow-x:auto;border-radius:0 0 14px 14px}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{background:var(--n50);padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--n200);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--n100);color:var(--n700);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr.row-green td{background:rgba(0,160,96,.04)}
+tr.row-amber td{background:rgba(217,119,6,.04)}
+tr.row-blue td{background:rgba(37,99,235,.04)}
+tr:hover td{background:var(--n50)}
+.num{font-family:var(--mono);font-size:11px}
+.tbl-foot td{background:var(--n50);font-weight:700;border-top:2px solid var(--n200);border-bottom:none}
+.tbl-foot .num{font-size:12px}
+
+/* ── KPI CARDS ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi-card{background:var(--n0);border-radius:12px;border:1px solid var(--n200);padding:14px 16px;position:relative;overflow:hidden}
+.kpi-cat{font-size:9px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.kpi-val{font-size:20px;font-weight:800;color:var(--n900);font-family:var(--mono);letter-spacing:-1px;line-height:1.1}
+.kpi-name{font-size:10px;color:var(--n500);margin-top:4px;font-weight:500}
+.kpi-unit{font-size:11px;font-weight:600;color:var(--n400);margin-left:2px}
+.kpi-note{font-size:9px;color:var(--n400);margin-top:2px;font-style:italic}
+.kpi-accent{position:absolute;top:0;left:0;width:3px;height:100%}
+.kpi-card.good .kpi-accent{background:var(--green)}
+.kpi-card.good .kpi-val{color:var(--green-d)}
+.kpi-card.alert .kpi-accent{background:var(--red)}
+.kpi-card.alert .kpi-val{color:var(--red-d)}
+.kpi-card.warn .kpi-accent{background:var(--amber)}
+.kpi-card.warn .kpi-val{color:var(--amber)}
+.kpi-card.neutral .kpi-accent{background:var(--blue)}
+
+/* ── ALERTS ── */
+.alerts-list{display:flex;flex-direction:column;gap:6px}
+.alert-item{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:9px;font-size:11.5px;font-weight:500}
+.alert-item.error{background:var(--red-l);color:var(--red-d);border:1px solid var(--red-b)}
+.alert-item.warn{background:var(--amber-l);color:#92400e;border:1px solid var(--amber-b)}
+.alert-item.info{background:var(--blue-l);color:var(--blue-d);border:1px solid var(--blue-b)}
+.alert-icon{flex-shrink:0;margin-top:1px}
+
+/* ── DOC HEADER ── */
+.doc-header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--n0);border-radius:14px;border:1px solid var(--n200)}
+.doc-type-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.doc-number{font-size:17px;font-weight:800;color:var(--n900);font-family:var(--mono);letter-spacing:-0.5px}
+.doc-date{font-size:11px;color:var(--n400);margin-top:2px}
+
+/* ── PARTY CARDS ── */
+.party-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.party-card{background:var(--n0);border-radius:12px;border:1px solid var(--n200);padding:14px 16px}
+.party-role{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--n400);margin-bottom:8px}
+.party-name{font-size:13px;font-weight:700;color:var(--n900);margin-bottom:6px}
+.party-row{display:flex;gap:6px;align-items:center;margin-bottom:3px}
+.party-key{font-size:10px;color:var(--n400);width:50px;flex-shrink:0}
+.party-val{font-size:11px;color:var(--n700);font-weight:500;flex:1}
+.copy-btn{background:none;border:none;color:var(--n300);cursor:pointer;font-size:11px;padding:2px;transition:var(--t)}
+.copy-btn:hover{color:var(--green)}
+
+/* ── TOTALS ── */
+.totals-row{display:flex;gap:8px;padding:12px 16px;background:var(--n50);border-radius:12px;border:1px solid var(--n200);align-items:center;justify-content:flex-end}
+.total-item{text-align:right}
+.total-label{font-size:9px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.5px}
+.total-value{font-size:14px;font-weight:700;color:var(--n800);font-family:var(--mono)}
+.total-divider{width:1px;height:36px;background:var(--n200);margin:0 4px}
+.total-item.grand .total-value{font-size:20px;font-weight:800;color:var(--n900)}
+.total-item.grand .total-label{color:var(--green-d);font-size:10px}
+
+/* ── ASIENTO ── */
+.asiento-header{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px;background:var(--n50);border-radius:12px;border:1px solid var(--n200)}
+.ah-item{}
+.ah-label{font-size:9px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.ah-value{font-size:12px;font-weight:600;color:var(--n800)}
+.balance-indicator{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:9px;font-size:12px;font-weight:700}
+.balance-indicator.ok{background:var(--green-l);color:var(--green-d);border:1px solid var(--green-b)}
+.balance-indicator.fail{background:var(--red-l);color:var(--red-d);border:1px solid var(--red-b)}
+
+/* ── CONFIANZA BADGE ── */
+.conf-badge{padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.conf-alta{background:var(--green-l);color:var(--green-d)}
+.conf-media{background:var(--amber-l);color:var(--amber)}
+.conf-baja{background:var(--red-l);color:var(--red-d)}
+
+/* ── STATUS BADGE ── */
+.st-badge{padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;text-transform:uppercase}
+.st-vigente{background:var(--green-l);color:var(--green-d)}
+.st-pagado{background:var(--blue-l);color:var(--blue-d)}
+.st-pendiente{background:var(--amber-l);color:var(--amber)}
+.st-anulado{background:var(--red-l);color:var(--red-d)}
+
+/* ── EXECUTIVE SUMMARY ── */
+.exec-summary{padding:14px 16px;background:var(--n50);border-radius:12px;border:1px solid var(--n200);font-size:12px;color:var(--n700);line-height:1.7}
+.exec-summary p{margin-bottom:6px}
+.exec-summary p:last-child{margin-bottom:0}
+
+/* ── NOTES ── */
+.notes-box{padding:10px 14px;background:var(--blue-l);border:1px solid var(--blue-b);border-radius:10px;font-size:11.5px;color:var(--blue-d);line-height:1.6}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--n900);color:#fff;padding:10px 18px;border-radius:10px;font-size:12px;font-weight:600;z-index:9999;opacity:0;transition:all .25s cubic-bezier(.4,0,.2,1);pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{background:var(--green-d)}
+#toast.error{background:var(--red-d)}
+
+/* ── RESULT ANIMATION ── */
+.result-section{animation:fu .2s cubic-bezier(.4,0,.2,1) both}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── SECTION HEADER ── */
+.section-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.section-title{font-size:12px;font-weight:700;color:var(--n700)}
+.section-line{flex:1;height:1px;background:var(--n200)}
+
+/* ── RATIO TABLE ── */
+.ratio-row-good td:first-child::before{content:'▲';color:var(--green);margin-right:4px;font-size:9px}
+.ratio-row-alert td:first-child::before{content:'▼';color:var(--red);margin-right:4px;font-size:9px}
+.ratio-row-neutro td:first-child::before{content:'━';color:var(--n400);margin-right:4px;font-size:9px}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .kpi-grid,.summary-row{grid-template-columns:1fr 1fr}
+  .upload-grid.two-col{grid-template-columns:1fr}
+  .party-grid{grid-template-columns:1fr}
+}
+
+/* ── PAPEL DE TRABAJO: trazabilidad ── */
+.wp-header{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:linear-gradient(135deg,#fafafa,#f1f5f9);border:1px solid var(--n200);border-left:3px solid var(--n800);border-radius:12px}
+.wp-grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+.wp-cell{min-width:0}
+.wp-k{font-size:9px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.6px}
+.wp-v{font-size:12px;font-weight:600;color:var(--n700);word-break:break-word}
+.wp-print{flex-shrink:0;white-space:nowrap}
+
+/* Filas de proveedor clicables (drill-down) */
+tr.prov-row{cursor:pointer}
+tr.prov-row:hover td{background:rgba(37,99,235,.05)}
+tr.prov-detail>td{padding:0 8px 8px}
+
+/* ── IMPRESIÓN: solo el papel de trabajo ── */
+@media print{
+  html,body{overflow:visible !important;height:auto !important;background:#fff !important}
+  .sidebar,.topbar,.prog,.action-bar,#toast,.upload-grid,.upload-zone,.file-preview,.section-header,.no-print,.wp-print{display:none !important}
+  .shell{display:block !important;height:auto !important}
+  .main{overflow:visible !important;display:block !important}
+  .views{overflow:visible !important;position:static !important}
+  .view{display:none !important}
+  .view.active{display:block !important;position:static !important;overflow:visible !important}
+  .content{overflow:visible !important;height:auto !important;padding:0 !important}
+  .content-inner{max-width:100% !important}
+  .tbl-wrap{overflow:visible !important}
+  .card,.summary-row,.wp-header,.kpi-grid{break-inside:avoid;box-shadow:none !important}
+  .wp-header{border:1.5px solid #333}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-lockup">
+        <div class="brand-mark">K</div>
+        <div>
+          <div class="brand-wordmark">KAVAK <span style="color:#ff6b71">Finanzas</span></div>
+          <div class="brand-sub">Finance Suite · Chile</div>
+        </div>
+      </div>
+      <div class="brand-badge">v<?= VERSION ?></div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Módulos</div>
+
+      <div class="nav-item active" id="nav-conciliacion" onclick="selectModule('conciliacion')">
+        <div class="nav-icon" style="background:rgba(0,160,96,.15)">⚖️</div>
+        <div class="nav-text">
+          <div class="nav-name">Conciliación</div>
+          <div class="nav-desc">Cartola vs. libro mayor</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
+
+      <div class="nav-item" id="nav-provisiones" onclick="selectModule('provisiones')">
+        <div class="nav-icon" style="background:rgba(220,26,35,.15)">🧾</div>
+        <div class="nav-text">
+          <div class="nav-name">Provisiones</div>
+          <div class="nav-desc">Facturas vs provisiones NetSuite</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
+
+      <div class="nav-item" id="nav-icar" onclick="selectModule('icar')">
+        <div class="nav-icon" style="background:rgba(37,99,235,.15)">🚗</div>
+        <div class="nav-text">
+          <div class="nav-name">Imp. Transferencia</div>
+          <div class="nav-desc">Balance ICAR cuenta 2801-01</div>
+        </div>
+        <div class="nav-badge">FINANZAS</div>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="user-section">
+      <div class="user-lbl">Analista</div>
+      <input class="user-inp" id="userInput" type="text" placeholder="Tu nombre…" autocomplete="off">
+    </div>
+
+    <div class="hist-head">
+      <span class="hist-lbl">Historial</span>
+      <span class="hist-count" id="histCount">0</span>
+      <button class="hist-clear" onclick="clearHistory()" title="Limpiar historial">✕</button>
+    </div>
+    <div class="hist-scroll" id="histList">
+      <div class="hi-empty">No hay análisis aún.</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+    <div class="topbar" id="topbar">
+      <span class="topbar-icon" id="topbarIcon">⚖️</span>
+      <span class="topbar-title" id="topbarTitle">Conciliación Bancaria</span>
+      <span class="badge b-green" id="topbarBadge">FINANZAS</span>
+    </div>
+    <div class="prog hidden" id="progBar"><div class="prog-fill"></div></div>
+
+    <div class="views">
+
+      <!-- ══ VIEW: CONCILIACION ══ -->
+      <div class="view active" id="view-conciliacion">
+        <div class="content">
+          <div class="content-inner">
+            <div class="upload-grid two-col">
+              <!-- Cartola -->
+              <div>
+                <div class="section-header">
+                  <span class="section-title">📋 Cartola Bancaria</span>
+                  <div class="section-line"></div>
+                </div>
+                <div class="upload-zone" id="zone-cartola" ondragover="onDragOver(event,'zone-cartola')" ondragleave="onDragLeave('zone-cartola')" ondrop="onDrop(event,'cartola-file-input','cartola')">
+                  <input type="file" id="cartola-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('cartola',this)">
+                  <div class="upload-icon">📋</div>
+                  <div class="upload-title">Cartola Bancaria</div>
+                  <div class="upload-sub">Arrastra o haz clic<br>PDF o imagen</div>
+                  <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
+                </div>
+                <div class="file-preview" id="prev-cartola">
+                  <span id="prev-cartola-icon">📄</span>
+                  <div style="flex:1;min-width:0">
+                    <div class="file-name" id="prev-cartola-name">—</div>
+                    <div class="file-size" id="prev-cartola-size">—</div>
+                  </div>
+                  <button class="file-remove" onclick="removeFile('cartola')">✕</button>
+                </div>
+              </div>
+              <!-- Libro -->
+              <div>
+                <div class="section-header">
+                  <span class="section-title">📚 Registros Contables</span>
+                  <div class="section-line"></div>
+                </div>
+                <div class="upload-zone" id="zone-libro" ondragover="onDragOver(event,'zone-libro')" ondragleave="onDragLeave('zone-libro')" ondrop="onDrop(event,'libro-file-input','libro')">
+                  <input type="file" id="libro-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('libro',this)">
+                  <div class="upload-icon">📚</div>
+                  <div class="upload-title">Registros Contables</div>
+                  <div class="upload-sub">Arrastra o haz clic<br>PDF o imagen</div>
+                  <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
+                </div>
+                <div class="file-preview" id="prev-libro">
+                  <span id="prev-libro-icon">📄</span>
+                  <div style="flex:1;min-width:0">
+                    <div class="file-name" id="prev-libro-name">—</div>
+                    <div class="file-size" id="prev-libro-size">—</div>
+                  </div>
+                  <button class="file-remove" onclick="removeFile('libro')">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Results -->
+            <div id="results-conciliacion">
+              <div class="empty-state">
+                <div class="empty-icon">⚖️</div>
+                <div class="empty-title">Conciliación lista</div>
+                <div class="empty-sub">Sube la cartola bancaria y los registros contables, luego presiona Conciliar.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Sube ambos documentos para iniciar la conciliación</span>
+          <button class="btn-secondary" onclick="resetModule('conciliacion')">Limpiar</button>
+          <button class="btn-primary" id="btn-conciliacion" onclick="analyzeModule('conciliacion')" disabled>⚡ Conciliar</button>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: PROVISIONES ══ -->
+      <div class="view" id="view-provisiones">
+        <div class="content">
+          <div class="content-inner">
+            <div class="section-header">
+              <span class="section-title">🧾 Cuenta extraída de NetSuite</span>
+              <div class="section-line"></div>
+            </div>
+            <div class="upload-zone" id="zone-provisiones" ondragover="onDragOver(event,'zone-provisiones')" ondragleave="onDragLeave('zone-provisiones')" ondrop="onDrop(event,'prov-file-input','provisiones')">
+              <input type="file" id="prov-file-input" accept=".xlsx,.xls,.csv" onchange="handleFile('provisiones',this)">
+              <div class="upload-icon">🧾</div>
+              <div class="upload-title">Importar General Ledger (NetSuite)</div>
+              <div class="upload-sub">Reporte "CL - General Ledger con filtro por cuenta" descargado de NetSuite<br>Arrastra o haz clic para importarlo</div>
+              <div class="upload-kbd">XLS · XLSX · CSV</div>
+            </div>
+            <div class="file-preview" id="prev-provisiones">
+              <span id="prev-provisiones-icon">🧾</span>
+              <div style="flex:1;min-width:0">
+                <div class="file-name" id="prev-provisiones-name">—</div>
+                <div class="file-size" id="prev-provisiones-size">—</div>
+              </div>
+              <button class="file-remove" onclick="removeFile('provisiones')">✕</button>
+            </div>
+
+            <div class="no-print" style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap;align-items:flex-end">
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Desde
+                <input type="date" id="prov-desde" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Hasta <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--n400)">(mes de cierre)</span>
+                <input type="date" id="prov-hasta" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <div style="display:flex;align-items:flex-end;padding-bottom:6px;font-size:11px;color:var(--n400);max-width:340px">
+                Filtra por fecha contable. Recurrente = factura en 2+ meses del rango · sugerencia = valor que más se repite. Para avances semanales, adelanta la fecha "Hasta" cada semana.
+              </div>
+            </div>
+
+            <div id="results-provisiones">
+              <div class="empty-state">
+                <div class="empty-icon">🧾</div>
+                <div class="empty-title">Control de provisiones</div>
+                <div class="empty-sub">Importa el reporte General Ledger descargado de NetSuite. El sistema identifica los proveedores con factura mensual recurrente, detecta los meses donde no llegó la factura ni se registró la provisión, y sugiere el monto a provisionar según la factura típica del proveedor (el valor que más se repite — un cargo adicional de un solo mes no distorsiona la sugerencia).</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Facturas mensuales · provisiones faltantes · monto sugerido</span>
+          <button class="btn-secondary" onclick="resetModule('provisiones')">Limpiar</button>
+          <button class="btn-primary" id="btn-provisiones" onclick="analyzeModule('provisiones')" disabled>🧾 Analizar provisiones</button>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: ICAR (Impuesto Transferencia) ══ -->
+      <div class="view" id="view-icar">
+        <div class="content">
+          <div class="content-inner">
+            <div class="section-header">
+              <span class="section-title">🚗 Mayor cuenta 2801-01 — Impuesto Transferencia</span>
+              <div class="section-line"></div>
+            </div>
+            <div class="upload-zone" id="zone-icar" ondragover="onDragOver(event,'zone-icar')" ondragleave="onDragLeave('zone-icar')" ondrop="onDrop(event,'icar-file-input','icar')">
+              <input type="file" id="icar-file-input" accept=".xlsx,.xls,.csv" onchange="handleFile('icar',this)">
+              <div class="upload-icon">🚗</div>
+              <div class="upload-title">Importar mayor 2801-01 (NetSuite)</div>
+              <div class="upload-sub">El libro con la hoja del mayor de la cuenta (facturas de venta, notas de crédito y diarios ICAR)<br>Arrastra o haz clic para importarlo</div>
+              <div class="upload-kbd">XLSX · XLS · CSV</div>
+            </div>
+            <div class="file-preview" id="prev-icar">
+              <span id="prev-icar-icon">🚗</span>
+              <div style="flex:1;min-width:0">
+                <div class="file-name" id="prev-icar-name">—</div>
+                <div class="file-size" id="prev-icar-size">—</div>
+              </div>
+              <button class="file-remove" onclick="removeFile('icar')">✕</button>
+            </div>
+
+            <div class="no-print" style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap;align-items:flex-end">
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Desde
+                <input type="date" id="icar-desde" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Hasta
+                <input type="date" id="icar-hasta" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <div style="display:flex;align-items:flex-end;padding-bottom:6px;font-size:11px;color:var(--n400);max-width:360px">
+                Filtra por fecha contable. Cruce por Stock ID · saldo 0 = ok · negativo = facturado sin descontar (esperar rendición ICAR) · positivo = resultado negativo Kavak. El asiento lo registra el analista. Para avances semanales, adelanta la fecha "Hasta".
+              </div>
+            </div>
+
+            <div id="results-icar">
+              <div class="empty-state">
+                <div class="empty-icon">🚗</div>
+                <div class="empty-title">Balance impuesto transferencia</div>
+                <div class="empty-sub">Importa el mayor de la cuenta 2801-01. El sistema cruza por Stock ID lo facturado al cliente contra lo descontado del fondo ICAR, cuadra el saldo con el balance, clasifica cada vehículo (ok / facturado sin descontar / resultado negativo Kavak) y entrega el análisis para el ajuste del cierre.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <span class="action-hint">Cruce por Stock ID · cuadratura de balance · análisis del ajuste</span>
+          <button class="btn-secondary" onclick="resetModule('icar')">Limpiar</button>
+          <button class="btn-primary" id="btn-icar" onclick="analyzeModule('icar')" disabled>🚗 Analizar impuesto</button>
+        </div>
+      </div>
+
+    </div><!-- /views -->
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+'use strict';
+
+// ── GLOBALS ──
+const BASE_URL = '<?= BASE_URL ?>';
+const HIST_KEY = 'fin_hist';
+const MAX_HIST = 50;
+const IMG_MAX_PX = 1600;
+const IMG_QUALITY = 0.82;
+const PDF_SCALE   = 1.2;
+const PDF_MAX_PX  = 1800; // max height of stacked PDF canvas before downscaling
+
+// Per-module state
+const STATE = {
+  conciliacion: { files: {} },   // files.cartola, files.libro
+  provisiones:  { files: {} },   // files.provisiones (GL NetSuite pre-agregado)
+  icar:         { files: {} }    // files.icar (mayor 2801-01 impuesto transferencia)
+};
+
+let currentModule = 'conciliacion';
+const LAST_RESULT = {};    // último resultado por módulo (para botones y drill-down)
+const ANALYSIS_META = {};  // trazabilidad del papel de trabajo por módulo
+const spinIntervals = {};  // spinner por módulo (evita colisiones entre análisis)
+let inFlightCount = 0;     // análisis en curso (barra de progreso compartida)
+
+const SPIN_MSGS = [
+  'Analizando documento con IA…',
+  'Procesando datos financieros…',
+  'Extrayendo información clave…',
+  'Generando resultados…',
+  'Casi listo…'
+];
+
+const MODULE_META = {
+  conciliacion:   { icon: '⚖️', title: 'Conciliación Bancaria' },
+  provisiones:    { icon: '🧾', title: 'Control de Provisiones' },
+  icar:           { icon: '🚗', title: 'Impuesto Transferencia (ICAR)' }
+};
+
+// ── INIT ──
+(function init() {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  loadUserName();
+  renderHistory();
+
+  // Tab activo: inyectado server-side (el sandbox de HtmlService no expone
+  // la query string al cliente), con fallback a URL por si se sirve directo.
+  const SERVER_TAB = '<?= ACTIVE_TAB ?>';
+  const urlParams = new URLSearchParams(window.location.search);
+  const tab = SERVER_TAB || urlParams.get('tab') || 'conciliacion';
+  selectModule(tab);
+
+  // Cambio de módulo pedido desde el hub: postMessage (si llega) y el canal
+  // 'storage' de localStorage (mismo origen de sandbox — siempre llega).
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.tab) selectModule(e.data.tab);
+  });
+  window.addEventListener('storage', function(e) {
+    if (e.key === 'finz_tab_req' && e.newValue) {
+      selectModule(String(e.newValue).split('@')[0]);
+    }
+  });
+
+  document.getElementById('userInput').addEventListener('input', function() {
+    localStorage.setItem('fin_user', this.value);
+  });
+})();
+
+function loadUserName() {
+  const v = localStorage.getItem('fin_user') || '';
+  document.getElementById('userInput').value = v;
+}
+
+// ── MODULE SELECTION ──
+function selectModule(mod) {
+  const mods = ['conciliacion','provisiones','icar'];
+  if (!mods.includes(mod)) mod = 'conciliacion';
+  currentModule = mod;
+
+  mods.forEach(function(m) {
+    document.getElementById('nav-' + m).classList.toggle('active', m === mod);
+    document.getElementById('view-' + m).classList.toggle('active', m === mod);
+  });
+
+  const meta = MODULE_META[mod];
+  document.getElementById('topbarIcon').textContent = meta.icon;
+  document.getElementById('topbarTitle').textContent = meta.title;
+}
+
+// ── DRAG & DROP ──
+function onDragOver(e, zoneId) {
+  e.preventDefault();
+  document.getElementById(zoneId).classList.add('over');
+}
+function onDragLeave(zoneId) {
+  document.getElementById(zoneId).classList.remove('over');
+}
+function onDrop(e, inputId, key) {
+  e.preventDefault();
+  const z = document.getElementById('zone-' + key);
+  if (z) z.classList.remove('over');
+  const files = e.dataTransfer.files;
+  if (!files.length) return;
+  handleFile(key, { files: files });
+}
+
+// ── FILE HANDLING ──
+function handleFile(key, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  // Limpiar el input: permite volver a elegir el mismo archivo tras Limpiar/✕
+  if (input.value !== undefined) { try { input.value = ''; } catch(e) {} }
+
+  const proc = (key === 'provisiones') ? processProvisionesGL(file)
+             : (key === 'icar') ? processIcarGL(file)
+             : processFile(file);
+  proc.then(function(fd) {
+    const mod = getModuleForKey(key);
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [], icar: fd.icar || null, filas: fd.filas || null, tokenIdx: fd.tokenIdx || null, ymdMin: fd.ymdMin || null, ymdMax: fd.ymdMax || null };
+    showFilePreview(key, file);
+    if (key === 'provisiones') initProvRango(STATE[mod].files[key]);
+    if (key === 'icar') initIcarRango(fd.icar);
+    updateAnalyzeButton(mod);
+  }).catch(function(err) {
+    showToast('Error procesando archivo: ' + err.message, 'error');
+  });
+}
+
+function getModuleForKey(key) {
+  if (key === 'cartola' || key === 'libro') return 'conciliacion';
+  return key;
+}
+
+function processFile(file) {
+  const name = (file.name || '').toLowerCase();
+  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+               || file.type === 'application/vnd.ms-excel'
+               || name.endsWith('.xlsx') || name.endsWith('.xls');
+  const isCsv  = file.type === 'text/csv' || name.endsWith('.csv');
+  const isPdf  = file.type === 'application/pdf' || name.endsWith('.pdf');
+
+  if (isExcel) return excelToText(file);
+  if (isCsv)   return csvToText(file);
+  if (isPdf)   return pdfToBase64(file);
+  return compressImage(file);
+}
+
+function compressImage(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        let w = img.width, h = img.height;
+        if (w > IMG_MAX_PX || h > IMG_MAX_PX) {
+          const ratio = Math.min(IMG_MAX_PX / w, IMG_MAX_PX / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', IMG_QUALITY);
+        resolve({ b64: dataUrl.split(',')[1], isText: false, text: null });
+      };
+      img.onerror = function() { reject(new Error('No se pudo leer la imagen (¿archivo dañado?)')); };
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function pdfToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const typedArray = new Uint8Array(e.target.result);
+      pdfjsLib.getDocument({ data: typedArray }).promise.then(function(pdf) {
+        const scale = PDF_SCALE;
+        const pages = Math.min(pdf.numPages, 4);
+        const canvasArr = [];
+
+        function renderPage(i) {
+          if (i > pages) {
+            // Stack all pages vertically
+            const widths = canvasArr.map(function(c) { return c.width; });
+            const heights = canvasArr.map(function(c) { return c.height; });
+            const totalW = Math.max.apply(null, widths);
+            const totalH = heights.reduce(function(a, b) { return a + b; }, 0);
+            let outW = totalW, outH = totalH;
+            // Downscale if combined height is too large (keeps base64 < ~4 MB)
+            if (outH > PDF_MAX_PX) {
+              const r = PDF_MAX_PX / outH;
+              outW = Math.round(outW * r);
+              outH = PDF_MAX_PX;
+            }
+            const out = document.createElement('canvas');
+            out.width = outW; out.height = outH;
+            const ctx = out.getContext('2d');
+            // Draw stacked pages scaled to fit
+            let y = 0;
+            canvasArr.forEach(function(c) {
+              const h = Math.round(c.height * (outH / totalH));
+              ctx.drawImage(c, 0, y, outW, h);
+              y += h;
+            });
+            const dataUrl = out.toDataURL('image/jpeg', IMG_QUALITY);
+            resolve({ b64: dataUrl.split(',')[1], isText: false, text: null });
+            return;
+          }
+          pdf.getPage(i).then(function(page) {
+            const vp = page.getViewport({ scale: scale });
+            const canvas = document.createElement('canvas');
+            canvas.width = vp.width; canvas.height = vp.height;
+            const ctx = canvas.getContext('2d');
+            page.render({ canvasContext: ctx, viewport: vp }).promise.then(function() {
+              canvasArr.push(canvas);
+              renderPage(i + 1);
+            }).catch(reject);
+          }).catch(reject);
+        }
+        renderPage(1);
+      }).catch(reject);
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function excelToText(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+        let text = '';
+        wb.SheetNames.forEach(function(name) {
+          const ws = wb.Sheets[name];
+          text += '\n--- Hoja: ' + name + ' ---\n';
+          text += XLSX.utils.sheet_to_csv(ws, { blankrows: false });
+        });
+        const TEXT_LIMIT = 25000;
+        let trimmed = text.trim();
+        if (trimmed.length > TEXT_LIMIT) {
+          trimmed = trimmed.slice(0, TEXT_LIMIT) + '\n\n[CONTENIDO TRUNCADO — el archivo excede el límite de procesamiento. Solo se analizaron los primeros 25 000 caracteres.]';
+        }
+        resolve({ b64: null, isText: true, text: trimmed });
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
+function csvToText(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const TEXT_LIMIT = 25000;
+      let txt = e.target.result || '';
+      if (txt.length > TEXT_LIMIT) {
+        txt = txt.slice(0, TEXT_LIMIT) + '\n\n[CONTENIDO TRUNCADO — el archivo excede el límite de procesamiento.]';
+      }
+      resolve({ b64: null, isText: true, text: txt });
+    };
+    reader.onerror = reject;
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+
+/**
+ * Helpers de clasificación de provisiones, compartidos entre el parseo
+ * inicial y la re-agregación con filtro de fechas (rango Desde/Hasta).
+ */
+const PROV_MES_ABBR = {ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+const PROV_MES_FULL = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+const PROV_GENERICAS = ['SERVICIOS','SERVICIO','INFORMACION','INFORMATICA','TELECOMUNICACIONES','SOCIEDAD','COMERCIAL','CHILE','LIMITADA','LTDA','TECHNOLOGIES','TECNOLOGIAS','SOLUCIONES','WORKING','GASTO','ARRIENDO','AMERICA'];
+
+// El Memo/Nota dice PARA QUÉ MES es la provisión ("prov. servicios junio",
+// "prov. mayo 2026"). Si nombra un mes, la provisión se asigna a ese mes.
+function provMesDeMemo(memo, anio) {
+  const t = ' ' + String(memo || '').toLowerCase() + ' ';
+  for (const nombre in PROV_MES_FULL) { if (t.indexOf(nombre) !== -1) return PROV_MES_FULL[nombre]; }
+  if (anio) {
+    const mNum = t.match(new RegExp('(0?[1-9]|1[0-2])[\\.\\-\\/ ]' + anio));
+    if (mNum) return parseInt(mNum[1], 10);
+  }
+  const m = t.match(/[\s\.\-_\/](ene|feb|mar|abr|jun|jul|ago|sept|sep|oct|nov|dic)[\s\.\-_\/0-9]/);
+  if (m) return PROV_MES_ABBR[m[1].slice(0,3)];
+  return null;
+}
+function provTipoDeMemo(memo) {
+  const t = String(memo || '').toLowerCase();
+  if (t.indexOf('reclasific') !== -1 || t.indexOf('reclas') !== -1) return 'reclasificación';
+  if (t.indexOf('devengo') !== -1 || t.indexOf('devenga') !== -1) return 'devengo';
+  if (t.indexOf('provisi') !== -1 || t.indexOf('provi') !== -1) return 'provisión';
+  return '';
+}
+function provDesdeMemo(tokenIdx, cta, memo) {
+  const idx = (tokenIdx && tokenIdx[cta]) || {};
+  const palabras = normName(memo).split(/[^A-ZÁÉÍÓÚÑ0-9]+/);
+  for (let i = 0; i < palabras.length; i++) { const hit = idx[palabras[i]]; if (hit) return hit; }
+  return null;
+}
+
+/**
+ * Re-agrega las filas ya parseadas aplicando el filtro por fecha contable
+ * [ymdDesde, ymdHasta] (YYYYMMDD). Un movimiento entra solo si su fecha
+ * contable cae en el rango; el Memo/Nota sigue mandando el mes destino y el
+ * proveedor de los diarios sin nombre. Devuelve {movs, otros}. Misma lógica
+ * determinista del parseo original — el rango solo acota qué filas entran.
+ */
+function aggregateProvisionesFilas(filas, tokenIdx, anio, ymdDesde, ymdHasta) {
+  const agg = {}, aggOtros = {};
+  (filas || []).forEach(function(fRow) {
+    if (fRow.ymd < ymdDesde || fRow.ymd > ymdHasta) return;
+    let prov = fRow.prov, clas, mesEfectivo = fRow.mes;
+    if (/diario/i.test(fRow.type)) {
+      clas = (fRow.memo.indexOf('reverso') !== -1 || fRow.monto < 0) ? 'REVERSO' : 'PROVISION';
+      const mm = provMesDeMemo(fRow.memo, anio);
+      if (mm) mesEfectivo = mm;
+      if (prov === '(sin nombre)') { const pMemo = provDesdeMemo(tokenIdx, fRow.cuenta, fRow.memo); if (pMemo) prov = pMemo; }
+    } else if (fRow.docNum.indexOf('IR') === 0) {
+      clas = 'FACTURA';
+    } else {
+      const ko = fRow.cuenta + '|' + fRow.type + '|' + prov + '|' + fRow.mes;
+      if (!aggOtros[ko]) aggOtros[ko] = { cuenta: fRow.cuenta, tipo: fRow.type, prov: prov, mes: fRow.mes, monto: 0, n: 0 };
+      aggOtros[ko].monto += fRow.monto; aggOtros[ko].n++;
+      return;
+    }
+    const key = fRow.cuenta + '|' + prov + '|' + mesEfectivo + '|' + clas;
+    if (!agg[key]) agg[key] = { cuenta: fRow.cuenta, prov: prov, mes: mesEfectivo, clas: clas, monto: 0, n: 0, memos: [] };
+    agg[key].monto += fRow.monto; agg[key].n++;
+    if (clas !== 'FACTURA' && fRow.memo.trim()) {
+      const tipo = provTipoDeMemo(fRow.memo);
+      const excerpt = (tipo ? '[' + tipo + '] ' : '') + fRow.memo.trim().slice(0, 90);
+      if (agg[key].memos.indexOf(excerpt) === -1 && agg[key].memos.length < 3) agg[key].memos.push(excerpt);
+    }
+  });
+  const movs = Object.keys(agg).sort().map(function(k) {
+    const a = agg[k];
+    return { cuenta: a.cuenta, prov: a.prov, mes: a.mes, clas: a.clas, monto: Math.round(a.monto), n: a.n, memos: a.memos || [] };
+  });
+  const otros = Object.keys(aggOtros).sort().map(function(k) {
+    const a = aggOtros[k];
+    return { cuenta: a.cuenta, tipo: a.tipo, prov: a.prov, mes: a.mes, monto: Math.round(a.monto), n: a.n };
+  });
+  return { movs: movs, otros: otros };
+}
+
+/**
+ * Parser del export "CL - General Ledger (Con filtro por Cuenta)" de NetSuite.
+ * Lee el workbook (SheetJS también soporta el XML SpreadsheetML de NetSuite),
+ * localiza la fila de encabezados y guarda las filas crudas (con fecha
+ * contable). La clasificación/agregación se hace con aggregateProvisionesFilas
+ * para poder re-aplicar el filtro de fechas al analizar.
+ */
+function processProvisionesGL(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const grid = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, raw: true });
+
+        // Localizar fila de encabezados (contiene Account y Type)
+        let hIdx = -1;
+        for (let i = 0; i < Math.min(grid.length, 30); i++) {
+          const row = (grid[i] || []).map(function(c){ return String(c || '').trim(); });
+          if (row.indexOf('Account') !== -1 && row.indexOf('Type') !== -1) hIdx = i; // usa la última (NetSuite la repite)
+        }
+        if (hIdx === -1) throw new Error('No se encontró la fila de encabezados (Account/Type). ¿Es el reporte General Ledger de NetSuite?');
+
+        const head = grid[hIdx].map(function(c){ return String(c || '').trim(); });
+        function col(name) { return head.findIndex(function(h){ return h.toLowerCase().indexOf(name.toLowerCase()) !== -1; }); }
+        const cAcc  = col('Account');
+        const cType = col('Type');
+        // Preferir match exacto: 'Due Date' u otras columnas también contienen 'Date'
+        const cDate = head.indexOf('Date') !== -1 ? head.indexOf('Date') : col('Date');
+        const cDoc  = col('Document Number');
+        const cPer  = col('Período');
+        const cNameD= col('Name (Diario)');
+        const cName = head.indexOf('Name');
+        const cDeb  = col('Debit');
+        const cCre  = col('Credit');
+        const cMemoH= col('Memo/Nota a nivel');
+        const cMemoL= col('Memo/Nota (Linea)');
+
+        // Mes + año + día de la fecha CONTABLE. El Período da el mes/año
+        // contable; la columna Date aporta el día (para el corte por semana).
+        function parseMes(row) {
+          let mes = null, anio = null, dia = null;
+          const per = String(row[cPer] || '');
+          const pm = per.toLowerCase().match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
+          if (pm) { mes = PROV_MES_ABBR[pm[1]]; anio = parseInt(pm[2], 10); }
+          const dstr = String(row[cDate] || '');
+          let d = dstr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);              // ISO YYYY-MM-DD
+          if (d) { dia = parseInt(d[3],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[1],10); } }
+          else {
+            d = dstr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);     // DD/MM/YYYY o DD-MM-YYYY
+            if (d) { dia = parseInt(d[1],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[3],10); } }
+            else {
+              const serial = parseFloat(dstr);                           // serial de Excel
+              if (isFinite(serial) && serial > 25569 && serial < 80000) {
+                const dt = new Date(Math.round((serial - 25569) * 86400 * 1000));
+                dia = dt.getUTCDate();
+                if (mes == null) { mes = dt.getUTCMonth() + 1; anio = dt.getUTCFullYear(); }
+              }
+            }
+          }
+          if (mes == null) return null;
+          if (dia == null) dia = 1;   // sin día legible → inicio de mes
+          return { mes: mes, anio: anio, dia: dia, ymd: anio * 10000 + mes * 100 + dia };
+        }
+
+        let cuenta = '';
+        const cuentas = [];   // todas las cuentas detectadas (archivo multi-cuenta)
+        let anioDetectado = null;
+        let omitidas = 0;     // movimientos sin período legible
+
+        // ── PASADA 1: parsear filas crudas y conocer los proveedores por cuenta ──
+        // Las filas se guardan tal cual (con la fecha contable ymd) para poder
+        // re-agregar con el filtro Desde/Hasta al analizar, sin re-leer el archivo.
+        const filas = [];
+        const provsPorCuenta = {};
+        for (let i = hIdx + 1; i < grid.length; i++) {
+          const row = grid[i] || [];
+          const accCell = String(row[cAcc] || '').trim();
+          const type = String(row[cType] || '').trim();
+          if (accCell && !type) {
+            if (/^\d{4}-\d+/.test(accCell)) {
+              cuenta = accCell;
+              if (cuentas.indexOf(cuenta) === -1) cuentas.push(cuenta);
+            }
+            continue;
+          }
+          if (!type) continue;
+
+          const pm = parseMes(row);
+          if (!pm) { omitidas++; continue; }
+          anioDetectado = anioDetectado || pm.anio;
+
+          const prov = String(row[cNameD] || row[cName] || '').trim() || '(sin nombre)';
+          const memo = (String(row[cMemoH] || '') + ' ' + String(row[cMemoL] || '')).toLowerCase();
+          filas.push({
+            cuenta: cuenta, type: type, prov: prov, mes: pm.mes, anio: pm.anio, ymd: pm.ymd, memo: memo,
+            docNum: String(row[cDoc] || '').trim().toUpperCase(),
+            monto: (parseFloat(row[cDeb]) || 0) - (parseFloat(row[cCre]) || 0)
+          });
+          if (prov !== '(sin nombre)') {
+            if (!provsPorCuenta[cuenta]) provsPorCuenta[cuenta] = [];
+            if (provsPorCuenta[cuenta].indexOf(prov) === -1) provsPorCuenta[cuenta].push(prov);
+          }
+        }
+
+        // Índice token→proveedor por cuenta (solo tokens que identifican a UN
+        // único proveedor): "PROVISION CREDEX 04-2026" → Credex; "Provision
+        // Hiya 01-2026" → Hiya. Así los diarios sin Name (Diario) se asignan.
+        const tokenIdx = {};
+        Object.keys(provsPorCuenta).forEach(function(cta) {
+          const idx = {};
+          provsPorCuenta[cta].forEach(function(nombre) {
+            normName(nombre).split(/[^A-ZÁÉÍÓÚÑ0-9]+/).forEach(function(tok) {
+              if (tok.length < 4 || PROV_GENERICAS.indexOf(tok) !== -1) return;
+              if (idx[tok] === undefined) idx[tok] = nombre;
+              else if (idx[tok] !== nombre) idx[tok] = null; // ambiguo entre proveedores
+            });
+          });
+          tokenIdx[cta] = idx;
+        });
+
+        // Agregado inicial sin filtro (rango completo) para el primer render.
+        const full = aggregateProvisionesFilas(filas, tokenIdx, anioDetectado, 0, 99999999);
+        if (!full.movs.length && !full.otros.length) throw new Error('No se encontraron movimientos con período legible. ¿Es el reporte "CL - General Ledger con filtro por Cuenta" de NetSuite?');
+        if (omitidas > 0) {
+          showToast('⚠ ' + omitidas + ' movimiento(s) sin período legible fueron omitidos del análisis', 'error');
+        }
+        if (full.otros.length > 0) {
+          showToast('ℹ ' + full.otros.reduce(function(a,x){ return a + x.n; }, 0) + ' movimiento(s) sin "IR" ni Diario se desglosan aparte (no entran a la lógica de provisiones)', 'info');
+        }
+
+        // Rango de fechas contables presentes (para inicializar los selectores)
+        let ymdMin = 99999999, ymdMax = 0;
+        filas.forEach(function(fRow) { if (fRow.ymd < ymdMin) ymdMin = fRow.ymd; if (fRow.ymd > ymdMax) ymdMax = fRow.ymd; });
+
+        resolve({ b64: null, isText: true, text: null, cuenta: cuentas.join('  ·  ') || cuenta, cuentas: cuentas, anio: anioDetectado,
+          movs: full.movs, otros: full.otros, omitidas: omitidas,
+          filas: filas, tokenIdx: tokenIdx, ymdMin: ymdMin, ymdMax: ymdMax });
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
+/**
+ * Re-agrega las filas ICAR ya parseadas (cada una con su fecha contable ymd)
+ * aplicando el filtro por rango [ymdD, ymdH]. Un movimiento entra solo si su
+ * fecha cae en el rango (o si no tiene fecha legible → siempre entra). Misma
+ * lógica de cruce POR STOCK ID del parseo original. Devuelve el objeto `icar`.
+ */
+function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
+  const stocks = {};
+  let sumFact = 0, sumNC = 0, sumDesc = 0, sinStock = 0, nMovs = 0;
+  (filas || []).forEach(function(f) {
+    if (f.ymd != null && (f.ymd < ymdD || f.ymd > ymdH)) return;
+    nMovs++;
+    if (!f.st) { sinStock++; return; }
+    if (!stocks[f.st]) stocks[f.st] = { st: f.st, fact: 0, nc: 0, desc: 0, n03: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '' };
+    const o = stocks[f.st];
+    o.nMovs++;
+    if (!o.patente) { const mp = f.nota.match(/Patente:?\s*([A-Z0-9\-]{5,8})/i); if (mp) o.patente = mp[1].toUpperCase(); }
+    if (!o.mesVenta && f.mesVentaCol && f.mesVentaCol.indexOf('N/A') === -1) o.mesVenta = f.mesVentaCol;
+    if (!o.notaP && f.notaP && /diario/i.test(f.tipo)) o.notaP = f.notaP.slice(0, 40);
+    if (/factura de venta|^invoice$/i.test(f.tipo)) {
+      o.fact += f.imp; sumFact += f.imp;
+      if (!o.mesVenta && !hasMesVCol && f.perCol) o.mesVenta = f.perCol;
+    } else if (/nota de cr|credit memo/i.test(f.tipo)) {
+      o.nc += f.imp; sumNC += f.imp;
+    } else if (/diario|^journal$/i.test(f.tipo)) {
+      o.desc += f.imp; sumDesc += f.imp;
+      const memoL = (f.memoL || '') + ' ' + f.nota;
+      if ((f.tReg || '').indexOf('03') === 0 || /resultado negativo/i.test(memoL)) o.n03++;
+    }
+  });
+  const lista = Object.keys(stocks).map(function(k) {
+    const o = stocks[k];
+    o.saldo = Math.round(o.fact + o.nc + o.desc);
+    o.fact = Math.round(o.fact); o.nc = Math.round(o.nc); o.desc = Math.round(o.desc);
+    return o;
+  });
+  return {
+    stocks: lista, nMovs: nMovs, sinStock: sinStock,
+    sumFact: Math.round(sumFact), sumNC: Math.round(sumNC), sumDesc: Math.round(sumDesc),
+    saldoCuenta: Math.round(sumFact + sumNC + sumDesc)
+  };
+}
+
+/**
+ * Parser del mayor 2801-01 (Impuesto Transferencia). Busca en el libro la
+ * hoja del mayor (headers "Tipo" + "Importe" + "Stock ID"), guarda las filas
+ * crudas (con fecha contable ymd) y cruza POR STOCK ID: facturado al cliente
+ * (Factura de venta, negativo), notas de crédito, y descontado del fondo
+ * (Diario). El rango Desde/Hasta se re-aplica al analizar. Todo en el navegador.
+ */
+function processIcarGL(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: false });
+
+        // Localizar la hoja del mayor. Acepta el libro trabajado del equipo
+        // (headers "Tipo / Importe / Stock ID Línea") Y el export directo de
+        // NetSuite (headers "Type/Tipo" + "Amount/Importe" o "Debit/Credit",
+        // con filas de título encima). Se busca en hasta 30 filas por hoja.
+        function findIdx(row, names) {
+          for (let n = 0; n < names.length; n++) {
+            const buscado = names[n].toLowerCase();
+            // 1º match exacto, 2º contiene (celdas vacías/huecos → '')
+            let idx = row.findIndex(function(h) { return String(h || '').toLowerCase() === buscado; });
+            if (idx !== -1) return idx;
+            idx = row.findIndex(function(h) { return String(h || '').toLowerCase().indexOf(buscado) !== -1 && String(h || '') !== ''; });
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        }
+        let ws = null, head = null, hIdx = -1;
+        for (let s = 0; s < wb.SheetNames.length; s++) {
+          const grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[s]], { header: 1, blankrows: false, raw: true });
+          for (let i = 0; i < Math.min(grid.length, 30); i++) {
+            const row = (grid[i] || []).map(function(c) { return String(c || '').trim(); });
+            const tieneTipo = findIdx(row, ['Tipo', 'Type']) !== -1;
+            const tieneMonto = findIdx(row, ['Importe', 'Amount']) !== -1 ||
+                               (findIdx(row, ['Debit', 'Débito', 'Debito']) !== -1 && findIdx(row, ['Credit', 'Crédito', 'Credito']) !== -1);
+            if (tieneTipo && tieneMonto) { ws = grid; head = row; hIdx = i; }
+          }
+          if (ws) break;
+        }
+        if (!ws) throw new Error('No se encontró la hoja del mayor: se necesita una columna Tipo/Type y una de monto (Importe/Amount o Debit/Credit). ¿Es el export del mayor 2801-01?');
+
+        const cTipo = findIdx(head, ['Tipo', 'Type']);
+        const cImp  = findIdx(head, ['Importe', 'Amount']);
+        const cDeb  = findIdx(head, ['Debit', 'Débito', 'Debito']);
+        const cCre  = findIdx(head, ['Credit', 'Crédito', 'Credito']);
+        const cSt   = findIdx(head, ['Stock ID Línea', 'Stock ID (Linea)', 'Stock ID (Línea)', 'Stock ID Linea', 'Stock ID']);
+        const cNota = findIdx(head, ['Nota', 'Memo/Nota', 'Memo']);
+        const cNotaP = findIdx(head, ['Nota (principal)', 'Memo/Nota a nivel']);
+        const cMemoL = findIdx(head, ['Memo/Nota (Linea)', 'Memo/Nota (Línea)']);
+        const cTReg = findIdx(head, ['Tipo de registro']);
+        const cMesV = findIdx(head, ['Mes de venta']);
+        const cPer  = findIdx(head, ['Período contable', 'Período', 'Period']);
+        const cFecha = findIdx(head, ['Fecha', 'Date']);   // fecha contable (día)
+
+        // Fecha contable YYYYMMDD: mes/año del Período + día de la columna Fecha/Date
+        function icarYmd(row) {
+          let mes = null, anio = null, dia = null;
+          if (cPer !== -1) {
+            const per = String(row[cPer] || '').toLowerCase();
+            const m = per.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
+            if (m) { mes = PROV_MES_ABBR[m[1]]; anio = parseInt(m[2],10); }
+            else { const m2 = per.match(/(\d{4})[\-\/](\d{1,2})/); if (m2) { anio = parseInt(m2[1],10); mes = parseInt(m2[2],10); } }
+          }
+          if (cFecha !== -1) {
+            const ds = String(row[cFecha] || '');
+            let d = ds.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+            if (d) { dia = parseInt(d[3],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[1],10); } }
+            else {
+              d = ds.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+              if (d) { dia = parseInt(d[1],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[3],10); } }
+              else {
+                const s = parseFloat(ds);
+                if (isFinite(s) && s > 25569 && s < 80000) {
+                  const dt = new Date(Math.round((s - 25569) * 86400 * 1000));
+                  dia = dt.getUTCDate();
+                  if (mes == null) { mes = dt.getUTCMonth() + 1; anio = dt.getUTCFullYear(); }
+                }
+              }
+            }
+          }
+          if (mes == null) return null;
+          if (dia == null) dia = 1;
+          return anio * 10000 + mes * 100 + dia;
+        }
+
+        // PASADA 1: filas crudas con fecha contable, para re-agregar por rango.
+        const hasMesVCol = cMesV !== -1;
+        const filas = [];
+        for (let i = hIdx + 1; i < ws.length; i++) {
+          const row = ws[i] || [];
+          const tipo = String(row[cTipo] || '').trim();
+          if (!tipo) continue;
+          // Monto: columna Importe, o Débito − Crédito en el export crudo
+          // (cuenta de pasivo: factura al cliente = crédito → importe negativo)
+          let imp;
+          if (cImp !== -1 && row[cImp] !== undefined && row[cImp] !== null && row[cImp] !== '') {
+            imp = parseFloat(row[cImp]) || 0;
+          } else {
+            imp = (parseFloat(row[cDeb]) || 0) - (parseFloat(row[cCre]) || 0);
+          }
+          let st = (cSt !== -1) ? row[cSt] : null;
+          st = (st === undefined || st === null || String(st).trim() === '') ? null : String(parseInt(st, 10));
+          const nota = String(row[cNota] || '');
+          if (!st) {
+            const m = nota.match(/Stock ID:?\s*(\d{4,})/i);   // fallback desde la Nota
+            if (m) st = m[1];
+          }
+          filas.push({
+            tipo: tipo, imp: imp, st: st, nota: nota, ymd: icarYmd(row),
+            mesVentaCol: cMesV !== -1 ? String(row[cMesV] || '').trim() : '',
+            perCol: cPer !== -1 ? String(row[cPer] || '').trim() : '',
+            notaP: cNotaP !== -1 ? String(row[cNotaP] || '') : '',
+            tReg: cTReg !== -1 ? String(row[cTReg] || '') : '',
+            memoL: cMemoL !== -1 ? String(row[cMemoL] || '') : ''
+          });
+        }
+
+        // Agregado inicial sin filtro (rango completo)
+        const full = aggregateIcarFilas(filas, hasMesVCol, 0, 99999999);
+        if (!full.stocks.length) throw new Error('No se encontraron movimientos con Stock ID en el mayor.');
+        if (full.sinStock > 0) showToast('⚠ ' + full.sinStock + ' movimiento(s) sin Stock ID quedaron fuera del cruce', 'error');
+
+        // Rango de fechas contables presentes (para inicializar los selectores)
+        let ymdMin = 99999999, ymdMax = 0;
+        filas.forEach(function(f) { if (f.ymd != null) { if (f.ymd < ymdMin) ymdMin = f.ymd; if (f.ymd > ymdMax) ymdMax = f.ymd; } });
+        if (ymdMax === 0) { ymdMin = 0; ymdMax = 99999999; }   // sin fechas legibles
+
+        resolve({
+          b64: null, isText: true, text: null,
+          icar: Object.assign({}, full, { filas: filas, hasMesV: hasMesVCol, ymdMin: ymdMin, ymdMax: ymdMax })
+        });
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
+// Tolerancia de cuadratura por vehículo (los redondeos de ICAR difieren en ±$1)
+const ICAR_TOL = 50;
+
+/**
+ * Clasificación determinística por Stock ID (criterio del equipo):
+ *  · |saldo| ≤ tol y sin filas 03  → OK (cuadrado)
+ *  · |saldo| ≤ tol con filas 03    → resultado negativo YA registrado
+ *  · saldo < −tol → facturado no descontado del fondo (esperar rendición ICAR)
+ *  · saldo > +tol → resultado negativo Kavak POR registrar (se pagó más de lo
+ *    facturado): alimenta el análisis del ajuste — el asiento lo hace el analista
+ */
+function computeIcarLocal(ic) {
+  const cats = { ok: [], pendiente: [], negRegistrado: [], negPorRegistrar: [], sinFactura: [] };
+  ic.stocks.forEach(function(o) {
+    if (Math.abs(o.saldo) <= ICAR_TOL) {
+      (o.n03 > 0 ? cats.negRegistrado : cats.ok).push(o);
+    } else if (o.saldo < 0) {
+      cats.pendiente.push(o);
+    } else if (o.fact === 0 && o.nc === 0) {
+      // Descuentos/pérdidas cuya factura NO está en el archivo cargado:
+      // la venta es de un período anterior a la ventana del export.
+      // NO van al ajuste — amplía el rango del export para cruzarlos.
+      cats.sinFactura.push(o);
+    } else {
+      cats.negPorRegistrar.push(o);
+    }
+  });
+  function suma(arr) { return arr.reduce(function(a, o) { return a + o.saldo; }, 0); }
+
+  // Pivot por mes de venta (sin mes → "Revisar fin de mes", criterio del equipo)
+  const pivot = {};
+  ['pendiente', 'negPorRegistrar'].forEach(function(cat) {
+    cats[cat].forEach(function(o) {
+      const mes = o.mesVenta || 'Revisar fin de mes';
+      if (!pivot[mes]) pivot[mes] = { pendiente: 0, pendienteN: 0, negativo: 0, negativoN: 0 };
+      if (cat === 'pendiente') { pivot[mes].pendiente += o.saldo; pivot[mes].pendienteN++; }
+      else { pivot[mes].negativo += o.saldo; pivot[mes].negativoN++; }
+    });
+  });
+
+  return {
+    saldoCuenta: ic.saldoCuenta,
+    sumFact: ic.sumFact, sumNC: ic.sumNC, sumDesc: ic.sumDesc,
+    nMovs: ic.nMovs, nStocks: ic.stocks.length, sinStock: ic.sinStock,
+    ok: cats.ok.length,
+    negRegistrado: cats.negRegistrado.length,
+    pendiente: { n: cats.pendiente.length, monto: suma(cats.pendiente), items: cats.pendiente },
+    negPorRegistrar: { n: cats.negPorRegistrar.length, monto: suma(cats.negPorRegistrar), items: cats.negPorRegistrar },
+    sinFactura: { n: cats.sinFactura.length, monto: suma(cats.sinFactura) },
+    pivot: pivot,
+    resumen: '', notas_auditoria: []
+  };
+}
+
+function showFilePreview(key, file) {
+  const prev = document.getElementById('prev-' + key);
+  if (!prev) return;
+  document.getElementById('prev-' + key + '-name').textContent = file.name;
+  document.getElementById('prev-' + key + '-size').textContent = formatBytes(file.size);
+  const iconEl = document.getElementById('prev-' + key + '-icon');
+  iconEl.textContent = file.type === 'application/pdf' ? '📕' : '🖼️';
+  prev.classList.add('show');
+  const zone = document.getElementById('zone-' + key);
+  if (zone) zone.classList.add('has-file');
+}
+
+function removeFile(key) {
+  const mod = getModuleForKey(key);
+  if (STATE[mod].files && !Array.isArray(STATE[mod].files)) {
+    delete STATE[mod].files[key];
+  }
+  const prev = document.getElementById('prev-' + key);
+  if (prev) prev.classList.remove('show');
+  const zone = document.getElementById('zone-' + key);
+  if (zone) zone.classList.remove('has-file');
+  updateAnalyzeButton(mod);
+}
+
+function updateAnalyzeButton(mod) {
+  const btn = document.getElementById('btn-' + mod);
+  if (!btn) return;
+  let ready = false;
+  if (mod === 'conciliacion') {
+    ready = !!(STATE[mod].files.cartola && STATE[mod].files.libro);
+  } else {
+    ready = !!(STATE[mod].files[mod]);
+  }
+  btn.disabled = !ready;
+}
+
+function resetModule(mod) {
+  if (mod === 'conciliacion') {
+    STATE[mod].files = {};
+    ['cartola','libro'].forEach(function(k) {
+      const prev = document.getElementById('prev-' + k);
+      if (prev) prev.classList.remove('show');
+      const z = document.getElementById('zone-' + k);
+      if (z) z.classList.remove('has-file');
+    });
+  } else {
+    STATE[mod].files = {};
+    const prev = document.getElementById('prev-' + mod);
+    if (prev) prev.classList.remove('show');
+    document.getElementById('zone-' + mod).classList.remove('has-file');
+  }
+  updateAnalyzeButton(mod);
+  showEmptyState(mod);
+}
+
+function showEmptyState(mod) {
+  const r = document.getElementById('results-' + mod);
+  if (!r) return;
+  const empties = {
+    conciliacion: '<div class="empty-state"><div class="empty-icon">⚖️</div><div class="empty-title">Conciliación lista</div><div class="empty-sub">Sube la cartola bancaria y los registros contables, luego presiona Conciliar.</div></div>',
+    provisiones: '<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Control de provisiones</div><div class="empty-sub">Importa el reporte General Ledger de NetSuite para detectar meses sin factura ni provisión.</div></div>',
+    icar:         '<div class="empty-state"><div class="empty-icon">🚗</div><div class="empty-title">Balance impuesto transferencia</div><div class="empty-sub">Importa el mayor 2801-01 para cruzar por Stock ID lo facturado contra lo descontado del fondo ICAR.</div></div>'
+  };
+  r.innerHTML = empties[mod] || '';
+}
+
+// ── CLAUDE INTEGRATION ──
+function callClaudeServer(payload) {
+  return new Promise(function(resolve, reject) {
+    if (!(window.google && google.script && google.script.run)) {
+      reject(new Error('Disponible solo dentro del Web App de Apps Script'));
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(function(r) {
+        try {
+          const obj = JSON.parse(r);
+          if (obj.status !== 200) {
+            let msg = 'HTTP ' + obj.status;
+            try { const b = JSON.parse(obj.body); msg += ': ' + (b.error && b.error.message || obj.body); } catch(e) {}
+            reject(new Error(msg)); return;
+          }
+          resolve(JSON.parse(obj.body));
+        } catch(e) { reject(e); }
+      })
+      .withFailureHandler(reject)
+      .callClaude(payload);
+  });
+}
+
+function buildImageBlock(b64, mediaType) {
+  return {
+    type: 'image',
+    source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: b64 }
+  };
+}
+
+// Builds the right content block regardless of file type (image or Excel/CSV text)
+function buildContentBlock(fileObj) {
+  if (!fileObj) return null;
+  if (fileObj.isText) return { type: 'text', text: fileObj.text };
+  return buildImageBlock(fileObj.b64);
+}
+
+// ── ANALYZE DISPATCH ──
+function analyzeModule(mod) {
+  const btn = document.getElementById('btn-' + mod);
+  btn.disabled = true;
+  showProgress(true);
+  showSpinner(mod);
+  captureAnalysisMeta(mod);
+
+  const handlers = {
+    conciliacion:   analyzeConciliacion,
+    provisiones:    analyzeProvisiones,
+    icar:           analyzeIcar
+  };
+
+  handlers[mod]().then(function(result) {
+    showProgress(false);
+    stopSpinMsg(mod);
+    renderResult(mod, result);
+    saveHistory(mod, result);
+    if (mod === 'conciliacion') {
+      saveDesgloseConciliacion(result);
+    }
+    if (mod === 'provisiones') {
+      saveProvisionesToSheet(result);
+    }
+    if (mod === 'icar') {
+      saveIcarToSheet(result);
+    }
+  }).catch(function(err) {
+    showProgress(false);
+    stopSpinMsg(mod);
+    btn.disabled = false;
+    renderError(mod, (err && err.message) || String(err));
+  }).finally(function() {
+    updateAnalyzeButton(mod);
+  });
+}
+
+// Trazabilidad: se captura en el momento de ejecutar el análisis
+function captureAnalysisMeta(mod) {
+  const st = STATE[mod].files;
+  const archivos = [];
+  if (Array.isArray(st)) {
+    st.forEach(function(f) { if (f) archivos.push(f.name + ' (' + formatBytes(f.size) + ')'); });
+  } else {
+    Object.keys(st).forEach(function(k) { const f = st[k]; if (f) archivos.push(f.name + ' (' + formatBytes(f.size) + ')'); });
+  }
+  let params = '';
+  if (mod === 'provisiones') {
+    const desde = document.getElementById('prov-desde').value || '—';
+    const hasta = document.getElementById('prov-hasta').value || '—';
+    params = 'Rango (fecha contable): ' + desde + ' → ' + hasta + ' · Criterio: factura típica (valor más frecuente por proveedor) · Recurrente = factura en 2+ meses del rango';
+    const f = st.provisiones;
+    if (f && f.cuenta) params += ' · Cuenta: ' + f.cuenta;
+  }
+  if (mod === 'icar') {
+    const desde = document.getElementById('icar-desde').value || '—';
+    const hasta = document.getElementById('icar-hasta').value || '—';
+    params = 'Rango (fecha contable): ' + desde + ' → ' + hasta + ' · Cuenta 2801-01 · cruce por Stock ID (facturado vs descontado del fondo ICAR)';
+  }
+  ANALYSIS_META[mod] = {
+    analista: document.getElementById('userInput').value || 'Anónimo',
+    cuando: new Date().toLocaleString('es-CL'),
+    archivos: archivos,
+    params: params
+  };
+}
+
+// ── CONCILIACION ──
+function analyzeConciliacion() {
+  const f = STATE.conciliacion.files;
+  const prompt = `Eres experto en conciliación bancaria chilena. Analiza los documentos adjuntos:
+Documento 1: Cartola bancaria — extrae cada transacción con fecha (DD/MM/YYYY), descripción, monto (número), tipo ("abono"/"cargo")
+Documento 2: Registros contables — extrae cada asiento con fecha, glosa, monto, referencia
+
+Concilia las transacciones: cruza por monto y fecha cercana (±3 días).
+Responde ÚNICAMENTE con JSON válido:
+{
+  "cartola": [{"fecha":"DD/MM/YYYY","descripcion":"...","monto":0,"tipo":"abono|cargo"}],
+  "libro": [{"fecha":"DD/MM/YYYY","glosa":"...","monto":0,"referencia":"..."}],
+  "conciliados": [{"cartola_idx":0,"libro_idx":0,"confianza":"alta|media","diferencia":0}],
+  "solo_cartola": [0],
+  "solo_libro": [0],
+  "saldo_cartola": 0,
+  "saldo_libro": 0,
+  "diferencia_total": 0,
+  "resumen": "texto"
+}`;
+
+  const content = [
+    { type: 'text', text: prompt },
+    buildContentBlock(f.cartola),
+    buildContentBlock(f.libro)
+  ];
+
+  return callClaudeServer({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: content }]
+  }).then(function(resp) {
+    return extractJSON(resp);
+  });
+}
+
+// ── PROVISIONES ──
+// La matriz, la recurrencia y los montos se calculan 100% EN CÓDIGO,
+// proveedor por proveedor, cada uno solo con sus propios montos.
+// La IA únicamente redacta el resumen, los comentarios y las notas de
+// auditoría sobre el resultado ya calculado — si falla, el análisis
+// igual se entrega completo.
+
+// Mediana de una lista de montos
+function medianaDe(arr) {
+  const s = arr.slice().sort(function(a, b) { return a - b; });
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+
+// Factura típica del proveedor = el monto que MÁS SE REPITE entre sus
+// facturas mensuales (agrupando como "iguales" los que difieren ≤5%,
+// porque las facturas reales varían por pesos). Si nada se repite, la
+// MEDIANA — nunca el promedio: un cargo extra de un mes no infla nada.
+function facturaTipica(montos) {
+  if (!montos.length) return 0;
+  if (montos.length === 1) return Math.round(montos[0]);
+  let mejorGrupo = [];
+  montos.forEach(function(base) {
+    const grupo = montos.filter(function(v) {
+      return Math.abs(v - base) <= base * 0.05;
+    });
+    if (grupo.length > mejorGrupo.length) mejorGrupo = grupo;
+  });
+  if (mejorGrupo.length >= 2) return medianaDe(mejorGrupo);
+  return medianaDe(montos);
+}
+
+/**
+ * Cálculo determinístico del control de provisiones desde los movimientos
+ * parseados del archivo. Cada proveedor se evalúa POR SEPARADO dentro de su
+ * cuenta (clave cuenta|proveedor — los montos nunca se mezclan entre
+ * proveedores ni entre cuentas).
+ *  - F   = factura IR neta > 0 en el mes
+ *  - P   = provisión (Diario) positiva en el mes, sin factura
+ *  - F+P = ambas
+ *  - FALTA = ni factura ni provisión (solo para proveedores con factura
+ *            en 2+ meses — con un solo mes no hay patrón mensual que exigir)
+ */
+function computeProvisionesLocal(f, mesDesde, mesCierre) {
+  const movs = f.movs || [];
+  const map = {};
+  const orden = [];
+  movs.forEach(function(a) {
+    if (a.mes < mesDesde || a.mes > mesCierre || a.prov === '(sin nombre)') return;
+    const key = normCuenta(a.cuenta) + '|' + normName(a.prov);
+    if (!map[key]) {
+      map[key] = { nombre: a.prov, cuenta: normCuenta(a.cuenta), fact: {}, prov: {} };
+      orden.push(key);
+    }
+    if (a.clas === 'FACTURA')   map[key].fact[a.mes] = (map[key].fact[a.mes] || 0) + a.monto;
+    if (a.clas === 'PROVISION') map[key].prov[a.mes] = (map[key].prov[a.mes] || 0) + a.monto;
+  });
+
+  let total = 0;
+  const proveedores = orden.sort().map(function(key) {
+    const e = map[key];
+    const montosF = [];
+    const mesesConF = [];
+    for (let m = mesDesde; m <= mesCierre; m++) {
+      if ((e.fact[m] || 0) > 0) { mesesConF.push(m); montosF.push(e.fact[m]); }
+    }
+    const recurrente = mesesConF.length >= 2;
+    const tipica = facturaTipica(montosF);
+    const ultimoMesF = mesesConF.length ? mesesConF[mesesConF.length - 1] : 0;
+
+    const meses = {};
+    const falta = [];
+    for (let m = mesDesde; m <= mesCierre; m++) {
+      const tieneF = (e.fact[m] || 0) > 0;
+      const tieneP = (e.prov[m] || 0) > 0;
+      if (tieneF && tieneP)      meses[String(m)] = 'F+P';
+      else if (tieneF)           meses[String(m)] = 'F';
+      else if (tieneP)           meses[String(m)] = 'P';
+      else if (recurrente)       { meses[String(m)] = 'FALTA'; falta.push(m); }
+      else                       meses[String(m)] = '';
+    }
+
+    // ACCIONABLE en el mes de cierre SOLO si el proveedor venía facturando
+    // hasta el mes anterior: sin F ni P en el cierre + factura en mesCierre-1.
+    // Un proveedor que dejó de facturar hace meses NO genera provisión
+    // automática — pasa a "confirmar vigencia" (dato de meses anteriores,
+    // no del mes que estamos cerrando).
+    const faltaEnCierre = falta.indexOf(mesCierre) !== -1;
+    const facturoMesAnterior = mesCierre > mesDesde && (e.fact[mesCierre - 1] || 0) > 0;
+    const accionable = faltaEnCierre && facturoMesAnterior;
+
+    // La provisión SOLO se sugiere para el mes accionable. Los meses
+    // anteriores ya se comieron el gasto (se regulariza a fin de año):
+    // quedan como referencia, sin monto a provisionar ni total acumulado.
+    const sugerida = accionable ? tipica : 0;
+    total += sugerida;
+
+    return {
+      nombre: e.nombre,
+      cuenta: e.cuenta,
+      recurrente: recurrente,
+      meses: meses,
+      factura_promedio: tipica,
+      meses_falta: falta,
+      provision_sugerida_mensual: sugerida,
+      accionable: accionable,
+      ultimo_mes_factura: ultimoMesF,
+      comentario: ''
+    };
+  });
+
+  const cierreNombre = MESES_G[mesCierre - 1];
+  const desdeNombre = MESES_G[mesDesde - 1];
+  const accionables = proveedores.filter(function(p) { return p.accionable; });
+  return {
+    cuenta: (f.cuentas && f.cuentas.length) ? f.cuentas.join('  ·  ') : (f.cuenta || '—'),
+    cuentas: f.cuentas || [],
+    periodo: desdeNombre + '–' + cierreNombre + (f.anio ? ' ' + f.anio : ''),
+    mes_desde: mesDesde,
+    mes_cierre: mesCierre,
+    proveedores: proveedores,
+    total_provision_sugerida: total,
+    resumen: 'Cálculo determinístico: ' + proveedores.filter(function(p){ return p.recurrente; }).length +
+      ' proveedor(es) con factura recurrente; ' + accionables.length + ' accionable(s) en ' + cierreNombre +
+      ' (venían facturando hasta el mes anterior y no tienen factura ni provisión en el cierre). Monto sugerido = factura típica de cada proveedor.',
+    notas_auditoria: []
+  };
+}
+
+// Fecha YYYYMMDD (int) ↔ valor de <input type="date"> ("YYYY-MM-DD")
+function ymdToInput(ymd) {
+  const s = String(ymd || 0).padStart(8, '0');
+  return s.slice(0,4) + '-' + s.slice(4,6) + '-' + s.slice(6,8);
+}
+function inputToYmd(str) {
+  if (!str) return null;
+  const p = str.split('-');
+  if (p.length !== 3) return null;
+  return parseInt(p[0],10) * 10000 + parseInt(p[1],10) * 100 + parseInt(p[2],10);
+}
+// Inicializa los selectores Desde/Hasta con el rango de fechas del archivo
+function initProvRango(f) {
+  const dEl = document.getElementById('prov-desde');
+  const hEl = document.getElementById('prov-hasta');
+  if (!dEl || !hEl || !f || !f.ymdMin) return;
+  const min = ymdToInput(f.ymdMin), max = ymdToInput(f.ymdMax);
+  [dEl, hEl].forEach(function(el) { el.min = min; el.max = max; });
+  dEl.value = min;
+  hEl.value = max;
+}
+
+function analyzeProvisiones() {
+  const f = STATE.provisiones.files.provisiones;
+
+  // Rango Desde/Hasta (fecha contable). Si el archivo trae filas crudas,
+  // re-agregamos aplicando el filtro; si no (análisis restaurado), usamos
+  // el rango completo ya agregado.
+  let ymdDesde = inputToYmd(document.getElementById('prov-desde').value);
+  let ymdHasta = inputToYmd(document.getElementById('prov-hasta').value);
+  if (ymdDesde && ymdHasta && ymdDesde > ymdHasta) {
+    const t = ymdDesde; ymdDesde = ymdHasta; ymdHasta = t;   // corregir si están invertidos
+    showToast('Corregí el rango: "Desde" era posterior a "Hasta"', 'info');
+  }
+  if (ymdDesde == null) ymdDesde = f.ymdMin || 0;
+  if (ymdHasta == null) ymdHasta = f.ymdMax || 99999999;
+
+  if (f.filas && f.filas.length) {
+    const re = aggregateProvisionesFilas(f.filas, f.tokenIdx, f.anio, ymdDesde, ymdHasta);
+    f.movs = re.movs;      // sobrescribe: drill-down, comparativa y "otros" leen esto
+    f.otros = re.otros;
+  }
+  const mesDesde = (Math.floor(ymdDesde / 100) % 100) || 1;
+  const mesCierre = (Math.floor(ymdHasta / 100) % 100) || 12;
+
+  // 1) Resultado completo calculado en código — nunca depende de la IA
+  const base = computeProvisionesLocal(f, mesDesde, mesCierre);
+
+  // 2) IA solo como redactora de resumen/comentarios/notas de auditoría.
+  // Los Memo/Nota de los diarios van incluidos: son la justificación contable
+  // (devengos, provisiones, reclasificaciones y a qué mes corresponden).
+  let datos = 'cuenta|proveedor|mes|clasificacion|monto_total|n_movimientos|memo_nota\n';
+  (f.movs || []).forEach(function(a) {
+    const memoTxt = (a.memos && a.memos.length) ? a.memos.join(' / ') : '';
+    datos += (a.cuenta || '') + '|' + a.prov + '|' + a.mes + '|' + a.clas + '|' + a.monto + '|' + a.n + '|' + memoTxt + '\n';
+  });
+  const matrizCalc = base.proveedores.map(function(p) {
+    return p.cuenta + '|' + p.nombre + '|rec:' + (p.recurrente ? 'sí' : 'no') +
+      '|tipica:' + p.factura_promedio + '|falta_meses:[' + p.meses_falta.join(',') + ']' +
+      '|accionable_cierre:' + (p.accionable ? 'sí' : 'no') + '|ultima_factura_mes:' + p.ultimo_mes_factura;
+  }).join('\n');
+
+  const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el control de provisiones (matriz F/P/FALTA, factura típica = monto que más se repite por proveedor, y el accionable del mes ${MESES_G[mesCierre-1]}: $${base.total_provision_sugerida} — SOLO se sugiere provisión para el mes de cierre; los meses anteriores ya absorbieron el gasto y se regularizan a fin de año, son referencia sin monto). Tu único trabajo es REDACTAR — no recalcules ni cambies ningún número.
+
+Contexto: FACTURA = recepción IR (factura recepcionada); PROVISION = asiento de Diario positivo; REVERSO = anulación de una provisión anterior (informativo). El mes accionable para el equipo es el mes ${mesCierre} (${MESES_G[mesCierre-1]}); los anteriores son referencia. Un proveedor es "accionable_cierre" solo si venía facturando hasta el mes anterior y no tiene factura ni provisión en el cierre; los que dejaron de facturar hace meses van a "confirmar vigencia" (no se les sugiere provisión automática) — respeta esa distinción en tu redacción.
+
+MEMO/NOTA es la columna clave de justificación contable: en los diarios indica si el asiento es un DEVENGO, una PROVISIÓN o una RECLASIFICACIÓN, y para qué mes corresponde (el sistema ya reasignó al mes que nombra el memo cuando aplica). En "comentarios" y "notas_auditoria", CITA el texto del memo cuando fundamenta un movimiento: es lo que el analista presentará como justificación de devengamientos, provisiones y reclasificaciones ante jefaturas y auditores. Señala también memos ambiguos o vacíos en provisiones relevantes (asientos sin glosa clara son un hallazgo de auditoría).
+
+RESULTADO CALCULADO (cuenta|proveedor|recurrente|factura_tipica|meses_falta):
+${matrizCalc}
+
+MOVIMIENTOS DEL ARCHIVO:
+${datos}
+
+Responde ÚNICAMENTE con JSON válido:
+{
+  "resumen": "párrafo ejecutivo: qué hay que provisionar en ${MESES_G[mesCierre-1]}, qué proveedores concentran el monto, y contexto de meses previos",
+  "comentarios": [{"cuenta":"...","nombre":"...","comentario":"máx 8 palabras (solo proveedores donde aporte: mes atípico, doble facturación, posible facturación trimestral, reverso relevante)"}],
+  "notas_auditoria": ["3 a 8 observaciones con cifras exactas para auditores: concentración del monto sugerido, patrones de facturación no mensual, fluctuaciones atípicas entre meses, reversos relevantes, provisiones de diario sin proveedor asignado"]
+}`;
+
+  return callClaudeServer({
+    model: 'claude-opus-4-8',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+  }).then(function(resp) {
+    try {
+      const ia = extractJSON(resp);
+      if (ia.resumen) base.resumen = ia.resumen;
+      if (ia.notas_auditoria && ia.notas_auditoria.length) base.notas_auditoria = ia.notas_auditoria;
+      (ia.comentarios || []).forEach(function(c) {
+        base.proveedores.forEach(function(p) {
+          if (normName(p.nombre) === normName(c.nombre) &&
+              (!c.cuenta || normCuenta(c.cuenta) === normCuenta(p.cuenta))) {
+            p.comentario = c.comentario || '';
+          }
+        });
+      });
+    } catch(e) { /* redacción IA malformada: se entrega el cálculo igual */ }
+    return base;
+  }).catch(function(err) {
+    // La IA falló (red, sobrecarga, key): el cálculo determinístico se entrega igual
+    showToast('Notas IA no disponibles (' + ((err && err.message) || err) + ') — mostrando cálculo completo', 'error');
+    return base;
+  });
+}
+
+// ── ICAR (Impuesto Transferencia) ──
+// Inicializa los selectores Desde/Hasta con el rango de fechas del archivo
+function initIcarRango(ic) {
+  const dEl = document.getElementById('icar-desde');
+  const hEl = document.getElementById('icar-hasta');
+  if (!dEl || !hEl || !ic || !ic.ymdMin) return;
+  const min = ymdToInput(ic.ymdMin), max = ymdToInput(ic.ymdMax);
+  [dEl, hEl].forEach(function(el) { el.min = min; el.max = max; });
+  dEl.value = min;
+  hEl.value = max;
+}
+
+function analyzeIcar() {
+  const f = STATE.icar.files.icar;
+
+  // Rango Desde/Hasta (fecha contable): re-agrega por Stock ID acotando la
+  // ventana. Si el archivo trae filas crudas, se re-aplica; si no, rango completo.
+  let ymdDesde = inputToYmd(document.getElementById('icar-desde').value);
+  let ymdHasta = inputToYmd(document.getElementById('icar-hasta').value);
+  if (ymdDesde && ymdHasta && ymdDesde > ymdHasta) {
+    const t = ymdDesde; ymdDesde = ymdHasta; ymdHasta = t;
+    showToast('Corregí el rango: "Desde" era posterior a "Hasta"', 'info');
+  }
+  if (ymdDesde == null) ymdDesde = (f.icar && f.icar.ymdMin) || 0;
+  if (ymdHasta == null) ymdHasta = (f.icar && f.icar.ymdMax) || 99999999;
+
+  let ic = f.icar;
+  if (ic && ic.filas && ic.filas.length) {
+    const re = aggregateIcarFilas(ic.filas, ic.hasMesV, ymdDesde, ymdHasta);
+    ic = Object.assign({}, ic, re);   // stocks/sumas filtrados; conserva filas/rango
+  }
+  const base = computeIcarLocal(ic);
+  base.periodo = ymdToInput(ymdDesde) + ' → ' + ymdToInput(ymdHasta);
+
+  // IA solo redacta: recibe el resultado calculado + top descuadres
+  const topNeg = base.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 20)
+    .map(function(o){ return o.st + '|' + (o.patente||'—') + '|' + o.saldo + '|' + (o.mesVenta||'sin mes') + '|' + (o.notaP||''); }).join('\n');
+  const topPend = base.pendiente.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 15)
+    .map(function(o){ return o.st + '|' + (o.patente||'—') + '|' + o.saldo + '|' + (o.mesVenta||'sin mes'); }).join('\n');
+  const pivotTxt = Object.keys(base.pivot).map(function(m) {
+    const p = base.pivot[m];
+    return m + '|pendiente:' + p.pendiente + ' (' + p.pendienteN + ')|negativo:' + p.negativo + ' (' + p.negativoN + ')';
+  }).join('\n');
+
+  const prompt = `Eres analista contable senior de Kavak Chile. El sistema YA CALCULÓ el balance de la cuenta 2801-01 (Impuesto Transferencia, fondo ICAR) cruzando POR STOCK ID lo facturado al cliente vs lo descontado del fondo. Tu único trabajo es REDACTAR — no recalcules nada.
+
+RESULTADO CALCULADO:
+- Saldo cuenta: ${base.saldoCuenta} (facturado ${base.sumFact} + NC ${base.sumNC} + diarios/descuentos ${base.sumDesc})
+- ${base.nStocks} vehículos: ${base.ok} ok (cuadrados), ${base.negRegistrado} con resultado negativo YA registrado, ${base.pendiente.n} facturados sin descontar del fondo por ${base.pendiente.monto} (se espera la rendición de ICAR), ${base.negPorRegistrar.n} con resultado negativo Kavak POR registrar por ${base.negPorRegistrar.monto} (se descontó del fondo más de lo facturado — insumo del asiento de ajuste que registra EL ANALISTA, no el sistema), y ${base.sinFactura.n} con descuentos por ${base.sinFactura.monto} cuya factura está FUERA de la ventana del export (ventas de períodos anteriores — no entran al ajuste; sugerir exportar desde inicio de año si es relevante).
+
+PIVOT POR MES DE VENTA (mes|pendiente|negativo):
+${pivotTxt}
+
+TOP RESULTADO NEGATIVO POR REGISTRAR (stock|patente|monto|mes venta|nota):
+${topNeg}
+
+TOP FACTURADO SIN DESCONTAR (stock|patente|monto|mes venta):
+${topPend}
+
+Responde ÚNICAMENTE con JSON válido:
+{
+  "resumen": "párrafo ejecutivo: cuadratura del saldo, cuánto está pendiente de rendición ICAR, cuánto es resultado negativo por registrar en el ajuste, y qué meses/vehículos concentran los montos",
+  "notas_auditoria": ["3 a 7 observaciones con cifras exactas para auditores: cuadratura contra balance, concentración de descuadres, vehículos sin mes de venta (revisar fin de mes), patrones anómalos (montos repetidos, stocks con muchos movimientos)"]
+}`;
+
+  return callClaudeServer({
+    model: 'claude-opus-4-8',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+  }).then(function(resp) {
+    try {
+      const ia = extractJSON(resp);
+      if (ia.resumen) base.resumen = ia.resumen;
+      if (ia.notas_auditoria && ia.notas_auditoria.length) base.notas_auditoria = ia.notas_auditoria;
+    } catch(e) { /* el cálculo se entrega igual */ }
+    return base;
+  }).catch(function(err) {
+    showToast('Notas IA no disponibles (' + ((err && err.message) || err) + ') — mostrando cálculo completo', 'error');
+    return base;
+  });
+}
+
+function extractJSON(resp) {
+  if (resp.stop_reason === 'max_tokens') {
+    throw new Error('El documento es muy grande para procesar de una vez. Intenta subir una sola hoja del Excel o un PDF más corto.');
+  }
+  const text = resp.content && resp.content[0] && resp.content[0].text || '';
+  // Acepta tanto un objeto {...} como un array [...] de nivel superior:
+  // se intenta el que aparezca primero en la respuesta.
+  const candidates = [];
+  const iObj = text.indexOf('{'), iArr = text.indexOf('[');
+  const mObj = text.match(/\{[\s\S]*\}/);
+  const mArr = text.match(/\[[\s\S]*\]/);
+  if (iArr !== -1 && (iObj === -1 || iArr < iObj)) {
+    if (mArr) candidates.push(mArr[0]);
+    if (mObj) candidates.push(mObj[0]);
+  } else {
+    if (mObj) candidates.push(mObj[0]);
+    if (mArr) candidates.push(mArr[0]);
+  }
+  if (!candidates.length) throw new Error('No se encontró JSON en la respuesta de la IA.');
+  for (let i = 0; i < candidates.length; i++) {
+    try { return JSON.parse(candidates[i]); } catch(e) { /* probar siguiente */ }
+  }
+  throw new Error('La respuesta fue cortada o llegó malformada. Intenta con un archivo más pequeño o una sola hoja del Excel.');
+}
+
+// ── RENDER RESULTS ──
+function renderResult(mod, data) {
+  const r = document.getElementById('results-' + mod);
+  if (!r) return;
+  LAST_RESULT[mod] = data;
+  const renders = {
+    conciliacion:   renderConciliacion,
+    provisiones:    renderProvisiones,
+    icar:           renderIcar
+  };
+  r.innerHTML = buildTrazabilidad(mod) + renders[mod](data);
+}
+
+// Cabecera de trazabilidad del papel de trabajo: quién, cuándo, con qué
+// archivo(s) y con qué parámetros — exigible ante auditores.
+function buildTrazabilidad(mod) {
+  const m = ANALYSIS_META[mod];
+  if (!m) return '';
+  let html = '<div class="wp-header result-section">';
+  html += '<div class="wp-grid">';
+  html += '<div class="wp-cell"><div class="wp-k">Analista</div><div class="wp-v">' + esc(m.analista) + '</div></div>';
+  html += '<div class="wp-cell"><div class="wp-k">Fecha y hora</div><div class="wp-v">' + esc(m.cuando) + '</div></div>';
+  html += '<div class="wp-cell" style="grid-column:span 2"><div class="wp-k">Documento(s) fuente</div><div class="wp-v">' + esc(m.archivos.join('  ·  ') || '—') + '</div></div>';
+  if (m.params) html += '<div class="wp-cell" style="grid-column:span 2"><div class="wp-k">Parámetros del análisis</div><div class="wp-v">' + esc(m.params) + '</div></div>';
+  html += '<div class="wp-cell" style="grid-column:span 2"><div class="wp-k">Herramienta</div><div class="wp-v">' + esc((MODULE_META[mod] || {}).title || mod) + ' · Finance Suite v<?= VERSION ?> · análisis asistido por IA, sujeto a revisión</div></div>';
+  html += '</div>';
+  html += '<button class="btn-secondary wp-print no-print" onclick="printWorkingPaper(\'' + mod + '\')">🖨 Imprimir papel de trabajo</button>';
+  html += '</div>';
+  return html;
+}
+
+function printWorkingPaper(mod) {
+  selectModule(mod);
+  document.body.classList.add('printing');
+  setTimeout(function() {
+    window.print();
+    setTimeout(function() { document.body.classList.remove('printing'); }, 500);
+  }, 80);
+}
+
+function renderError(mod, msg) {
+  const r = document.getElementById('results-' + mod);
+  if (!r) return;
+  r.innerHTML = '<div class="alert-item error result-section"><span class="alert-icon">❌</span>' +
+    '<div><strong>Error al analizar:</strong> ' + esc(msg) + '</div></div>';
+}
+
+// ── RENDER CONCILIACION ──
+function renderConciliacion(d) {
+  const conciliados = (d.conciliados || []).length;
+  const soloCartola = (d.solo_cartola || []).length;
+  const soloLibro = (d.solo_libro || []).length;
+  const diferencia = d.diferencia_total || 0;
+
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // Summary row
+  html += '<div class="summary-row result-section">';
+  html += '<div class="summary-item green"><div class="si-val">' + conciliados + '</div><div class="si-lbl">✓ Conciliados</div></div>';
+  html += '<div class="summary-item amber"><div class="si-val">' + soloCartola + '</div><div class="si-lbl">⚠ Solo cartola</div></div>';
+  html += '<div class="summary-item blue"><div class="si-val">' + soloLibro + '</div><div class="si-lbl">⚠ Solo libro</div></div>';
+  html += '<div class="summary-item ' + (diferencia === 0 ? 'green' : 'red') + '">';
+  html += '<div class="si-val">' + fmtMoney(Math.abs(diferencia)) + '</div>';
+  html += '<div class="si-lbl">Diferencia total</div></div>';
+  html += '</div>';
+
+  // Build index maps
+  const cartola = d.cartola || [];
+  const libro = d.libro || [];
+  const conciliadosArr = d.conciliados || [];
+  const soloCartolaArr = d.solo_cartola || [];
+  const soloLibroArr = d.solo_libro || [];
+
+  const matchedCartola = new Set(conciliadosArr.map(function(c) { return c.cartola_idx; }));
+  const matchedLibro = new Set(conciliadosArr.map(function(c) { return c.libro_idx; }));
+
+  // Full table
+  html += '<div class="card result-section">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--green-l)">⚖️</div><div class="card-title">Detalle de Conciliación</div></div>';
+  html += '<div class="tbl-wrap"><table>';
+  html += '<tr><th>Fecha</th><th>Descripción / Glosa</th><th style="text-align:right">Monto</th><th>Referencia</th><th>Estado</th><th>Confianza</th></tr>';
+
+  // Matched rows
+  conciliadosArr.forEach(function(c) {
+    const ct = cartola[c.cartola_idx] || {};
+    const lb = libro[c.libro_idx] || {};
+    html += '<tr class="row-green">';
+    html += '<td>' + esc(ct.fecha || lb.fecha || '—') + '</td>';
+    html += '<td>' + esc(ct.descripcion || lb.glosa || '—') + '</td>';
+    html += '<td class="num" style="text-align:right">' + fmtMoney(ct.monto || lb.monto || 0) + '</td>';
+    html += '<td>' + esc(lb.referencia || '—') + '</td>';
+    html += '<td><span class="badge b-green">✓ Conciliado</span></td>';
+    html += '<td><span class="conf-badge conf-' + confCls(c.confianza, 'alta') + '">' + confCls(c.confianza, 'alta') + '</span></td>';
+    html += '</tr>';
+  });
+
+  // Solo cartola
+  soloCartolaArr.forEach(function(idx) {
+    const ct = cartola[idx] || {};
+    html += '<tr class="row-amber">';
+    html += '<td>' + esc(ct.fecha || '—') + '</td>';
+    html += '<td>' + esc(ct.descripcion || '—') + '</td>';
+    html += '<td class="num" style="text-align:right">' + fmtMoney(ct.monto || 0) + '</td>';
+    html += '<td>—</td>';
+    html += '<td><span class="badge b-amber">⚠ Solo cartola</span></td>';
+    html += '<td>—</td>';
+    html += '</tr>';
+  });
+
+  // Solo libro
+  soloLibroArr.forEach(function(idx) {
+    const lb = libro[idx] || {};
+    html += '<tr class="row-blue">';
+    html += '<td>' + esc(lb.fecha || '—') + '</td>';
+    html += '<td>' + esc(lb.glosa || '—') + '</td>';
+    html += '<td class="num" style="text-align:right">' + fmtMoney(lb.monto || 0) + '</td>';
+    html += '<td>' + esc(lb.referencia || '—') + '</td>';
+    html += '<td><span class="badge b-blue">📚 Solo libro</span></td>';
+    html += '<td>—</td>';
+    html += '</tr>';
+  });
+
+  html += '</table></div></div>';
+
+  // Saldos
+  html += '<div class="card result-section">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--blue-l)">💰</div><div class="card-title">Saldos</div></div>';
+  html += '<div class="card-body">';
+  html += '<div class="totals-row">';
+  html += '<div class="total-item"><div class="total-label">Saldo Cartola</div><div class="total-value">' + fmtMoney(d.saldo_cartola || 0) + '</div></div>';
+  html += '<div class="total-divider"></div>';
+  html += '<div class="total-item"><div class="total-label">Saldo Libro</div><div class="total-value">' + fmtMoney(d.saldo_libro || 0) + '</div></div>';
+  html += '<div class="total-divider"></div>';
+  html += '<div class="total-item grand"><div class="total-label">Diferencia</div><div class="total-value" style="color:' + (diferencia === 0 ? 'var(--green-d)' : 'var(--red-d)') + '">' + fmtMoney(Math.abs(diferencia)) + '</div></div>';
+  html += '</div></div></div>';
+
+  // Resumen
+  if (d.resumen) {
+    html += '<div class="exec-summary result-section"><p>' + esc(d.resumen) + '</p></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ── RENDER PROVISIONES ──
+function renderProvisiones(d) {
+  const provs = d.proveedores || [];
+  const recurrentes = provs.filter(function(p){ return p.recurrente; });
+  const conFalta = recurrentes.filter(function(p){ return (p.meses_falta || []).length > 0; });
+  const totalFalta = recurrentes.reduce(function(a,p){ return a + (p.meses_falta || []).length; }, 0);
+  const mesCierre = d.mes_cierre || 6;
+  const mesDesde = d.mes_desde || 1;
+  const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // Accionable = sin factura/provisión en el mes de cierre Y venía facturando
+  // hasta el mes anterior. Falta en cierre sin actividad reciente → "revisar
+  // vigencia". Faltas de meses anteriores → referencia (sin monto: ya se
+  // comieron el gasto y se regulariza a fin de año).
+  let accionable = 0, provsAccionables = 0, mesesPrevios = 0;
+  recurrentes.forEach(function(p) {
+    const faltas = p.meses_falta || [];
+    const enCierre = faltas.indexOf(mesCierre) !== -1;
+    if (p.accionable) { accionable += (p.provision_sugerida_mensual || 0); provsAccionables++; }
+    mesesPrevios += faltas.length - (enCierre ? 1 : 0);
+  });
+
+  // KPIs
+  html += '<div class="summary-row result-section">';
+  html += '<div class="summary-item ' + (accionable > 0 ? 'red' : 'green') + '"><div class="si-val">' + fmtMoney(accionable) + '</div><div class="si-lbl">🎯 Provisionar en ' + MESES[mesCierre-1] + ' (accionable)</div></div>';
+  html += '<div class="summary-item amber"><div class="si-val">' + provsAccionables + '</div><div class="si-lbl">Proveedores sin factura en ' + MESES[mesCierre-1] + '</div></div>';
+  html += '<div class="summary-item green"><div class="si-val">' + recurrentes.length + '</div><div class="si-lbl">Proveedores recurrentes</div></div>';
+  html += '<div class="summary-item"><div class="si-val">' + mesesPrevios + '</div><div class="si-lbl">Meses previos sin cubrir (referencia)</div></div>';
+  html += '</div>';
+
+  // Banner cuenta/periodo
+  html += '<div class="result-section" style="display:flex;gap:10px;align-items:center;padding:10px 14px;background:#fff;border:1px solid var(--n200);border-radius:10px;font-size:12px">';
+  html += '<strong>Cuenta:</strong> ' + esc(d.cuenta || '—') + ' &nbsp;·&nbsp; <strong>Período:</strong> ' + esc(d.periodo || '—') + '</div>';
+
+  // ═══ FOCO PRINCIPAL: qué provisionar en el mes accionable ═══
+  // pendCierre: solo proveedores con actividad reciente (facturaron el mes
+  // anterior). pendRevisar: falta en el cierre pero sin factura hace meses.
+  const pendCierre = [], pendRevisar = [], pendPrevios = [];
+  recurrentes.forEach(function(p) {
+    (p.meses_falta || []).forEach(function(m) {
+      // Accionable: monto a provisionar. Revisar/referencia: solo la factura
+      // típica como contexto — no es un monto a provisionar.
+      const item = { nombre: p.nombre, cuenta: normCuenta(p.cuenta || ''), mesNum: m, mes: MESES[m-1],
+        monto: (m === mesCierre && p.accionable) ? (p.provision_sugerida_mensual || 0) : (p.factura_promedio || 0),
+        comentario: p.comentario || '', ultimoF: p.ultimo_mes_factura || 0 };
+      if (m === mesCierre) {
+        (p.accionable ? pendCierre : pendRevisar).push(item);
+      } else {
+        pendPrevios.push(item);
+      }
+    });
+  });
+
+  if (pendCierre.length) {
+    html += '<div class="card result-section" style="border:2px solid var(--red-b);box-shadow:0 4px 16px rgba(220,26,35,.08)">';
+    html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">🎯</div>';
+    html += '<div><div class="card-title" style="font-size:14px">Provisionar en ' + MESES[mesCierre-1] + ' — sin factura ni provisión</div>';
+    html += '<div style="font-size:10px;color:var(--n500)">Venían facturando hasta ' + (mesCierre > mesDesde ? MESES[mesCierre-2] : '—') + ' y en ' + MESES[mesCierre-1] + ' no llegó la factura: registra la provisión para no comerte el gasto</div></div>';
+    html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(accionable) + '</span></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:6px;padding:8px 14px 12px">';
+    pendCierre.sort(function(a,b){ return b.monto - a.monto; }).forEach(function(x, i) {
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid var(--red-b);border-radius:10px">';
+      html += '<span style="width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">' + (i+1) + '</span>';
+      html += '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px">' + esc(x.nombre) + '</div>';
+      html += '<div style="font-size:10px;color:var(--n400)">Cuenta ' + esc(x.cuenta) + (x.comentario ? ' · ' + esc(x.comentario) : '') + '</div></div>';
+      html += '<span style="font-family:var(--mono);font-weight:800;font-size:14px;color:var(--red-d)">' + fmtMoney(x.monto) + '</span>';
+      html += '<button class="copy-btn" style="font-size:13px" onclick="event.stopPropagation();copyText(\'' + esc(String(x.monto)) + '\')" title="Copiar monto">📋</button>';
+      html += '</div>';
+    });
+    html += '<div style="font-size:10px;color:var(--n400);padding:2px 4px 0">Monto = factura típica del proveedor (su valor que más se repite; mediana si no hay repetición). Cada proveedor se calcula solo con sus propios montos.</div>';
+    html += '</div></div>';
+  } else {
+    html += '<div class="result-section" style="padding:14px 16px;background:var(--green-l);border:1px solid var(--green-b);border-radius:12px;font-size:13px;font-weight:600;color:var(--green-d)">✓ ' + MESES[mesCierre-1] + ' al día: todos los proveedores con actividad reciente tienen factura o provisión en el mes de cierre.</div>';
+  }
+
+  // ⏸ Sin factura en el cierre PERO sin actividad reciente: no se sugiere
+  // provisión automática — primero confirmar si el servicio sigue vigente
+  if (pendRevisar.length) {
+    html += '<div class="card result-section" style="border-left:3px solid var(--amber)">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--amber-l)">⏸</div>';
+    html += '<div><div class="card-title">Sin factura hace meses — confirmar vigencia del servicio (' + pendRevisar.length + ')</div>';
+    html += '<div style="font-size:10px;color:var(--n400)">Tampoco tienen factura en ' + MESES[mesCierre-1] + ', pero dejaron de facturar hace tiempo: NO se sugiere provisión automática. Confirma con el proveedor/contrato si corresponde provisionar o dar de baja.</div></div></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 14px 12px">';
+    pendRevisar.sort(function(a,b){ return b.monto - a.monto; }).forEach(function(x) {
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--amber-l);border:1px solid var(--amber-b);border-radius:8px">';
+      html += '<div style="flex:1;min-width:0"><span style="font-weight:600;font-size:12px">' + esc(x.nombre) + '</span>';
+      html += '<span style="font-size:10px;color:var(--n500)"> · ' + esc(x.cuenta) + ' · última factura: ' + (x.ultimoF ? MESES[x.ultimoF-1] : '—') + (x.comentario ? ' · ' + esc(x.comentario) : '') + '</span></div>';
+      html += '<span style="font-family:var(--mono);font-size:11px;color:var(--n500);white-space:nowrap">típica ' + fmtMoney(x.monto) + '</span>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Matriz (filas clicables: drill-down a los movimientos del proveedor)
+  html += '<div class="card result-section">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--red-l)">🧾</div><div class="card-title">Matriz mensual — F factura · P provisión · FALTA provisionar</div>';
+  html += '<span class="no-print" style="margin-left:auto;font-size:10px;color:var(--n400)">clic en un proveedor = ver sus movimientos</span></div>';
+  html += '<div class="tbl-wrap"><table>';
+  const nMeses = mesCierre - mesDesde + 1;   // columnas de mes visibles
+  html += '<tr><th>Proveedor</th><th>Rec.</th>';
+  for (let m = mesDesde; m <= mesCierre; m++) html += '<th style="text-align:center">' + MESES[m-1] + '</th>';
+  html += '<th style="text-align:right">Fact. típica</th></tr>';
+  // Agrupar por cuenta cuando el archivo trae varias
+  const ctasOrden = [];
+  provs.forEach(function(p) {
+    const c = normCuenta(p.cuenta || '');
+    if (ctasOrden.indexOf(c) === -1) ctasOrden.push(c);
+  });
+  const multiCta = ctasOrden.length > 1;
+
+  ctasOrden.forEach(function(cta) {
+    if (multiCta) {
+      html += '<tr><td colspan="' + (nMeses + 3) + '" style="background:#0a0a0a;color:#fff;font-weight:800;font-size:11px;letter-spacing:.4px;padding:7px 12px">📁 CUENTA ' + esc(cta) + '</td></tr>';
+    }
+    provs.forEach(function(p, pi) {
+      if (normCuenta(p.cuenta || '') !== cta) return;
+      html += '<tr class="prov-row' + (p.recurrente && (p.meses_falta||[]).length ? ' row-amber' : '') + '" onclick="toggleProvDetail(' + pi + ')" title="Ver movimientos del proveedor">';
+      html += '<td style="font-weight:600">' + esc(p.nombre) + '</td>';
+      html += '<td>' + (p.recurrente ? 'Sí' : 'No') + '</td>';
+      for (let m = mesDesde; m <= mesCierre; m++) {
+        const v = (p.meses && p.meses[String(m)]) || '';
+        let style = 'text-align:center;font-weight:700;';
+        if (v === 'FALTA') style += 'background:var(--red-l);color:var(--red-d)';
+        else if (v === 'F' || v === 'F+P') style += 'color:var(--green-d)';
+        else if (v === 'P') style += 'color:var(--amber)';
+        html += '<td style="' + style + '">' + esc(v || '·') + '</td>';
+      }
+      html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(p.factura_promedio || 0) + '</td>';
+      html += '</tr>';
+      html += '<tr class="prov-detail" id="provdet-' + pi + '" style="display:none"><td colspan="' + (nMeses + 3) + '"></td></tr>';
+    });
+  });
+  html += '</table></div></div>';
+
+  // Referencia — meses anteriores donde ya nos comimos la provisión,
+  // agrupada por proveedor con chips de meses (contexto, no accionable)
+  if (pendPrevios.length) {
+    const porProvRef = {};
+    const ordenRef = [];
+    pendPrevios.forEach(function(x) {
+      const k = x.cuenta + '|' + x.nombre;
+      if (!porProvRef[k]) { porProvRef[k] = { nombre: x.nombre, cuenta: x.cuenta, monto: x.monto, meses: [] }; ordenRef.push(k); }
+      porProvRef[k].meses.push(x.mes);
+    });
+    html += '<div class="card result-section" style="border-left:3px solid var(--n300)">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">🕓</div>';
+    html += '<div><div class="card-title">Referencia — meses anteriores sin factura ni provisión</div>';
+    html += '<div style="font-size:10px;color:var(--n400)">Ya cerrados (el gasto se comió, se regulariza a fin de año): contexto y justificación, sin monto a provisionar</div></div>';
+    html += '<span style="margin-left:auto;font-size:10px;color:var(--n400)">' + pendPrevios.length + ' mes(es)</span></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 14px 12px">';
+    ordenRef.forEach(function(k) {
+      const r = porProvRef[k];
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--n50);border-radius:8px">';
+      html += '<div style="flex:1;min-width:0"><span style="font-weight:600;font-size:12px">' + esc(r.nombre) + '</span>';
+      html += '<span style="font-size:10px;color:var(--n400)"> · ' + esc(r.cuenta) + '</span></div>';
+      html += '<div style="display:flex;gap:4px;flex-wrap:wrap">';
+      r.meses.forEach(function(mn) {
+        html += '<span style="padding:2px 8px;border-radius:12px;background:#fff;border:1px solid var(--n200);font-size:10px;font-weight:700;color:var(--n500)">' + mn + '</span>';
+      });
+      html += '</div>';
+      html += '<span style="font-family:var(--mono);font-size:11px;color:var(--n400);white-space:nowrap">fact. típica ' + fmtMoney(r.monto) + '</span>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Dashboard comparativo mensual (determinístico, desde el archivo cargado)
+  html += buildComparativaMensual(mesDesde, mesCierre);
+
+  // Desglose de otros movimientos (sin "IR" ni Diario) — visibilidad total del archivo
+  html += buildOtrosDesglose(mesDesde, mesCierre);
+
+  // Notas para auditoría
+  const notas = d.notas_auditoria || [];
+  if (notas.length) {
+    html += '<div class="card result-section" style="border-left:3px solid var(--purple)">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--purple-l)">🔎</div><div class="card-title">Notas para auditoría — variaciones y justificaciones</div>';
+    html += '<button class="copy-btn" style="margin-left:auto;font-size:14px" onclick="copyNotasAuditoria(this)" title="Copiar notas">📋</button></div>';
+    html += '<div id="notas-auditoria-list" style="padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px">';
+    notas.forEach(function(n) {
+      html += '<div style="display:flex;gap:8px;font-size:12px;line-height:1.6;color:var(--n600)"><span style="color:var(--purple);flex-shrink:0">▸</span><span>' + esc(n) + '</span></div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Resumen
+  if (d.resumen) {
+    html += '<div class="card result-section"><div class="card-header"><div class="card-icon" style="background:var(--n100)">📝</div><div class="card-title">Resumen</div></div>';
+    html += '<div style="padding:4px 14px 14px;font-size:12px;line-height:1.7;color:var(--n600)">' + esc(d.resumen) + '</div></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// Drill-down: movimientos del proveedor (desde el archivo parseado en memoria)
+const MESES_G = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function toggleProvDetail(idx) {
+  const det = document.getElementById('provdet-' + idx);
+  if (!det) return;
+  if (det.style.display !== 'none') { det.style.display = 'none'; return; }
+
+  if (!det.dataset.filled) {
+    const d = LAST_RESULT.provisiones || {};
+    const p = (d.proveedores || [])[idx] || {};
+    const f = STATE.provisiones.files.provisiones;
+    const movs = ((f && f.movs) || []).filter(function(a) {
+      if (normName(a.prov) !== normName(p.nombre)) return false;
+      return !p.cuenta || normCuenta(a.cuenta) === normCuenta(p.cuenta);
+    });
+    let inner;
+    if (!movs.length) {
+      inner = '<div style="padding:10px;color:var(--n400);font-size:11px">Sin movimientos disponibles: el archivo original no está cargado (análisis restaurado del historial) o el nombre no coincide con el archivo.</div>';
+    } else {
+      inner = '<table style="width:100%"><tr><th>Mes</th><th>Clasificación</th><th style="text-align:right">Monto neto</th><th style="text-align:right">N° movs</th></tr>';
+      movs.sort(function(a, b) { return a.mes - b.mes || a.clas.localeCompare(b.clas); }).forEach(function(a) {
+        const color = a.clas === 'FACTURA' ? 'var(--green-d)' : (a.clas === 'PROVISION' ? 'var(--amber)' : 'var(--n400)');
+        inner += '<tr><td>' + (MESES_G[a.mes - 1] || a.mes) + '</td>';
+        inner += '<td style="color:' + color + ';font-weight:600">' + esc(a.clas) + '</td>';
+        inner += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(a.monto) + '</td>';
+        inner += '<td style="text-align:right">' + a.n + '</td></tr>';
+        // Memo/Nota del diario: la justificación contable del asiento
+        if (a.memos && a.memos.length) {
+          inner += '<tr><td></td><td colspan="3" style="font-size:10px;color:var(--n400);font-style:italic;padding:0 8px 6px">✎ ' + esc(a.memos.join('  ·  ')) + '</td></tr>';
+        }
+      });
+      inner += '</table>';
+    }
+    det.querySelector('td').innerHTML = '<div style="padding:6px 10px;background:var(--n50);border:1px solid var(--n200);border-radius:8px;margin:2px 0 6px">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px;padding:4px 0 6px">Movimientos de ' + esc(p.nombre) + ' según el General Ledger</div>' + inner + '</div>';
+    det.dataset.filled = '1';
+  }
+  det.style.display = '';
+}
+
+// Desglose de movimientos que NO entran a la lógica de provisiones
+// (Type sin "Diario" y Document Number sin "IR": facturas de compra, pagos, NC).
+// Se muestran para que el analista vea TODO lo que trajo el archivo.
+function buildOtrosDesglose(mesDesde, mesCierre) {
+  const f = STATE.provisiones.files.provisiones;
+  const otros = (f && f.otros) || [];   // ya filtrado por el rango de fechas
+  if (!otros.length) return '';
+  const total = otros.reduce(function(a, x) { return a + x.monto; }, 0);
+  const nMovs = otros.reduce(function(a, x) { return a + x.n; }, 0);
+
+  let html = '<div class="card result-section" style="border-left:3px solid var(--n400)">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">📂</div>';
+  html += '<div class="card-title">Otros movimientos del archivo — fuera de la lógica de provisiones (' + nMovs + ')</div>';
+  html += '<span style="margin-left:auto;font-family:var(--mono);font-weight:700;color:var(--n500)">' + fmtMoney(total) + '</span></div>';
+  html += '<div style="padding:2px 14px 8px;font-size:11px;color:var(--n500)">Documentos sin "IR" (facturas de compra, pagos, notas de crédito, etc.). No cuentan como factura recepcionada ni como provisión — se listan para que sepas exactamente qué cargaste.</div>';
+  html += '<div class="tbl-wrap"><table>';
+  html += '<tr><th>Cuenta</th><th>Tipo (NetSuite)</th><th>Proveedor</th><th>Mes</th><th style="text-align:right">Monto neto</th><th style="text-align:right">N° movs</th></tr>';
+  otros.slice().sort(function(a, b) {
+    return normCuenta(a.cuenta).localeCompare(normCuenta(b.cuenta)) || a.prov.localeCompare(b.prov) || a.mes - b.mes;
+  }).forEach(function(x) {
+    html += '<tr>';
+    html += '<td style="font-family:var(--mono);font-size:10px">' + esc(normCuenta(x.cuenta)) + '</td>';
+    html += '<td><span class="badge b-gray">' + esc(x.tipo) + '</span></td>';
+    html += '<td style="font-weight:600">' + esc(x.prov) + '</td>';
+    html += '<td>' + (MESES_G[x.mes - 1] || x.mes) + '</td>';
+    html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(x.monto) + '</td>';
+    html += '<td style="text-align:right">' + x.n + '</td>';
+    html += '</tr>';
+  });
+  html += '</table></div></div>';
+  return html;
+}
+
+// Dashboard comparativo mensual para auditoría: totales por mes (barras),
+// evolución por proveedor y variaciones vs mes anterior. Todo calculado en
+// código desde el archivo cargado — cifras exactas y reproducibles.
+function buildComparativaMensual(mesDesde, mesCierre) {
+  const f = STATE.provisiones.files.provisiones;
+  const movs = (f && f.movs) || [];
+  if (!movs.length) return '';
+
+  // Totales por mes y matriz proveedor×mes de facturas (por cuenta si hay varias)
+  const multiCta = (f.cuentas || []).length > 1;
+  const totFact = {}, totProv = {}, porProv = {};
+  movs.forEach(function(a) {
+    if (a.mes < mesDesde || a.mes > mesCierre || a.prov === '(sin nombre)') return;
+    if (a.clas === 'FACTURA') {
+      totFact[a.mes] = (totFact[a.mes] || 0) + a.monto;
+      const label = multiCta ? a.prov + '  ·  ' + normCuenta(a.cuenta) : a.prov;
+      if (!porProv[label]) porProv[label] = {};
+      porProv[label][a.mes] = (porProv[label][a.mes] || 0) + a.monto;
+    }
+    if (a.clas === 'PROVISION') totProv[a.mes] = (totProv[a.mes] || 0) + a.monto;
+  });
+
+  const maxTot = Math.max.apply(null, Object.keys(totFact).map(function(m){ return totFact[m]; }).concat([1]));
+
+  let html = '<div class="card result-section">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">📊</div><div class="card-title">Comparativa mensual — facturación y variaciones</div>';
+  html += '<span class="no-print" style="margin-left:auto;font-size:10px;color:var(--n400)">calculado desde el archivo · cifras exactas</span></div>';
+
+  // Barras: total facturado por mes
+  html += '<div style="padding:10px 14px 4px">';
+  html += '<div style="font-size:10px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Total facturado (IR) por mes</div>';
+  html += '<div style="display:flex;align-items:flex-end;gap:10px;height:110px">';
+  for (let m = mesDesde; m <= mesCierre; m++) {
+    const v = totFact[m] || 0;
+    const h = Math.max(3, Math.round((v / maxTot) * 78));
+    const isLast = m === mesCierre;
+    html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">';
+    html += '<div style="font-size:9px;font-family:var(--mono);color:var(--n500);white-space:nowrap">' + fmtMoney(v) + '</div>';
+    html += '<div style="width:100%;max-width:56px;height:' + h + 'px;border-radius:6px 6px 2px 2px;background:' + (isLast ? 'linear-gradient(180deg,var(--red),var(--red-d))' : 'linear-gradient(180deg,#3f3f46,#18181b)') + '"></div>';
+    html += '<div style="font-size:10px;font-weight:' + (isLast ? '800' : '600') + ';color:' + (isLast ? 'var(--red-d)' : 'var(--n500)') + '">' + MESES_G[m-1] + (isLast ? ' ◄' : '') + '</div>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  // Tabla: evolución por proveedor con variación del mes de cierre vs anterior
+  const provNames = Object.keys(porProv).sort();
+  if (provNames.length) {
+    html += '<div class="tbl-wrap" style="margin-top:6px"><table>';
+    html += '<tr><th>Proveedor</th>';
+    for (let m = mesDesde; m <= mesCierre; m++) html += '<th style="text-align:right' + (m === mesCierre ? ';background:var(--red-l)' : '') + '">' + MESES_G[m-1] + '</th>';
+    html += '<th style="text-align:right">Δ ' + MESES_G[mesCierre-1] + ' vs ' + (mesCierre > mesDesde ? MESES_G[mesCierre-2] : '—') + '</th></tr>';
+    provNames.forEach(function(nombre) {
+      const meses = porProv[nombre];
+      const vCierre = meses[mesCierre] || 0;
+      const vPrevio = mesCierre > mesDesde ? (meses[mesCierre-1] || 0) : 0;
+      let deltaHtml = '<span style="color:var(--n300)">—</span>';
+      if (vPrevio > 0 && vCierre > 0) {
+        const pct = ((vCierre - vPrevio) / vPrevio) * 100;
+        const alerta = Math.abs(pct) >= 50;
+        const color = alerta ? 'var(--red-d)' : (Math.abs(pct) >= 20 ? 'var(--amber)' : 'var(--green-d)');
+        deltaHtml = '<span style="font-weight:700;color:' + color + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%' + (alerta ? ' ⚠' : '') + '</span>';
+      } else if (vPrevio > 0 && vCierre === 0) {
+        deltaHtml = '<span style="font-weight:700;color:var(--red-d)">SIN FACTURA ⚠</span>';
+      } else if (vPrevio === 0 && vCierre > 0) {
+        deltaHtml = '<span style="color:var(--n400)">nuevo/retomado</span>';
+      }
+      html += '<tr><td style="font-weight:600">' + esc(nombre) + '</td>';
+      for (let m = mesDesde; m <= mesCierre; m++) {
+        const v = meses[m] || 0;
+        html += '<td style="text-align:right;font-family:var(--mono);font-size:10px' + (m === mesCierre ? ';background:var(--red-l);font-weight:700' : '') + '">' + (v ? fmtMoney(v) : '<span style="color:var(--n300)">·</span>') + '</td>';
+      }
+      html += '<td style="text-align:right;font-size:11px">' + deltaHtml + '</td></tr>';
+    });
+    // Fila de totales
+    html += '<tr class="tbl-foot"><td style="font-weight:800">TOTAL FACTURADO</td>';
+    for (let m = mesDesde; m <= mesCierre; m++) {
+      html += '<td style="text-align:right;font-family:var(--mono);font-weight:700">' + fmtMoney(totFact[m] || 0) + '</td>';
+    }
+    html += '<td></td></tr>';
+    html += '<tr><td style="font-weight:600;color:var(--n500)">Provisiones (Diario) del mes</td>';
+    for (let m = mesDesde; m <= mesCierre; m++) {
+      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px;color:var(--n500)">' + (totProv[m] ? fmtMoney(totProv[m]) : '<span style="color:var(--n300)">·</span>') + '</td>';
+    }
+    html += '<td></td></tr>';
+    html += '</table></div>';
+  }
+  html += '<div style="padding:8px 14px 12px;font-size:10px;color:var(--n400)">Δ ≥ 50% o mes sin factura = ⚠ revisar antes del cierre · columna roja = mes accionable</div>';
+  html += '</div>';
+  return html;
+}
+
+// ── RENDER ICAR ──
+function renderIcar(d) {
+  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+
+  // KPIs
+  html += '<div class="summary-row result-section">';
+  html += '<div class="summary-item"><div class="si-val">' + fmtMoney(d.saldoCuenta) + '</div><div class="si-lbl">Saldo cuenta 2801-01</div></div>';
+  html += '<div class="summary-item amber"><div class="si-val">' + fmtMoney(Math.abs(d.pendiente.monto)) + '</div><div class="si-lbl">⏳ Facturado sin descontar (' + d.pendiente.n + ' veh.) — esperar rendición ICAR</div></div>';
+  html += '<div class="summary-item ' + (d.negPorRegistrar.monto > 0 ? 'red' : 'green') + '"><div class="si-val">' + fmtMoney(d.negPorRegistrar.monto) + '</div><div class="si-lbl">🎯 Resultado negativo por registrar (' + d.negPorRegistrar.n + ' veh.)</div></div>';
+  html += '<div class="summary-item green"><div class="si-val">' + d.ok + '</div><div class="si-lbl">Vehículos cuadrados (ok, cero)</div></div>';
+  html += '</div>';
+
+  // Banner de composición del saldo (cuadratura)
+  html += '<div class="result-section" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:#fff;border:1px solid var(--n200);border-radius:10px;font-size:11px;color:var(--n500)">';
+  html += '<span><strong>Cuadratura:</strong></span>';
+  html += '<span>Facturado ' + fmtMoney(d.sumFact) + '</span><span>+ NC ' + fmtMoney(d.sumNC) + '</span><span>+ Diarios ' + fmtMoney(d.sumDesc) + '</span>';
+  html += '<span style="font-weight:700;color:var(--n700)">= ' + fmtMoney(d.saldoCuenta) + '</span>';
+  if (d.periodo) html += '<span style="padding:2px 8px;border-radius:12px;background:var(--n100);font-weight:700;color:var(--n600)">📅 ' + esc(d.periodo) + '</span>';
+  html += '<span style="margin-left:auto">' + d.nMovs + ' movs · ' + d.nStocks + ' vehículos · ' + d.negRegistrado + ' con pérdida ya registrada</span>';
+  html += '</div>';
+
+  // 🎯 Análisis para el asiento de ajuste (el asiento lo registra el analista)
+  if (d.negPorRegistrar.n) {
+    const top = d.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; });
+    html += '<div class="card result-section" style="border:2px solid var(--red-b)">';
+    html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">🎯</div>';
+    html += '<div><div class="card-title" style="font-size:14px">Resultado negativo Kavak por registrar — análisis del ajuste</div>';
+    html += '<div style="font-size:10px;color:var(--n500)">Se descontó del fondo más de lo facturado al cliente. Insumo para tu asiento de ajuste — el sistema NO lo ejecuta</div></div>';
+    html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(d.negPorRegistrar.monto) + '</span>';
+    html += '<button class="copy-btn" style="font-size:14px" onclick="copyText(\'' + esc(String(d.negPorRegistrar.monto)) + '\')" title="Copiar total">📋</button></div>';
+    html += '<div class="tbl-wrap" style="max-height:320px;overflow-y:auto"><table>';
+    html += '<tr><th>Stock ID</th><th>Patente</th><th>Mes venta</th><th style="text-align:right">Facturado</th><th style="text-align:right">Descontado</th><th style="text-align:right">Diferencia</th></tr>';
+    top.forEach(function(o) {
+      html += '<tr class="row-amber"><td style="font-family:var(--mono)">' + esc(o.st) + '</td>';
+      html += '<td style="font-family:var(--mono);font-weight:600">' + esc(o.patente || '—') + '</td>';
+      html += '<td style="font-size:11px">' + esc(o.mesVenta || 'Revisar fin de mes') + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(Math.abs(o.fact + o.nc)) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(o.desc) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--red-d)">' + fmtMoney(o.saldo) + '</td></tr>';
+    });
+    html += '</table></div></div>';
+  } else {
+    html += '<div class="result-section" style="padding:14px 16px;background:var(--green-l);border:1px solid var(--green-b);border-radius:12px;font-size:13px;font-weight:600;color:var(--green-d)">✓ Sin resultados negativos por registrar: todos los descuadres positivos están reconocidos.</div>';
+  }
+
+  // Pivot por mes de venta
+  const meses = Object.keys(d.pivot);
+  if (meses.length) {
+    html += '<div class="card result-section">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">📅</div><div class="card-title">Descuadres por mes de venta</div>';
+    html += '<span class="no-print" style="margin-left:auto;font-size:10px;color:var(--n400)">"Revisar fin de mes" = sin cruce con ventas aún</span></div>';
+    html += '<div class="tbl-wrap"><table>';
+    html += '<tr><th>Mes de venta</th><th style="text-align:right">Facturado sin descontar</th><th style="text-align:right">Veh.</th><th style="text-align:right">Resultado negativo</th><th style="text-align:right">Veh.</th></tr>';
+    meses.sort().forEach(function(m) {
+      const p = d.pivot[m];
+      html += '<tr' + (m === 'Revisar fin de mes' ? ' style="opacity:.7"' : '') + '><td style="font-weight:600">' + esc(m) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono)">' + fmtMoney(p.pendiente) + '</td><td style="text-align:right">' + p.pendienteN + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(p.negativo) + '</td><td style="text-align:right">' + p.negativoN + '</td></tr>';
+    });
+    html += '</table></div></div>';
+  }
+
+  // Pendientes de rendición (informativo)
+  html += '<div class="result-section" style="padding:12px 16px;background:var(--amber-l);border:1px solid var(--amber-b);border-radius:12px;font-size:12px;color:var(--n600)">';
+  html += '⏳ <strong>' + d.pendiente.n + ' vehículo(s)</strong> facturados al cliente y aún no descontados del fondo por <strong>' + fmtMoney(Math.abs(d.pendiente.monto)) + '</strong> — se esperan en próximas rendiciones de ICAR (sin acción en este cierre).' ;
+  if (d.sinStock) html += ' · ⚠ ' + d.sinStock + ' movimiento(s) sin Stock ID fuera del cruce.';
+  html += '</div>';
+
+  // Fuera de la ventana del export (factura no incluida en el archivo)
+  if (d.sinFactura && d.sinFactura.n) {
+    html += '<div class="result-section" style="padding:12px 16px;background:var(--n100);border:1px solid var(--n200);border-radius:12px;font-size:12px;color:var(--n600)">';
+    html += '📆 <strong>' + d.sinFactura.n + ' vehículo(s)</strong> con descuentos/pérdidas por <strong>' + fmtMoney(d.sinFactura.monto) + '</strong> cuya factura de venta <strong>no está en el archivo</strong> (venta de un período anterior a la ventana del export). No entran al análisis del ajuste — para cruzarlos, exporta el mayor desde el inicio del año.';
+    html += '</div>';
+  }
+
+  // Notas para auditoría (IA)
+  const notas = d.notas_auditoria || [];
+  if (notas.length) {
+    html += '<div class="card result-section" style="border-left:3px solid var(--purple)">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--purple-l)">🔎</div><div class="card-title">Notas para auditoría</div>';
+    html += '<button class="copy-btn" style="margin-left:auto;font-size:14px" onclick="copyNotasAuditoria(this)" title="Copiar notas">📋</button></div>';
+    html += '<div id="notas-auditoria-list" style="padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px">';
+    notas.forEach(function(n) {
+      html += '<div style="display:flex;gap:8px;font-size:12px;line-height:1.6;color:var(--n600)"><span style="color:var(--purple);flex-shrink:0">▸</span><span>' + esc(n) + '</span></div>';
+    });
+    html += '</div></div>';
+  }
+
+  if (d.resumen) {
+    html += '<div class="card result-section"><div class="card-header"><div class="card-icon" style="background:var(--n100)">📝</div><div class="card-title">Resumen</div></div>';
+    html += '<div style="padding:4px 14px 14px;font-size:12px;line-height:1.7;color:var(--n600)">' + esc(d.resumen) + '</div></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ── ICAR → SHEETS ──
+function saveIcarToSheet(d) {
+  if (!(window.google && google.script && google.script.run)) return;
+  const now = new Date();
+  const payload = Object.assign({}, d, {
+    analista: document.getElementById('userInput').value || 'Anónimo',
+    fecha: now.toLocaleDateString('es-CL'),
+    hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }),
+    // Solo lo necesario (las listas completas pueden ser miles de filas)
+    negPorRegistrar: { n: d.negPorRegistrar.n, monto: d.negPorRegistrar.monto,
+      items: d.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 300) },
+    pendiente: { n: d.pendiente.n, monto: d.pendiente.monto,
+      items: d.pendiente.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 300) }
+  });
+  showToast('Escribiendo análisis ICAR en tu planilla…', 'info');
+  google.script.run
+    .withSuccessHandler(function(url) {
+      const r = document.getElementById('results-icar');
+      if (r) {
+        const old = r.querySelector('.desglose-link-bar');
+        if (old) old.remove();
+        const bar = document.createElement('div');
+        bar.className = 'desglose-link-bar';
+        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:#e6f7f0;border:1px solid #b3e8d3;border-radius:10px;margin-bottom:8px;font-size:12px;color:#0b6b3a';
+        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Análisis escrito en la pestaña "Análisis ICAR" de tu planilla</span>' +
+          '<a href="' + url + '" target="_blank" style="margin-left:auto;font-size:11px;font-weight:700;color:#007a4a;text-decoration:none;padding:4px 10px;background:#fff;border:1px solid #b3e8d3;border-radius:6px">Abrir Sheets →</a>';
+        r.insertBefore(bar, r.firstChild);
+      }
+      showToast('Análisis ICAR guardado ✓', 'success');
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error al escribir en Sheets: ' + e.message, 'error');
+    })
+    .writeIcarSheet(JSON.stringify(payload));
+}
+
+function copyNotasAuditoria(btn) {
+  const list = document.getElementById('notas-auditoria-list');
+  if (!list) return;
+  const text = Array.from(list.querySelectorAll('span:last-child')).map(function(s, i) {
+    return (i + 1) + '. ' + s.textContent;
+  }).join('\n');
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('Notas copiadas ✓', 'success');
+  });
+}
+
+// Comparativa mensual en datos (para la planilla): mismas cifras que el dashboard
+function computeComparativaData(mesCierre) {
+  const f = STATE.provisiones.files.provisiones;
+  const movs = (f && f.movs) || [];
+  if (!movs.length) return null;
+  const multiCta = (f.cuentas || []).length > 1;
+  const totFact = [], totProv = [], porProv = {};
+  for (let m = 0; m < mesCierre; m++) { totFact.push(0); totProv.push(0); }
+  movs.forEach(function(a) {
+    if (a.mes > mesCierre || a.prov === '(sin nombre)') return;
+    if (a.clas === 'FACTURA') {
+      totFact[a.mes - 1] += a.monto;
+      const label = multiCta ? a.prov + ' · ' + normCuenta(a.cuenta) : a.prov;
+      if (!porProv[label]) porProv[label] = [];
+      porProv[label][a.mes - 1] = (porProv[label][a.mes - 1] || 0) + a.monto;
+    }
+    if (a.clas === 'PROVISION') totProv[a.mes - 1] += a.monto;
+  });
+  const filas = Object.keys(porProv).sort().map(function(prov) {
+    const montos = [];
+    for (let m = 0; m < mesCierre; m++) montos.push(porProv[prov][m] || 0);
+    const vC = montos[mesCierre - 1], vP = mesCierre > 1 ? montos[mesCierre - 2] : 0;
+    let delta = '';
+    if (vP > 0 && vC > 0) {
+      const pct = ((vC - vP) / vP) * 100;
+      delta = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%' + (Math.abs(pct) >= 50 ? ' ⚠' : '');
+    } else if (vP > 0 && vC === 0) delta = 'SIN FACTURA ⚠';
+    else if (vP === 0 && vC > 0) delta = 'nuevo/retomado';
+    return { prov: prov, montos: montos, delta: delta };
+  });
+  return { filas: filas, totFact: totFact, totProv: totProv };
+}
+
+// ── PROVISIONES → SHEETS ──
+function saveProvisionesToSheet(d) {
+  if (!(window.google && google.script && google.script.run)) return;
+  const now = new Date();
+  const payload = Object.assign({}, d, {
+    analista: document.getElementById('userInput').value || 'Anónimo',
+    fecha: now.toLocaleDateString('es-CL'),
+    hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }),
+    comparativa: computeComparativaData(d.mes_cierre || 6),
+    otros: (STATE.provisiones.files.provisiones || {}).otros || [],
+    cuentas: (STATE.provisiones.files.provisiones || {}).cuentas || []
+  });
+  showToast('Escribiendo en planilla de Provisiones…', 'info');
+  google.script.run
+    .withSuccessHandler(function(url) {
+      const r = document.getElementById('results-provisiones');
+      if (r) {
+        const old = r.querySelector('.desglose-link-bar');
+        if (old) old.remove();
+        const bar = document.createElement('div');
+        bar.className = 'desglose-link-bar';
+        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:#e6f7f0;border:1px solid #b3e8d3;border-radius:10px;margin-bottom:8px;font-size:12px;color:#0b6b3a';
+        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Resultados escritos en la planilla de Provisiones</span>' +
+          '<a href="' + url + '" target="_blank" style="margin-left:auto;font-size:11px;font-weight:700;color:#007a4a;text-decoration:none;padding:4px 10px;background:#fff;border:1px solid #b3e8d3;border-radius:6px">Abrir Sheets →</a>';
+        r.insertBefore(bar, r.firstChild);
+      }
+      showToast('Provisiones guardadas en Sheets ✓', 'success');
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error al escribir en Sheets: ' + e.message, 'error');
+    })
+    .writeProvisionesSheet(JSON.stringify(payload));
+}
+
+// ── CONCILIACION → SHEETS DESGLOSE ──
+function saveDesgloseConciliacion(d) {
+  if (!(window.google && google.script && google.script.run)) return;
+  const now  = new Date();
+  const analista = document.getElementById('userInput').value || 'Anónimo';
+  const payload  = Object.assign({}, d, {
+    analista: analista,
+    fecha: now.toLocaleDateString('es-CL'),
+    hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' })
+  });
+  showToast('Escribiendo en planilla Desglose…', 'info');
+  google.script.run
+    .withSuccessHandler(function(url) {
+      // Inyectar link en el panel de resultados
+      const r = document.getElementById('results-conciliacion');
+      if (r) {
+        const old = r.querySelector('.desglose-link-bar');
+        if (old) old.remove();
+        const bar = document.createElement('div');
+        bar.className = 'desglose-link-bar';
+        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:#e6f7f0;border:1px solid #b3e8d3;border-radius:10px;margin-bottom:8px;font-size:12px;color:#0b6b3a';
+        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Desglose escrito en la planilla</span>' +
+          '<a href="' + url + '" target="_blank" style="margin-left:auto;font-size:11px;font-weight:700;color:#007a4a;text-decoration:none;padding:4px 10px;background:#fff;border:1px solid #b3e8d3;border-radius:6px">Abrir Sheets →</a>';
+        r.insertBefore(bar, r.firstChild);
+      }
+      showToast('Desglose guardado en Sheets ✓', 'success');
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error al escribir Desglose: ' + e.message, 'error');
+    })
+    .writeConciliacionDesglose(JSON.stringify(payload));
+}
+
+// ── HISTORY ──
+function saveHistory(mod, data) {
+  const hist = getHistory();
+  const analista = document.getElementById('userInput').value || '';
+  const resumenes = {
+    conciliacion:   (data.conciliados || []).length + ' conciliados · Dif: ' + fmtMoney(Math.abs(data.diferencia_total || 0)),
+    provisiones:   (data.proveedores || []).length + ' proveedores · Sugerido: ' + fmtMoney(data.total_provision_sugerida || 0),
+    icar:           (data.nStocks || 0) + ' vehículos · Neg. por registrar: ' + fmtMoney((data.negPorRegistrar || {}).monto || 0)
+  };
+  const item = {
+    id: Date.now(),
+    modulo: mod,
+    timestamp: new Date().toISOString(),
+    resumen: resumenes[mod] || 'Análisis completado',
+    analista: analista,
+    meta: ANALYSIS_META[mod] || null,
+    data: data
+  };
+  hist.unshift(item);
+  if (hist.length > MAX_HIST) hist.length = MAX_HIST;
+  try {
+    localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+  } catch (e) {
+    // Cuota de localStorage llena: recortar y reintentar sin romper el render
+    try {
+      hist.length = Math.min(hist.length, 10);
+      localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+    } catch (e2) { /* historial no disponible; el análisis en pantalla no se pierde */ }
+  }
+  renderHistory();
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function renderHistory() {
+  const hist = getHistory();
+  const list = document.getElementById('histList');
+  const count = document.getElementById('histCount');
+  count.textContent = hist.length;
+
+  if (!hist.length) {
+    list.innerHTML = '<div class="hi-empty">No hay análisis aún.</div>';
+    return;
+  }
+
+  const modIcons = { conciliacion: '⚖️', provisiones: '🧾', icar: '🚗' };
+
+  list.innerHTML = hist.map(function(h) {
+    const ts = new Date(h.timestamp);
+    const tsStr = ts.toLocaleDateString('es-CL') + ' ' + ts.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+    return '<div class="hi" onclick="restoreHistory(' + h.id + ')" title="Clic para restaurar este análisis">' +
+      '<div class="hi-mod">' + (modIcons[h.modulo] || '') + ' ' + h.modulo + '</div>' +
+      '<div class="hi-title">' + esc(h.resumen) + '</div>' +
+      (h.analista ? '<div class="hi-ts">' + esc(h.analista) + '</div>' : '') +
+      '<div class="hi-ts">' + tsStr + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+// Restaura un análisis guardado: cambia al módulo y re-renderiza el resultado
+function restoreHistory(id) {
+  const item = getHistory().find(function(h) { return h.id === id; });
+  if (!item) return;
+  selectModule(item.modulo);
+  if (item.data) {
+    if (item.meta) ANALYSIS_META[item.modulo] = item.meta;
+    renderResult(item.modulo, item.data);
+    showToast('Análisis restaurado del historial', 'success');
+  }
+}
+
+function clearHistory() {
+  if (!confirm('¿Limpiar todo el historial?')) return;
+  localStorage.removeItem(HIST_KEY);
+  renderHistory();
+  showToast('Historial limpiado', 'success');
+}
+
+// ── UI HELPERS ──
+// Barra de progreso compartida con conteo de análisis en curso: se oculta
+// solo cuando el último termina (dos módulos pueden analizar a la vez).
+function showProgress(show) {
+  inFlightCount = Math.max(0, inFlightCount + (show ? 1 : -1));
+  document.getElementById('progBar').classList.toggle('hidden', inFlightCount === 0);
+}
+
+function showSpinner(mod) {
+  const r = document.getElementById('results-' + mod);
+  if (!r) return;
+  stopSpinMsg(mod);
+  let msgIdx = 0;
+  r.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><div class="spin-msg" id="spinMsg-' + mod + '">' + SPIN_MSGS[0] + '</div></div>';
+  spinIntervals[mod] = setInterval(function() {
+    msgIdx = (msgIdx + 1) % SPIN_MSGS.length;
+    const el = document.getElementById('spinMsg-' + mod);
+    if (el) el.textContent = SPIN_MSGS[msgIdx];
+    else stopSpinMsg(mod);
+  }, 2500);
+}
+
+function stopSpinMsg(mod) {
+  if (mod) {
+    if (spinIntervals[mod]) { clearInterval(spinIntervals[mod]); spinIntervals[mod] = null; }
+    return;
+  }
+  Object.keys(spinIntervals).forEach(function(k) {
+    if (spinIntervals[k]) { clearInterval(spinIntervals[k]); spinIntervals[k] = null; }
+  });
+}
+
+let toastTimer = null;
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show' + (type ? ' ' + type : '');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { t.className = ''; }, 3000);
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('Copiado: ' + text, 'success');
+  }).catch(function() {
+    showToast('No se pudo copiar', 'error');
+  });
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sz = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sz[i];
+}
+
+function fmtMoney(v) {
+  if (v === undefined || v === null) return '—';
+  const n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  if (Math.abs(n) >= 1000) {
+    return '$' + n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+  return '$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtMetricVal(val, unit) {
+  if (val === undefined || val === null) return '—';
+  const n = parseFloat(val);
+  if (isNaN(n)) return String(val);
+  if (unit === '%') return n.toFixed(1);
+  if (unit === 'x') return n.toFixed(2);
+  if (unit === '$') return n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n.toLocaleString('es-CL');
+}
+
+function esc(s) {
+  if (s === undefined || s === null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Clase de confianza segura: solo valores conocidos llegan al className
+function confCls(v, def) {
+  const val = String(v || def || 'media').toLowerCase();
+  return ['alta','media','baja'].indexOf(val) !== -1 ? val : (def || 'media');
+}
+
+// Normaliza nombres de proveedor para matching (espacios, mayúsculas)
+function normName(s) {
+  return String(s || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+// Código de cuenta normalizado: '5401-14 - Internet' y '5401-14' → '5401-14'
+function normCuenta(s) {
+  const m = String(s || '').match(/\d{4}-\d+/);
+  return m ? m[0] : String(s || '').trim().toUpperCase();
+}
+</script>
+</body>
+</html>
