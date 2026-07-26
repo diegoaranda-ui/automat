@@ -1085,9 +1085,11 @@ function processProvisionesGL(file) {
 function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
   const stocks = {};
   let sumFact = 0, sumNC = 0, sumDesc = 0, sinStock = 0, nMovs = 0;
+  let saldoControl = 0, nClasif = 0;   // control total = suma de TODA la columna
   (filas || []).forEach(function(f) {
     if (f.ymd != null && (f.ymd < ymdD || f.ymd > ymdH)) return;
     nMovs++;
+    saldoControl += f.imp;   // el saldo de la cuenta es la suma simple de todo lo pegado
     if (!f.st) { sinStock++; return; }
     if (!stocks[f.st]) stocks[f.st] = { st: f.st, fact: 0, nc: 0, desc: 0, n03: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '' };
     const o = stocks[f.st];
@@ -1096,12 +1098,12 @@ function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
     if (!o.mesVenta && f.mesVentaCol && f.mesVentaCol.indexOf('N/A') === -1) o.mesVenta = f.mesVentaCol;
     if (!o.notaP && f.notaP && /diario/i.test(f.tipo)) o.notaP = f.notaP.slice(0, 40);
     if (/factura de venta|^invoice$/i.test(f.tipo)) {
-      o.fact += f.imp; sumFact += f.imp;
+      o.fact += f.imp; sumFact += f.imp; nClasif++;
       if (!o.mesVenta && !hasMesVCol && f.perCol) o.mesVenta = f.perCol;
     } else if (/nota de cr|credit memo/i.test(f.tipo)) {
-      o.nc += f.imp; sumNC += f.imp;
+      o.nc += f.imp; sumNC += f.imp; nClasif++;
     } else if (/diario|^journal$/i.test(f.tipo)) {
-      o.desc += f.imp; sumDesc += f.imp;
+      o.desc += f.imp; sumDesc += f.imp; nClasif++;
       const memoL = (f.memoL || '') + ' ' + f.nota;
       if ((f.tReg || '').indexOf('03') === 0 || /resultado negativo/i.test(memoL)) o.n03++;
     }
@@ -1112,10 +1114,18 @@ function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
     o.fact = Math.round(o.fact); o.nc = Math.round(o.nc); o.desc = Math.round(o.desc);
     return o;
   });
+  const saldoClasificado = sumFact + sumNC + sumDesc;
   return {
     stocks: lista, nMovs: nMovs, sinStock: sinStock,
     sumFact: Math.round(sumFact), sumNC: Math.round(sumNC), sumDesc: Math.round(sumDesc),
-    saldoCuenta: Math.round(sumFact + sumNC + sumDesc)
+    // "Otros" = todo lo que no entró a Factura/NC/Diario-con-stock; se deriva
+    // del control total para que la cuadratura SIEMPRE cierre exacto.
+    sumOtros: Math.round(saldoControl - saldoClasificado), nOtros: nMovs - nClasif,
+    // Saldo de la cuenta = suma simple de TODA la columna Importe de lo pegado
+    // (control total que debe cuadrar con el balance). La clasificación por
+    // Stock ID es un desglose de ese total, no su fuente.
+    saldoCuenta: Math.round(saldoControl),
+    saldoClasificado: Math.round(saldoClasificado)
   };
 }
 
@@ -1163,9 +1173,15 @@ function processIcarGL(file) {
         if (!ws) throw new Error('No se encontró la hoja del mayor: se necesita una columna Tipo/Type y una de monto (Importe/Amount o Debit/Credit). ¿Es el export del mayor 2801-01?');
 
         const cTipo = findIdx(head, ['Tipo', 'Type']);
-        const cImp  = findIdx(head, ['Importe', 'Amount']);
         const cDeb  = findIdx(head, ['Debit', 'Débito', 'Debito']);
         const cCre  = findIdx(head, ['Credit', 'Crédito', 'Credito']);
+        // Importe: SOLO la columna neta del libro. Se descarta cualquier
+        // "Amount (Foreign Currency)" / moneda extranjera, que en el export
+        // crudo de NetSuite es el NEGATIVO del Débito−Crédito y descuadra todo.
+        let cImp = findIdx(head, ['Importe', 'Amount']);
+        if (cImp !== -1 && /foreign|currency|moneda|extranjera|dólar|dolar|usd/i.test(String(head[cImp] || ''))) cImp = -1;
+        // Si el libro trae Débito y Crédito, esa es SIEMPRE la fuente del monto.
+        const usarDebCre = (cDeb !== -1 && cCre !== -1);
         const cSt   = findIdx(head, ['Stock ID Línea', 'Stock ID (Linea)', 'Stock ID (Línea)', 'Stock ID Linea', 'Stock ID']);
         const cNota = findIdx(head, ['Nota', 'Memo/Nota', 'Memo']);
         const cNotaP = findIdx(head, ['Nota (principal)', 'Memo/Nota a nivel']);
@@ -1213,13 +1229,16 @@ function processIcarGL(file) {
           const row = ws[i] || [];
           const tipo = String(row[cTipo] || '').trim();
           if (!tipo) continue;
-          // Monto: columna Importe, o Débito − Crédito en el export crudo
-          // (cuenta de pasivo: factura al cliente = crédito → importe negativo)
+          // Monto: Débito − Crédito cuando el libro los trae (export crudo);
+          // si no, la columna Importe neta (workbook del equipo). Cuenta de
+          // pasivo: factura al cliente = crédito → importe negativo.
           let imp;
-          if (cImp !== -1 && row[cImp] !== undefined && row[cImp] !== null && row[cImp] !== '') {
+          if (usarDebCre) {
+            imp = (parseFloat(row[cDeb]) || 0) - (parseFloat(row[cCre]) || 0);
+          } else if (cImp !== -1) {
             imp = parseFloat(row[cImp]) || 0;
           } else {
-            imp = (parseFloat(row[cDeb]) || 0) - (parseFloat(row[cCre]) || 0);
+            imp = 0;
           }
           let st = (cSt !== -1) ? row[cSt] : null;
           st = (st === undefined || st === null || String(st).trim() === '') ? null : String(parseInt(st, 10));
@@ -1301,7 +1320,9 @@ function computeIcarLocal(ic) {
 
   return {
     saldoCuenta: ic.saldoCuenta,
+    saldoClasificado: ic.saldoClasificado,
     sumFact: ic.sumFact, sumNC: ic.sumNC, sumDesc: ic.sumDesc,
+    sumOtros: ic.sumOtros || 0, nOtros: ic.nOtros || 0,
     nMovs: ic.nMovs, nStocks: ic.stocks.length, sinStock: ic.sinStock,
     ok: cats.ok.length,
     negRegistrado: cats.negRegistrado.length,
@@ -2400,6 +2421,7 @@ function renderIcar(d) {
   html += '<div class="result-section" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:#fff;border:1px solid var(--n200);border-radius:10px;font-size:11px;color:var(--n500)">';
   html += '<span><strong>Cuadratura:</strong></span>';
   html += '<span>Facturado ' + fmtMoney(d.sumFact) + '</span><span>+ NC ' + fmtMoney(d.sumNC) + '</span><span>+ Diarios ' + fmtMoney(d.sumDesc) + '</span>';
+  if (d.nOtros) html += '<span>+ Otros (' + d.nOtros + ') ' + fmtMoney(d.sumOtros) + '</span>';
   html += '<span style="font-weight:700;color:var(--n700)">= ' + fmtMoney(d.saldoCuenta) + '</span>';
   if (d.periodo) html += '<span style="padding:2px 8px;border-radius:12px;background:var(--n100);font-weight:700;color:var(--n600)">📅 ' + esc(d.periodo) + '</span>';
   html += '<span style="margin-left:auto">' + d.nMovs + ' movs · ' + d.nStocks + ' vehículos · ' + d.negRegistrado + ' con pérdida ya registrada</span>';
