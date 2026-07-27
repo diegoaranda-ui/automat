@@ -1091,9 +1091,15 @@ function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
     nMovs++;
     saldoControl += f.imp;   // el saldo de la cuenta es la suma simple de todo lo pegado
     if (!f.st) { sinStock++; return; }
-    if (!stocks[f.st]) stocks[f.st] = { st: f.st, fact: 0, nc: 0, desc: 0, n03: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '' };
+    if (!stocks[f.st]) stocks[f.st] = { st: f.st, fact: 0, nc: 0, desc: 0, n03: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '', ymdIni: null, ymdUlt: null };
     const o = stocks[f.st];
     o.nMovs++;
+    // Fecha exacta de los movimientos del vehículo (primera y última): sirve
+    // para no re-sumar filas ya cargadas al pegar el mayor actualizado.
+    if (f.ymd != null) {
+      if (o.ymdIni == null || f.ymd < o.ymdIni) o.ymdIni = f.ymd;
+      if (o.ymdUlt == null || f.ymd > o.ymdUlt) o.ymdUlt = f.ymd;
+    }
     if (!o.patente) { const mp = f.nota.match(/Patente:?\s*([A-Z0-9\-]{5,8})/i); if (mp) o.patente = mp[1].toUpperCase(); }
     if (!o.mesVenta && f.mesVentaCol && f.mesVentaCol.indexOf('N/A') === -1) o.mesVenta = f.mesVentaCol;
     if (!o.notaP && f.notaP && /diario/i.test(f.tipo)) o.notaP = f.notaP.slice(0, 40);
@@ -1108,10 +1114,13 @@ function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
       if ((f.tReg || '').indexOf('03') === 0 || /resultado negativo/i.test(memoL)) o.n03++;
     }
   });
+  function ymdFmt(y) { if (!y) return ''; const s = String(y); return s.slice(6,8) + '-' + s.slice(4,6) + '-' + s.slice(0,4); }
   const lista = Object.keys(stocks).map(function(k) {
     const o = stocks[k];
     o.saldo = Math.round(o.fact + o.nc + o.desc);
     o.fact = Math.round(o.fact); o.nc = Math.round(o.nc); o.desc = Math.round(o.desc);
+    o.fecha = ymdFmt(o.ymdUlt);        // fecha del último movimiento (DD-MM-YYYY)
+    o.fechaIni = ymdFmt(o.ymdIni);
     return o;
   });
   const saldoClasificado = sumFact + sumNC + sumDesc;
@@ -2440,10 +2449,11 @@ function renderIcar(d) {
     html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(Math.abs(d.negPorRegistrar.monto)) + '</span>';
     html += '<button class="copy-btn" style="font-size:14px" onclick="copyText(\'' + esc(String(Math.abs(d.negPorRegistrar.monto))) + '\')" title="Copiar total">📋</button></div>';
     html += '<div class="tbl-wrap" style="max-height:320px;overflow-y:auto"><table>';
-    html += '<tr><th>Stock ID</th><th>Patente</th><th>Mes venta</th><th style="text-align:right">Facturado</th><th style="text-align:right">Descontado</th><th style="text-align:right">Diferencia</th></tr>';
+    html += '<tr><th>Stock ID</th><th>Patente</th><th>Fecha</th><th>Mes venta</th><th style="text-align:right">Facturado</th><th style="text-align:right">Descontado</th><th style="text-align:right">Diferencia</th></tr>';
     top.forEach(function(o) {
       html += '<tr class="row-amber"><td style="font-family:var(--mono)">' + esc(o.st) + '</td>';
       html += '<td style="font-family:var(--mono);font-weight:600">' + esc(o.patente || '—') + '</td>';
+      html += '<td style="font-size:11px;font-family:var(--mono)">' + esc(o.fecha || '—') + '</td>';
       html += '<td style="font-size:11px">' + esc(o.mesVenta || 'Revisar fin de mes') + '</td>';
       html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(Math.abs(o.fact + o.nc)) + '</td>';
       html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(Math.abs(o.desc)) + '</td>';

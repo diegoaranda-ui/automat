@@ -89,7 +89,7 @@ function writeIcarSheet(payload) {
     if (sh.getFilter()) sh.getFilter().remove();
   }
 
-  const NCOLS = 8;
+  const NCOLS = 9;
   function fmtM(v) { return (parseFloat(v) || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
   function pad(arr) { while (arr.length < NCOLS) arr.push(''); return arr; }
   const rows = [], marks = [];
@@ -138,11 +138,11 @@ function writeIcarSheet(payload) {
   detalle.sort(function(a, b){ return Math.abs(b.o.saldo || 0) - Math.abs(a.o.saldo || 0); });
 
   push(['DETALLE DE DESCUADRES POR VEHÍCULO — ' + detalle.length + ' vehículo(s) · usa el filtro de la fila de títulos'], 'sec-red');
-  push(['Stock ID', 'Patente', 'Mes venta', 'Situación', 'Facturado', 'Descontado', 'Diferencia', 'Estado (Sí/No)'], 'colhead');
+  push(['Stock ID', 'Patente', 'Fecha (últ. mov.)', 'Mes venta', 'Situación', 'Facturado', 'Descontado', 'Diferencia', 'Estado (Sí/No)'], 'colhead');
   const detHeaderRow = rows.length;          // fila del encabezado con filtro
   detalle.forEach(function(d) {
     const o = d.o;
-    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', d.sit,
+    push([o.st, o.patente || '—', o.fecha || '—', o.mesVenta || 'Revisar fin de mes', d.sit,
       Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), Math.abs(o.saldo || 0), ''], 'row-det');
   });
   if (!detalle.length) push(['✓ Sin descuadres: la cuenta está cruzada.'], 'row-ok');
@@ -175,8 +175,8 @@ function writeIcarSheet(payload) {
         sh.getRange(mk.r, 1, 1, 4).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
       case 'row-det':
         R.setFontSize(10);
-        sh.getRange(mk.r, 5, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
-        sh.getRange(mk.r, 7, 1, 1).setFontWeight('bold').setFontColor('#b01019'); break;
+        sh.getRange(mk.r, 6, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 8, 1, 1).setFontWeight('bold').setFontColor('#b01019'); break;
       case 'row-pivot':
         R.setFontSize(10);
         sh.getRange(mk.r, 2, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
@@ -192,9 +192,9 @@ function writeIcarSheet(payload) {
     }
   });
 
-  sh.setColumnWidth(1, 100); sh.setColumnWidth(2, 95); sh.setColumnWidth(3, 130);
-  sh.setColumnWidth(4, 140); sh.setColumnWidth(5, 120); sh.setColumnWidth(6, 120);
-  sh.setColumnWidth(7, 120); sh.setColumnWidth(8, 130);
+  sh.setColumnWidth(1, 95); sh.setColumnWidth(2, 90); sh.setColumnWidth(3, 110);
+  sh.setColumnWidth(4, 110); sh.setColumnWidth(5, 130); sh.setColumnWidth(6, 115);
+  sh.setColumnWidth(7, 115); sh.setColumnWidth(8, 115); sh.setColumnWidth(9, 120);
   sh.setFrozenRows(1);
 
   // Filtro nativo sobre la tabla de detalle (encabezado + datos): permite
