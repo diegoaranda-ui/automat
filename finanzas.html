@@ -1229,12 +1229,13 @@ function processIcarGL(file) {
           const row = ws[i] || [];
           const tipo = String(row[cTipo] || '').trim();
           if (!tipo) continue;
-          // Monto: Débito − Crédito cuando el libro los trae (export crudo);
-          // si no, la columna Importe neta (workbook del equipo). Cuenta de
-          // pasivo: factura al cliente = crédito → importe negativo.
+          // Monto de una cuenta de PASIVO (2801-01): el débito resta y el
+          // crédito suma → Importe = Crédito − Débito. Así el saldo cierra
+          // negativo, igual que en el balance. Si el libro no trae Débito/
+          // Crédito, se usa la columna Importe neta (workbook del equipo).
           let imp;
           if (usarDebCre) {
-            imp = (parseFloat(row[cDeb]) || 0) - (parseFloat(row[cCre]) || 0);
+            imp = (parseFloat(row[cCre]) || 0) - (parseFloat(row[cDeb]) || 0);
           } else if (cImp !== -1) {
             imp = parseFloat(row[cImp]) || 0;
           } else {
@@ -1282,27 +1283,29 @@ function processIcarGL(file) {
 const ICAR_TOL = 50;
 
 /**
- * Clasificación determinística por Stock ID (criterio del equipo):
+ * Clasificación determinística por Stock ID (cuenta de pasivo, Importe =
+ * Crédito − Débito → facturado positivo, descontado negativo):
  *  · |saldo| ≤ tol y sin filas 03  → OK (cuadrado)
  *  · |saldo| ≤ tol con filas 03    → resultado negativo YA registrado
- *  · saldo < −tol → facturado no descontado del fondo (esperar rendición ICAR)
- *  · saldo > +tol → resultado negativo Kavak POR registrar (se pagó más de lo
- *    facturado): alimenta el análisis del ajuste — el asiento lo hace el analista
+ *  · saldo > +tol → facturado no descontado del fondo (esperar rendición ICAR)
+ *  · saldo < −tol → resultado negativo Kavak POR registrar (se descontó más de
+ *    lo facturado): alimenta el análisis del ajuste — el asiento lo hace el analista
+ *  · saldo < −tol sin factura en la ventana → "fuera de ventana"
  */
 function computeIcarLocal(ic) {
   const cats = { ok: [], pendiente: [], negRegistrado: [], negPorRegistrar: [], sinFactura: [] };
   ic.stocks.forEach(function(o) {
     if (Math.abs(o.saldo) <= ICAR_TOL) {
       (o.n03 > 0 ? cats.negRegistrado : cats.ok).push(o);
-    } else if (o.saldo < 0) {
-      cats.pendiente.push(o);
+    } else if (o.saldo > 0) {
+      cats.pendiente.push(o);   // facturado (positivo) sin descontar aún
     } else if (o.fact === 0 && o.nc === 0) {
       // Descuentos/pérdidas cuya factura NO está en el archivo cargado:
       // la venta es de un período anterior a la ventana del export.
       // NO van al ajuste — amplía el rango del export para cruzarlos.
       cats.sinFactura.push(o);
     } else {
-      cats.negPorRegistrar.push(o);
+      cats.negPorRegistrar.push(o);   // saldo negativo: se descontó de más
     }
   });
   function suma(arr) { return arr.reduce(function(a, o) { return a + o.saldo; }, 0); }
@@ -1823,9 +1826,9 @@ function analyzeIcar() {
   base.periodo = ymdToInput(ymdDesde) + ' → ' + ymdToInput(ymdHasta);
 
   // IA solo redacta: recibe el resultado calculado + top descuadres
-  const topNeg = base.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 20)
+  const topNeg = base.negPorRegistrar.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 20)
     .map(function(o){ return o.st + '|' + (o.patente||'—') + '|' + o.saldo + '|' + (o.mesVenta||'sin mes') + '|' + (o.notaP||''); }).join('\n');
-  const topPend = base.pendiente.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 15)
+  const topPend = base.pendiente.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 15)
     .map(function(o){ return o.st + '|' + (o.patente||'—') + '|' + o.saldo + '|' + (o.mesVenta||'sin mes'); }).join('\n');
   const pivotTxt = Object.keys(base.pivot).map(function(m) {
     const p = base.pivot[m];
@@ -2413,7 +2416,7 @@ function renderIcar(d) {
   html += '<div class="summary-row result-section">';
   html += '<div class="summary-item"><div class="si-val">' + fmtMoney(d.saldoCuenta) + '</div><div class="si-lbl">Saldo cuenta 2801-01</div></div>';
   html += '<div class="summary-item amber"><div class="si-val">' + fmtMoney(Math.abs(d.pendiente.monto)) + '</div><div class="si-lbl">⏳ Facturado sin descontar (' + d.pendiente.n + ' veh.) — esperar rendición ICAR</div></div>';
-  html += '<div class="summary-item ' + (d.negPorRegistrar.monto > 0 ? 'red' : 'green') + '"><div class="si-val">' + fmtMoney(d.negPorRegistrar.monto) + '</div><div class="si-lbl">🎯 Resultado negativo por registrar (' + d.negPorRegistrar.n + ' veh.)</div></div>';
+  html += '<div class="summary-item ' + (d.negPorRegistrar.monto < 0 ? 'red' : 'green') + '"><div class="si-val">' + fmtMoney(Math.abs(d.negPorRegistrar.monto)) + '</div><div class="si-lbl">🎯 Resultado negativo por registrar (' + d.negPorRegistrar.n + ' veh.)</div></div>';
   html += '<div class="summary-item green"><div class="si-val">' + d.ok + '</div><div class="si-lbl">Vehículos cuadrados (ok, cero)</div></div>';
   html += '</div>';
 
@@ -2429,13 +2432,13 @@ function renderIcar(d) {
 
   // 🎯 Análisis para el asiento de ajuste (el asiento lo registra el analista)
   if (d.negPorRegistrar.n) {
-    const top = d.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; });
+    const top = d.negPorRegistrar.items.slice().sort(function(a,b){ return a.saldo - b.saldo; });
     html += '<div class="card result-section" style="border:2px solid var(--red-b)">';
     html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">🎯</div>';
     html += '<div><div class="card-title" style="font-size:14px">Resultado negativo Kavak por registrar — análisis del ajuste</div>';
     html += '<div style="font-size:10px;color:var(--n500)">Se descontó del fondo más de lo facturado al cliente (pérdida estructural esperada: 1,5% del precio de venta vs 1,5% de la tasación fiscal). Insumo para tu asiento de ajuste — el sistema NO lo ejecuta</div></div>';
-    html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(d.negPorRegistrar.monto) + '</span>';
-    html += '<button class="copy-btn" style="font-size:14px" onclick="copyText(\'' + esc(String(d.negPorRegistrar.monto)) + '\')" title="Copiar total">📋</button></div>';
+    html += '<span style="margin-left:auto;font-weight:800;font-size:16px;font-family:var(--mono);color:var(--red-d)">' + fmtMoney(Math.abs(d.negPorRegistrar.monto)) + '</span>';
+    html += '<button class="copy-btn" style="font-size:14px" onclick="copyText(\'' + esc(String(Math.abs(d.negPorRegistrar.monto))) + '\')" title="Copiar total">📋</button></div>';
     html += '<div class="tbl-wrap" style="max-height:320px;overflow-y:auto"><table>';
     html += '<tr><th>Stock ID</th><th>Patente</th><th>Mes venta</th><th style="text-align:right">Facturado</th><th style="text-align:right">Descontado</th><th style="text-align:right">Diferencia</th></tr>';
     top.forEach(function(o) {
@@ -2443,8 +2446,8 @@ function renderIcar(d) {
       html += '<td style="font-family:var(--mono);font-weight:600">' + esc(o.patente || '—') + '</td>';
       html += '<td style="font-size:11px">' + esc(o.mesVenta || 'Revisar fin de mes') + '</td>';
       html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(Math.abs(o.fact + o.nc)) + '</td>';
-      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(o.desc) + '</td>';
-      html += '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--red-d)">' + fmtMoney(o.saldo) + '</td></tr>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(Math.abs(o.desc)) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--red-d)">' + fmtMoney(Math.abs(o.saldo)) + '</td></tr>';
     });
     html += '</table></div></div>';
   } else {
@@ -2513,9 +2516,9 @@ function saveIcarToSheet(d) {
     hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }),
     // Solo lo necesario (las listas completas pueden ser miles de filas)
     negPorRegistrar: { n: d.negPorRegistrar.n, monto: d.negPorRegistrar.monto,
-      items: d.negPorRegistrar.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 300) },
+      items: d.negPorRegistrar.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 300) },
     pendiente: { n: d.pendiente.n, monto: d.pendiente.monto,
-      items: d.pendiente.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 300) }
+      items: d.pendiente.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 300) }
   });
   showToast('Escribiendo análisis ICAR en tu planilla…', 'info');
   google.script.run

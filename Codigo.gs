@@ -108,10 +108,10 @@ function writeIcarSheet(payload) {
 
   // Análisis del ajuste
   const neg = p.negPorRegistrar || { n: 0, monto: 0, items: [] };
-  push(['🎯 RESULTADO NEGATIVO KAVAK POR REGISTRAR — ' + neg.n + ' vehículo(s) · ' + fmtM(neg.monto) + ' · insumo del asiento de ajuste (lo registra el analista)'], 'sec-red');
+  push(['🎯 RESULTADO NEGATIVO KAVAK POR REGISTRAR — ' + neg.n + ' vehículo(s) · ' + fmtM(Math.abs(neg.monto)) + ' · insumo del asiento de ajuste (lo registra el analista)'], 'sec-red');
   push(['Stock ID', 'Patente', 'Mes venta', 'Facturado', 'Descontado', 'Diferencia', 'Registrado (Sí/No)'], 'colhead');
   (neg.items || []).forEach(function(o) {
-    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), o.desc || 0, o.saldo || 0, ''], 'row-neg');
+    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), Math.abs(o.saldo || 0), ''], 'row-neg');
   });
   if (!(neg.items || []).length) push(['✓ Sin resultados negativos por registrar'], 'row-ok');
   push([]);
@@ -128,10 +128,10 @@ function writeIcarSheet(payload) {
 
   // Pendientes de rendición
   const pend = p.pendiente || { n: 0, monto: 0, items: [] };
-  push(['⏳ FACTURADO SIN DESCONTAR DEL FONDO — ' + pend.n + ' vehículo(s) · ' + fmtM(pend.monto) + ' · esperar rendición ICAR (sin acción este cierre)'], 'sec-gray');
+  push(['⏳ FACTURADO SIN DESCONTAR DEL FONDO — ' + pend.n + ' vehículo(s) · ' + fmtM(Math.abs(pend.monto)) + ' · esperar rendición ICAR (sin acción este cierre)'], 'sec-gray');
   push(['Stock ID', 'Patente', 'Mes venta', 'Facturado', 'Descontado', 'Saldo pendiente', 'Rendido (Sí/No)'], 'colhead');
   (pend.items || []).forEach(function(o) {
-    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), o.desc || 0, o.saldo || 0, ''], 'row-pend');
+    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), Math.abs(o.saldo || 0), ''], 'row-pend');
   });
   push([]);
 
