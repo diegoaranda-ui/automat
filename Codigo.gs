@@ -138,11 +138,11 @@ function writeIcarSheet(payload) {
   detalle.sort(function(a, b){ return Math.abs(b.o.saldo || 0) - Math.abs(a.o.saldo || 0); });
 
   push(['DETALLE DE DESCUADRES POR VEHÍCULO — ' + detalle.length + ' vehículo(s) · usa el filtro de la fila de títulos'], 'sec-red');
-  push(['Stock ID', 'Patente', 'Fecha (últ. mov.)', 'Mes venta', 'Situación', 'Facturado', 'Descontado', 'Diferencia', 'Estado (Sí/No)'], 'colhead');
+  push(['Fecha', 'Stock ID', 'Patente', 'Mes venta', 'Situación', 'Facturado', 'Descontado', 'Diferencia', 'Estado (Sí/No)'], 'colhead');
   const detHeaderRow = rows.length;          // fila del encabezado con filtro
   detalle.forEach(function(d) {
     const o = d.o;
-    push([o.st, o.patente || '—', o.fecha || '—', o.mesVenta || 'Revisar fin de mes', d.sit,
+    push([o.fecha || '—', o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', d.sit,
       Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), Math.abs(o.saldo || 0), ''], 'row-det');
   });
   if (!detalle.length) push(['✓ Sin descuadres: la cuenta está cruzada.'], 'row-ok');
@@ -192,7 +192,7 @@ function writeIcarSheet(payload) {
     }
   });
 
-  sh.setColumnWidth(1, 95); sh.setColumnWidth(2, 90); sh.setColumnWidth(3, 110);
+  sh.setColumnWidth(1, 110); sh.setColumnWidth(2, 95); sh.setColumnWidth(3, 90);
   sh.setColumnWidth(4, 110); sh.setColumnWidth(5, 130); sh.setColumnWidth(6, 115);
   sh.setColumnWidth(7, 115); sh.setColumnWidth(8, 115); sh.setColumnWidth(9, 120);
   sh.setFrozenRows(1);
