@@ -89,7 +89,7 @@ function writeIcarSheet(payload) {
     if (sh.getFilter()) sh.getFilter().remove();
   }
 
-  const NCOLS = 7;
+  const NCOLS = 8;
   function fmtM(v) { return (parseFloat(v) || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
   function pad(arr) { while (arr.length < NCOLS) arr.push(''); return arr; }
   const rows = [], marks = [];
@@ -106,32 +106,13 @@ function writeIcarSheet(payload) {
   push([p.sumFact || 0, p.sumNC || 0, p.sumDesc || 0, p.saldoCuenta || 0, p.ok || 0, p.negRegistrado || 0], 'row-money4');
   push([]);
 
-  // Análisis del ajuste
-  const neg = p.negPorRegistrar || { n: 0, monto: 0, items: [] };
-  push(['🎯 RESULTADO NEGATIVO KAVAK POR REGISTRAR — ' + neg.n + ' vehículo(s) · ' + fmtM(Math.abs(neg.monto)) + ' · insumo del asiento de ajuste (lo registra el analista)'], 'sec-red');
-  push(['Stock ID', 'Patente', 'Mes venta', 'Facturado', 'Descontado', 'Diferencia', 'Registrado (Sí/No)'], 'colhead');
-  (neg.items || []).forEach(function(o) {
-    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), Math.abs(o.saldo || 0), ''], 'row-neg');
-  });
-  if (!(neg.items || []).length) push(['✓ Sin resultados negativos por registrar'], 'row-ok');
-  push([]);
-
   // Pivot por mes
   const pivot = p.pivot || {};
   push(['DESCUADRES POR MES DE VENTA'], 'sec-dark');
-  push(['Mes de venta', 'Facturado sin descontar', 'Veh.', 'Resultado negativo', 'Veh.', '', ''], 'colhead');
+  push(['Mes de venta', 'Facturado sin descontar', 'Veh.', 'Resultado negativo', 'Veh.', '', '', ''], 'colhead');
   Object.keys(pivot).sort().forEach(function(m) {
     const v = pivot[m];
-    push([m, v.pendiente || 0, v.pendienteN || 0, v.negativo || 0, v.negativoN || 0, '', ''], 'row-pivot');
-  });
-  push([]);
-
-  // Pendientes de rendición
-  const pend = p.pendiente || { n: 0, monto: 0, items: [] };
-  push(['⏳ FACTURADO SIN DESCONTAR DEL FONDO — ' + pend.n + ' vehículo(s) · ' + fmtM(Math.abs(pend.monto)) + ' · esperar rendición ICAR (sin acción este cierre)'], 'sec-gray');
-  push(['Stock ID', 'Patente', 'Mes venta', 'Facturado', 'Descontado', 'Saldo pendiente', 'Rendido (Sí/No)'], 'colhead');
-  (pend.items || []).forEach(function(o) {
-    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), Math.abs(o.saldo || 0), ''], 'row-pend');
+    push([m, v.pendiente || 0, v.pendienteN || 0, Math.abs(v.negativo || 0), v.negativoN || 0, '', '', ''], 'row-pivot');
   });
   push([]);
 
@@ -142,6 +123,30 @@ function writeIcarSheet(payload) {
   push([]);
   push(['RESUMEN'], 'sec-gray');
   push([p.resumen || ''], 'row-resumen');
+  push([]);
+
+  // ── DETALLE DE DESCUADRES POR VEHÍCULO (tabla filtrable, al final) ──
+  // Unifica 'por registrar' (saldo negativo: descontado de más) y 'sin
+  // descontar' (saldo positivo: facturado y ICAR aún no descuenta). Una sola
+  // tabla con columna Situación + filtro nativo: se puede analizar por
+  // Diferencia, por Descontado = 0 (no está el imp. de ICAR), por Situación, etc.
+  const neg  = p.negPorRegistrar || { n: 0, monto: 0, items: [] };
+  const pend = p.pendiente || { n: 0, monto: 0, items: [] };
+  const detalle = [];
+  (neg.items || []).forEach(function(o){ detalle.push({ o: o, sit: '🎯 Por registrar' }); });
+  (pend.items || []).forEach(function(o){ detalle.push({ o: o, sit: '⏳ Sin descontar' }); });
+  detalle.sort(function(a, b){ return Math.abs(b.o.saldo || 0) - Math.abs(a.o.saldo || 0); });
+
+  push(['DETALLE DE DESCUADRES POR VEHÍCULO — ' + detalle.length + ' vehículo(s) · usa el filtro de la fila de títulos'], 'sec-red');
+  push(['Stock ID', 'Patente', 'Mes venta', 'Situación', 'Facturado', 'Descontado', 'Diferencia', 'Estado (Sí/No)'], 'colhead');
+  const detHeaderRow = rows.length;          // fila del encabezado con filtro
+  detalle.forEach(function(d) {
+    const o = d.o;
+    push([o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', d.sit,
+      Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), Math.abs(o.saldo || 0), ''], 'row-det');
+  });
+  if (!detalle.length) push(['✓ Sin descuadres: la cuenta está cruzada.'], 'row-ok');
+  const detLastRow = rows.length;
 
   sh.getRange(1, 1, rows.length, NCOLS).setValues(rows);
 
@@ -168,13 +173,10 @@ function writeIcarSheet(payload) {
       case 'row-money4':
         R.setFontSize(10).setFontWeight('bold');
         sh.getRange(mk.r, 1, 1, 4).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
-      case 'row-neg':
-        R.setFontSize(10).setBackground('#fde8e9');
-        sh.getRange(mk.r, 4, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
-        sh.getRange(mk.r, 6, 1, 1).setFontWeight('bold').setFontColor('#b01019'); break;
-      case 'row-pend':
-        R.setFontSize(10).setFontColor('#52525b');
-        sh.getRange(mk.r, 4, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+      case 'row-det':
+        R.setFontSize(10);
+        sh.getRange(mk.r, 5, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 7, 1, 1).setFontWeight('bold').setFontColor('#b01019'); break;
       case 'row-pivot':
         R.setFontSize(10);
         sh.getRange(mk.r, 2, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
@@ -190,9 +192,17 @@ function writeIcarSheet(payload) {
     }
   });
 
-  sh.setColumnWidth(1, 110); sh.setColumnWidth(2, 100); sh.setColumnWidth(3, 150);
-  sh.setColumnWidth(4, 130); sh.setColumnWidth(5, 130); sh.setColumnWidth(6, 130); sh.setColumnWidth(7, 150);
+  sh.setColumnWidth(1, 100); sh.setColumnWidth(2, 95); sh.setColumnWidth(3, 130);
+  sh.setColumnWidth(4, 140); sh.setColumnWidth(5, 120); sh.setColumnWidth(6, 120);
+  sh.setColumnWidth(7, 120); sh.setColumnWidth(8, 130);
   sh.setFrozenRows(1);
+
+  // Filtro nativo sobre la tabla de detalle (encabezado + datos): permite
+  // ordenar/filtrar por Diferencia, por Descontado = 0 (no está el imp. ICAR),
+  // por Situación, etc. Solo se permite un filtro básico por pestaña.
+  if (detLastRow > detHeaderRow) {
+    sh.getRange(detHeaderRow, 1, detLastRow - detHeaderRow + 1, NCOLS).createFilter();
+  }
 
   return ss.getUrl() + '#gid=' + sh.getSheetId();
 }
