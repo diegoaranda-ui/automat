@@ -1198,37 +1198,41 @@ function processIcarGL(file) {
         const cTReg = findIdx(head, ['Tipo de registro']);
         const cMesV = findIdx(head, ['Mes de venta']);
         const cPer  = findIdx(head, ['Período contable', 'Período', 'Period']);
-        const cFecha = findIdx(head, ['Fecha', 'Date']);   // fecha contable (día)
+        // Fecha contable del MOVIMIENTO: exacta 'Date'/'Fecha'; nunca "Fecha de
+        // creación" ni "Fecha de registro contable" (esas son de otro momento).
+        let cFecha = -1;
+        ['date', 'fecha'].forEach(function(n) {
+          if (cFecha === -1) cFecha = head.findIndex(function(h){ return String(h || '').toLowerCase().trim() === n; });
+        });
+        if (cFecha === -1) cFecha = head.findIndex(function(h) {
+          const s = String(h || '').toLowerCase();
+          return (s.indexOf('fecha') !== -1 || s.indexOf('date') !== -1) && !/creaci|creation|registro/.test(s);
+        });
 
-        // Fecha contable YYYYMMDD: mes/año del Período + día de la columna Fecha/Date
+        // Fecha del MOVIMIENTO (YYYYMMDD): la columna Date/Fecha manda con día,
+        // mes y año completos. Si no hay Date legible, se cae al mes/año del
+        // Período contable con día 1 (solo como respaldo).
         function icarYmd(row) {
-          let mes = null, anio = null, dia = null;
-          if (cPer !== -1) {
-            const per = String(row[cPer] || '').toLowerCase();
-            const m = per.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
-            if (m) { mes = PROV_MES_ABBR[m[1]]; anio = parseInt(m[2],10); }
-            else { const m2 = per.match(/(\d{4})[\-\/](\d{1,2})/); if (m2) { anio = parseInt(m2[1],10); mes = parseInt(m2[2],10); } }
-          }
           if (cFecha !== -1) {
             const ds = String(row[cFecha] || '');
-            let d = ds.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-            if (d) { dia = parseInt(d[3],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[1],10); } }
-            else {
-              d = ds.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-              if (d) { dia = parseInt(d[1],10); if (mes == null) { mes = parseInt(d[2],10); anio = parseInt(d[3],10); } }
-              else {
-                const s = parseFloat(ds);
-                if (isFinite(s) && s > 25569 && s < 80000) {
-                  const dt = new Date(Math.round((s - 25569) * 86400 * 1000));
-                  dia = dt.getUTCDate();
-                  if (mes == null) { mes = dt.getUTCMonth() + 1; anio = dt.getUTCFullYear(); }
-                }
-              }
+            let d = ds.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);                 // ISO YYYY-MM-DD
+            if (d) return parseInt(d[1],10) * 10000 + parseInt(d[2],10) * 100 + parseInt(d[3],10);
+            d = ds.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);          // DD/MM/YYYY o DD-MM-YYYY
+            if (d) return parseInt(d[3],10) * 10000 + parseInt(d[2],10) * 100 + parseInt(d[1],10);
+            const s = parseFloat(ds);                                        // serial de Excel
+            if (isFinite(s) && s > 25569 && s < 80000) {
+              const dt = new Date(Math.round((s - 25569) * 86400 * 1000));
+              return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate();
             }
           }
-          if (mes == null) return null;
-          if (dia == null) dia = 1;
-          return anio * 10000 + mes * 100 + dia;
+          if (cPer !== -1) {   // respaldo: mes/año del período, día 1
+            const per = String(row[cPer] || '').toLowerCase();
+            const m = per.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*\s+(\d{4})/);
+            if (m) return parseInt(m[2],10) * 10000 + PROV_MES_ABBR[m[1]] * 100 + 1;
+            const m2 = per.match(/(\d{4})[\-\/](\d{1,2})/);
+            if (m2) return parseInt(m2[1],10) * 10000 + parseInt(m2[2],10) * 100 + 1;
+          }
+          return null;
         }
 
         // PASADA 1: filas crudas con fecha contable, para re-agregar por rango.
