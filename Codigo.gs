@@ -215,12 +215,31 @@ function writeIcarSheet(payload) {
  *   resumen:{nGrupos,nMulti,nDetalle,nMonto,nSin,totalExtracto},
  *   grupos:[{detalle,n,total,origen,base,dif}] }
  */
+/**
+ * Lee las hojas "Extracto" y "Mayor" de la planilla de conciliaciones y las
+ * devuelve como arrays 2D (con la fila de encabezados). El cruce lo calcula
+ * el cliente (finanzas.html) y luego escribe la hoja "Match".
+ */
+function leerConciliadorBanco() {
+  var ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
+  var ss = SpreadsheetApp.openById(ssId);
+  function rowsOf(name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh || sh.getLastRow() < 1) return null;
+    return sh.getRange(1, 1, sh.getLastRow(), Math.max(1, sh.getLastColumn())).getDisplayValues();
+  }
+  var ex = rowsOf('Extracto'), ma = rowsOf('Mayor');
+  if (!ex) throw new Error('No encontré la hoja "Extracto" en la planilla (o está vacía).');
+  if (!ma) throw new Error('No encontré la hoja "Mayor" en la planilla (o está vacía).');
+  return JSON.stringify({ extracto: ex, mayor: ma });
+}
+
 function writeAgrupadorSheet(payload) {
   var p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
   var ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
   var ss = SpreadsheetApp.openById(ssId);
-  var sh = ss.getSheetByName('Agrupador');
-  if (!sh) sh = ss.insertSheet('Agrupador');
+  var sh = ss.getSheetByName('Match');
+  if (!sh) sh = ss.insertSheet('Match');
   else {
     sh.clearContents(); sh.clearFormats();
     sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
@@ -228,29 +247,29 @@ function writeAgrupadorSheet(payload) {
     sh.getBandings().forEach(function(b){ b.remove(); });
     if (sh.getFilter()) sh.getFilter().remove();
   }
-  var NCOLS = 6;
+  var NCOLS = 7;
   function fmtM(v){ return (parseFloat(v) || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
   function pad(a){ while (a.length < NCOLS) a.push(''); return a; }
   var rows = [], marks = [];
   function push(a, k){ rows.push(pad(a)); if (k) marks.push({ r: rows.length, kind: k }); }
   var R = p.resumen || {};
 
-  push(['AGRUPADOR DE TRANSFERENCIAS SUELTAS — Conciliación  ·  Kavak Finanzas Chile'], 'title');
+  push(['MATCH BANCO INTERNACIONAL — Extracto vs Mayor  ·  Kavak Finanzas Chile'], 'title');
   push(['Analista: ' + (p.analista || 'Anónimo'), 'Fecha: ' + (p.fecha || '') + ' ' + (p.hora || ''),
-        'Extracto: ' + (p.extName || '') + ' (' + (p.nExtracto || 0) + ')', 'Mayor: ' + (p.mayName || '') + ' (' + (p.nMayor || 0) + ')',
-        'Total extracto: ' + fmtM(R.totalExtracto), ''], 'meta');
+        'Extracto: ' + (p.nExtracto || 0) + ' movs', 'Mayor: ' + (p.nMayor || 0) + ' movs',
+        'Total extracto: ' + fmtM(R.totalExtracto), '', ''], 'meta');
   push([]);
   push(['RESUMEN'], 'sec-dark');
-  push(['Grupos por Detalle', 'Con 2+ transf.', 'Origen por Nota/nombre', 'Origen por monto ($0)', 'Sin origen', ''], 'colhead');
-  push([R.nGrupos || 0, R.nMulti || 0, R.nDetalle || 0, R.nMonto || 0, R.nSin || 0, ''], 'row-kpi');
+  push(['Grupos (Detalle+Fecha)', 'Con 2+ transf.', 'Match por Nota', 'Match por Fecha+Monto', 'Sin match', '', ''], 'colhead');
+  push([R.nGrupos || 0, R.nMulti || 0, R.nNota || 0, R.nFechaMonto || 0, R.nSin || 0, '', ''], 'row-kpi');
   push([]);
 
-  push(['DETALLE AGRUPADO — usa el filtro de la fila de títulos'], 'sec-red');
-  push(['Detalle (extracto)', 'N° transf.', 'Total sumado', 'Origen (Nota Mayor)', 'Match por', 'Dif. vs Mayor'], 'colhead');
+  push(['MATCH — Extracto agrupado por Detalle+Fecha vs Mayor · usa el filtro de la fila de títulos'], 'sec-red');
+  push(['Detalle (extracto)', 'Fecha', 'N° transf.', 'Total sumado', 'Origen (Nota Mayor)', 'Match por', 'Dif. vs Mayor'], 'colhead');
   var headRow = rows.length;
   (p.grupos || []).forEach(function(g) {
-    var base = g.base === 'detalle' ? 'nota/nombre' : (g.base === 'monto' ? 'monto ($0)' : 'sin origen');
-    push([g.detalle || '', g.n || 0, Math.round(g.total || 0), g.origen || '—', base, (g.dif == null ? '' : Math.round(g.dif))], 'row-det');
+    var base = g.base === 'nota' ? 'nota' : (g.base === 'fecha_monto' ? 'fecha+monto' : 'sin match');
+    push([g.detalle || '', g.fecha || '', g.n || 0, Math.round(g.total || 0), g.origen || '—', base, (g.dif == null ? '' : Math.round(g.dif))], 'row-det');
   });
   var lastRow = rows.length;
 
@@ -266,13 +285,13 @@ function writeAgrupadorSheet(payload) {
       case 'row-kpi': Rg.setFontWeight('bold').setFontSize(11).setHorizontalAlignment('center').setBackground('#e4e4e7'); break;
       case 'row-det':
         Rg.setFontSize(10);
-        sh.getRange(mk.r, 3, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right').setFontWeight('bold');
-        sh.getRange(mk.r, 2, 1, 1).setHorizontalAlignment('right');
-        sh.getRange(mk.r, 6, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+        sh.getRange(mk.r, 4, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right').setFontWeight('bold');
+        sh.getRange(mk.r, 3, 1, 1).setHorizontalAlignment('right');
+        sh.getRange(mk.r, 7, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
     }
   });
-  sh.setColumnWidth(1, 320); sh.setColumnWidth(2, 90); sh.setColumnWidth(3, 130);
-  sh.setColumnWidth(4, 240); sh.setColumnWidth(5, 110); sh.setColumnWidth(6, 120);
+  sh.setColumnWidth(1, 300); sh.setColumnWidth(2, 95); sh.setColumnWidth(3, 85); sh.setColumnWidth(4, 125);
+  sh.setColumnWidth(5, 230); sh.setColumnWidth(6, 105); sh.setColumnWidth(7, 120);
   sh.setFrozenRows(1);
   if (lastRow > headRow) sh.getRange(headRow, 1, lastRow - headRow + 1, NCOLS).createFilter();
   return ss.getUrl() + '#gid=' + sh.getSheetId();

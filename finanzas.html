@@ -477,8 +477,12 @@ tr.prov-detail>td{padding:0 8px 8px}
               </div>
               <button class="file-remove" onclick="removeFile('agrup')">✕</button>
             </div>
-            <div style="display:flex;justify-content:flex-end;margin:10px 0">
-              <button class="btn-primary" id="btn-agrup" onclick="analyzeAgrupador()" disabled>🔗 Agrupar y cuadrar</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap">
+              <span style="font-size:11px;color:var(--n400)">…o pega los movimientos directo en las hojas <strong>Extracto</strong> y <strong>Mayor</strong> de la planilla y cruza desde ahí →</span>
+              <div style="display:flex;gap:8px">
+                <button class="btn-secondary" id="btn-agrup-planilla" onclick="cruzarDesdePlanilla()">🔗 Cruzar desde la planilla</button>
+                <button class="btn-primary" id="btn-agrup" onclick="analyzeAgrupador()" disabled>🔗 Agrupar y cuadrar (Excel)</button>
+              </div>
             </div>
             <div id="results-agrup"></div>
           </div>
@@ -1639,6 +1643,21 @@ function mismaEntidad(a, b) {
   if (a === b) return true;
   return Math.min(a.length, b.length) >= 6 && (a.indexOf(b) === 0 || b.indexOf(a) === 0);
 }
+// Fecha canónica YYYYMMDD (número) desde Date, serial Excel o texto; para
+// agrupar por fecha y comparar Extracto vs Mayor.
+function fechaKey(v) {
+  if (v == null || v === '') return '';
+  if (v instanceof Date) return v.getFullYear() * 10000 + (v.getMonth() + 1) * 100 + v.getDate();
+  var s = String(v).trim();
+  var d = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (d) return parseInt(d[1], 10) * 10000 + parseInt(d[2], 10) * 100 + parseInt(d[3], 10);
+  d = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (d) return parseInt(d[3], 10) * 10000 + parseInt(d[2], 10) * 100 + parseInt(d[1], 10);
+  var n = parseFloat(s);
+  if (isFinite(n) && n > 25569 && n < 80000) { var dt = new Date(Math.round((n - 25569) * 86400 * 1000)); return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate(); }
+  return s.toUpperCase();
+}
+function fechaFmt(k) { if (!k || typeof k !== 'number') return String(k || ''); var s = String(k); return s.slice(6, 8) + '-' + s.slice(4, 6) + '-' + s.slice(0, 4); }
 // Parseo de monto es-CL: "1.234.567" / "-1.234,50" / número directo.
 function parseMontoCL(v) {
   if (typeof v === 'number') return v;
@@ -1749,6 +1768,7 @@ function processConciliacionAgrupador(file) {
         var mDeb = colIdx(hm, ['Débito', 'Debito', 'Debit']);
         var mCre = colIdx(hm, ['Crédito', 'Credito', 'Credit']);
         var mCuenta = colIdx(hm, CUENTA);
+        var mFecha = colIdx(hm, ['Fecha', 'Date']);
         function montoMayor(row) {
           if (mMonto !== -1 && row[mMonto] !== undefined && row[mMonto] !== '') return parseMontoCL(row[mMonto]);
           var d = mDeb !== -1 ? parseMontoCL(row[mDeb]) : 0;
@@ -1763,7 +1783,7 @@ function processConciliacionAgrupador(file) {
           var mm = montoMayor(rm);
           if (!nom && !nota && !mm) continue;
           if (!mm) continue;
-          mayor.push({ nombre: nom, nota: nota, cuenta: mCuenta !== -1 ? String(rm[mCuenta] || '').trim() : '', monto: mm });
+          mayor.push({ nombre: nom, nota: nota, cuenta: mCuenta !== -1 ? String(rm[mCuenta] || '').trim() : '', monto: mm, fecha: mFecha !== -1 ? rm[mFecha] : '' });
         }
         if (!extracto.length) throw new Error('No se encontraron movimientos en la hoja de Extracto.');
 
@@ -1783,26 +1803,29 @@ function processConciliacionAgrupador(file) {
 //   2º si el detalle no calza, por MONTO exacto (diferencia $0).
 // El origen que se reporta es la Nota del Mayor.
 function computeAgrupador(extracto, mayor) {
-  // Mayor: filas individuales + resumen por Nota + índices de match
-  var notaMap = {};        // normNota -> {nota, core, rut, total, n}
-  var mayorByAmt = {};     // |monto| -> [filas]
+  // Mayor: por Nota (nombre/origen) para match por texto, y por Fecha+Monto.
+  var notaMap = {};                 // normNota -> {nota, core, rut, total, n}
+  var mayorByFechaMonto = {};       // fkey|absMonto -> [filas]  (match Fecha+Monto)
   mayor.forEach(function(m) {
     var nota = m.nota || m.nombre || '';
+    var fk = fechaKey(m.fecha);
     var kn = normDetalle(nota) || '(SIN NOTA)';
     if (!notaMap[kn]) notaMap[kn] = { nota: nota, core: coreName(nota), rut: rutOf(nota), total: 0, n: 0 };
     notaMap[kn].total += m.monto; notaMap[kn].n++;
-    var ka = String(Math.round(Math.abs(m.monto)));
-    if (!mayorByAmt[ka]) mayorByAmt[ka] = [];
-    mayorByAmt[ka].push({ nota: nota, monto: Math.round(m.monto) });
+    var kfm = fk + '|' + Math.round(Math.abs(m.monto));
+    if (!mayorByFechaMonto[kfm]) mayorByFechaMonto[kfm] = [];
+    mayorByFechaMonto[kfm].push({ nota: nota, monto: Math.round(m.monto), fecha: fk });
   });
   var notas = Object.keys(notaMap).map(function(k){ var o = notaMap[k]; o.total = Math.round(o.total); return o; });
 
-  // Agrupar extracto por Detalle normalizado (conservando números)
+  // Agrupar extracto por Detalle + Fecha (misma glosa y misma fecha = un pago)
   var groups = {};
   extracto.forEach(function(x) {
     if (!x.norm) return;
-    if (!groups[x.norm]) groups[x.norm] = { norm: x.norm, detalle: x.detalle, core: coreName(x.detalle), rut: rutOf(x.detalle), total: 0, n: 0, movs: [] };
-    var g = groups[x.norm];
+    var fk = fechaKey(x.fecha);
+    var key = x.norm + '||' + fk;
+    if (!groups[key]) groups[key] = { detalle: x.detalle, fkey: fk, core: coreName(x.detalle), rut: rutOf(x.detalle), total: 0, n: 0, movs: [] };
+    var g = groups[key];
     g.total += x.monto; g.n++; g.movs.push({ fecha: x.fecha, monto: Math.round(x.monto) });
   });
 
@@ -1811,36 +1834,33 @@ function computeAgrupador(extracto, mayor) {
     g.total = Math.round(g.total);
     var base = '', origen = '', mayorTotal = null, candidatos = 0;
 
-    // 1) Por nombre / RUT contra las Notas del Mayor
+    // 1) Por Nota (Detalle ≈ Nota, o RUT igual)
     var nm = null;
     if (g.rut) nm = notas.filter(function(o){ return o.rut && o.rut === g.rut; })[0] || null;
     if (!nm && g.core && g.core.length >= 4) nm = notas.filter(function(o){ return mismaEntidad(g.core, o.core); })[0] || null;
     if (nm) {
-      base = 'detalle'; origen = nm.nota; mayorTotal = nm.total;
+      base = 'nota'; origen = nm.nota; mayorTotal = nm.total;
     } else {
-      // 2) Fallback: por monto exacto (diferencia 0) contra una fila del Mayor
-      var cand = mayorByAmt[String(Math.abs(g.total))] || [];
+      // 2) Por Fecha + Monto: misma fecha Y monto total del grupo = monto del Mayor
+      var cand = mayorByFechaMonto[g.fkey + '|' + Math.abs(g.total)] || [];
       candidatos = cand.length;
-      if (cand.length) { base = 'monto'; origen = cand[0].nota || '(sin nota)'; mayorTotal = cand[0].monto; }
+      if (cand.length) { base = 'fecha_monto'; origen = cand[0].nota || '(sin nota)'; mayorTotal = cand[0].monto; }
     }
     var estado = base ? 'match' : 'sin_match';
     var dif = (mayorTotal != null) ? Math.round(Math.abs(g.total) - Math.abs(mayorTotal)) : null;
-    return { detalle: g.detalle, n: g.n, total: g.total, base: base, estado: estado,
+    return { detalle: g.detalle, fecha: fechaFmt(g.fkey), n: g.n, total: g.total, base: base, estado: estado,
              origen: origen, mayorTotal: mayorTotal, dif: dif, candidatos: candidatos, movs: g.movs };
   });
   grupos.sort(function(a, b) { return (b.n - a.n) || (Math.abs(b.total) - Math.abs(a.total)); });
 
-  notas.sort(function(a, b){ return Math.abs(b.total) - Math.abs(a.total); });
-
   var matched = grupos.filter(function(g){ return g.estado === 'match'; });
   return {
     grupos: grupos,
-    mayorNotas: notas,
     resumen: {
       nGrupos: grupos.length,
       nMulti: grupos.filter(function(g){ return g.n >= 2; }).length,
-      nDetalle: grupos.filter(function(g){ return g.base === 'detalle'; }).length,
-      nMonto: grupos.filter(function(g){ return g.base === 'monto'; }).length,
+      nNota: grupos.filter(function(g){ return g.base === 'nota'; }).length,
+      nFechaMonto: grupos.filter(function(g){ return g.base === 'fecha_monto'; }).length,
       nSin: grupos.filter(function(g){ return g.estado === 'sin_match'; }).length,
       totalExtracto: grupos.reduce(function(a, g){ return a + g.total; }, 0)
     }
@@ -1860,24 +1880,25 @@ function analyzeAgrupador() {
   html += '<div style="font-size:10px;color:var(--n500)">Hoja extracto: ' + esc(d.extName) + ' · Hoja mayor: ' + esc(d.mayName) + ' · ' + d.nExtracto + ' movimientos, ' + d.nMayor + ' del mayor</div></div></div>';
 
   html += '<div class="summary-row" style="padding:10px 14px">';
-  html += '<div class="summary-item"><div class="si-val">' + R.nGrupos + '</div><div class="si-lbl">Grupos por Detalle</div></div>';
+  html += '<div class="summary-item"><div class="si-val">' + R.nGrupos + '</div><div class="si-lbl">Grupos (Detalle+Fecha)</div></div>';
   html += '<div class="summary-item amber"><div class="si-val">' + R.nMulti + '</div><div class="si-lbl">Con 2+ transferencias</div></div>';
-  html += '<div class="summary-item green"><div class="si-val">' + R.nDetalle + '</div><div class="si-lbl">Origen por Nota/nombre</div></div>';
-  html += '<div class="summary-item"><div class="si-val">' + R.nMonto + '</div><div class="si-lbl">Origen por monto ($0 dif)</div></div>';
-  html += '<div class="summary-item ' + (R.nSin > 0 ? 'red' : '') + '"><div class="si-val">' + R.nSin + '</div><div class="si-lbl">Sin origen (revisar)</div></div>';
+  html += '<div class="summary-item green"><div class="si-val">' + R.nNota + '</div><div class="si-lbl">Match por Nota</div></div>';
+  html += '<div class="summary-item"><div class="si-val">' + R.nFechaMonto + '</div><div class="si-lbl">Match por Fecha+Monto</div></div>';
+  html += '<div class="summary-item ' + (R.nSin > 0 ? 'red' : '') + '"><div class="si-val">' + R.nSin + '</div><div class="si-lbl">Sin match (revisar)</div></div>';
   html += '</div>';
 
   html += '<div style="display:flex;justify-content:flex-end;padding:0 14px 6px">';
-  html += '<button class="btn-secondary" onclick="saveAgrupadorToSheet()">📊 Guardar en Sheet</button></div>';
+  html += '<button class="btn-secondary" onclick="saveAgrupadorToSheet()">📊 Guardar en hoja Match</button></div>';
 
   html += '<div class="tbl-wrap"><table>';
-  html += '<tr><th>Detalle (extracto)</th><th style="text-align:right">N° transf.</th><th style="text-align:right">Total sumado</th><th>Origen (Nota Mayor)</th><th>Match por</th><th style="text-align:right">Dif. vs Mayor</th></tr>';
+  html += '<tr><th>Detalle (extracto)</th><th>Fecha</th><th style="text-align:right">N° transf.</th><th style="text-align:right">Total sumado</th><th>Origen (Nota Mayor)</th><th>Match por</th><th style="text-align:right">Dif. vs Mayor</th></tr>';
   d.grupos.forEach(function(g) {
-    var base = g.base === 'detalle' ? '<span class="badge b-green">nota/nombre</span>'
-             : g.base === 'monto' ? '<span class="badge b-amber">monto ($0)</span>'
-             : '<span class="badge b-red">sin origen</span>';
+    var base = g.base === 'nota' ? '<span class="badge b-green">nota</span>'
+             : g.base === 'fecha_monto' ? '<span class="badge b-amber">fecha+monto</span>'
+             : '<span class="badge b-red">sin match</span>';
     html += '<tr' + (g.n >= 2 ? ' class="row-amber"' : '') + '>';
-    html += '<td style="font-weight:600;max-width:320px">' + esc(g.detalle) + '</td>';
+    html += '<td style="font-weight:600;max-width:300px">' + esc(g.detalle) + '</td>';
+    html += '<td style="font-family:var(--mono);font-size:11px">' + esc(g.fecha || '—') + '</td>';
     html += '<td style="text-align:right;font-weight:700">' + g.n + '</td>';
     html += '<td style="text-align:right;font-family:var(--mono);font-weight:700;white-space:nowrap">' + fmtMoney(g.total) + ' <button class="copy-btn" style="font-size:12px" onclick="copyText(\'' + esc(String(g.total)) + '\')" title="Copiar monto">📋</button></td>';
     html += '<td style="font-size:11px">' + esc(g.origen || '—') + (g.candidatos > 1 ? ' <span style="color:var(--n400)">(' + g.candidatos + ' posibles)</span>' : '') + '</td>';
@@ -1886,7 +1907,7 @@ function analyzeAgrupador() {
     html += '</tr>';
   });
   html += '</table></div>';
-  html += '<div style="padding:8px 14px;font-size:10px;color:var(--n400)">Filas ámbar = pagos partidos en 2+ transferencias. "Match por nota/nombre" = el origen se identificó por el nombre del Detalle ≈ Nota del Mayor (o RUT). "Match por monto" = no calzó el nombre pero la suma coincide exacta con un movimiento del Mayor (verifícalo). "Dif. vs Mayor" = |total extracto| − |total del origen en Mayor|.</div>';
+  html += '<div style="padding:8px 14px;font-size:10px;color:var(--n400)">Agrupado por Detalle + Fecha. "Match por Nota" = el Detalle ≈ Nota del Mayor (o RUT). "Match por Fecha+Monto" = misma fecha y el total del grupo coincide exacto con un movimiento del Mayor. Filas ámbar = pagos partidos en 2+ transferencias.</div>';
   html += '</div>';
   r.innerHTML = html;
   r.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1906,7 +1927,7 @@ function saveAgrupadorToSheet() {
     extName: d.extName, mayName: d.mayName, nExtracto: d.nExtracto, nMayor: d.nMayor,
     resumen: d.resumen,
     grupos: d.grupos.slice(0, 500).map(function(g){
-      return { detalle: g.detalle, n: g.n, total: g.total, origen: g.origen, base: g.base, dif: g.dif };
+      return { detalle: g.detalle, fecha: g.fecha, n: g.n, total: g.total, origen: g.origen, base: g.base, dif: g.dif };
     })
   };
   showToast('Escribiendo en la planilla de conciliaciones…', 'info');
@@ -1918,7 +1939,7 @@ function saveAgrupadorToSheet() {
         var bar = document.createElement('div');
         bar.className = 'desglose-link-bar';
         bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:#e6f7f0;border:1px solid #b3e8d3;border-radius:10px;margin:8px 0;font-size:12px;color:#0b6b3a';
-        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Guardado en la pestaña "Agrupador"</span>' +
+        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Guardado en la pestaña "Match"</span>' +
           '<a href="' + url + '" target="_blank" style="margin-left:auto;font-size:11px;font-weight:700;color:#007a4a;text-decoration:none;padding:4px 10px;background:#fff;border:1px solid #b3e8d3;border-radius:6px">Abrir Sheets →</a>';
         r.insertBefore(bar, r.firstChild);
       }
@@ -1926,6 +1947,79 @@ function saveAgrupadorToSheet() {
     })
     .withFailureHandler(function(e) { showToast('Error al escribir en Sheets: ' + e.message, 'error'); })
     .writeAgrupadorSheet(JSON.stringify(payload));
+}
+
+// Cruza leyendo directamente las hojas "Extracto" y "Mayor" de la planilla de
+// conciliaciones (el analista pega ahí los movimientos sin referencia).
+function cruzarDesdePlanilla() {
+  if (!(window.google && google.script && google.script.run)) { showToast('Solo disponible en el Web App de Apps Script', 'error'); return; }
+  showToast('Leyendo hojas Extracto y Mayor de la planilla…', 'info');
+  google.script.run
+    .withSuccessHandler(function(json) {
+      try {
+        var raw = JSON.parse(json);
+        var ex = parseTabExtracto(raw.extracto), ma = parseTabMayor(raw.mayor);
+        if (!ex.length) { showToast('La hoja Extracto no tiene movimientos legibles', 'error'); return; }
+        var res = computeAgrupador(ex, ma);
+        res.extName = 'Extracto'; res.mayName = 'Mayor'; res.nExtracto = ex.length; res.nMayor = ma.length;
+        STATE.conciliacion.files.agrup = { name: 'Planilla (Extracto+Mayor)', size: 0, agrup: res };
+        var b = document.getElementById('btn-agrup'); if (b) b.disabled = false;
+        analyzeAgrupador();
+        showToast('Cruce listo desde la planilla ✓', 'success');
+      } catch (e) { showToast('Error procesando la planilla: ' + e.message, 'error'); }
+    })
+    .withFailureHandler(function(e) { showToast('No pude leer la planilla: ' + e.message, 'error'); })
+    .leerConciliadorBanco();
+}
+// Detecta la fila de encabezados de una pestaña por columnas requeridas.
+function tabHead(rows, req) {
+  for (var i = 0; i < Math.min(rows.length, 12); i++) {
+    var h = rows[i].map(function(c){ return String(c || '').trim(); });
+    if (colIdx(h, req) !== -1) return i;
+  }
+  return -1;
+}
+function parseTabExtracto(rows) {
+  if (!rows) return [];
+  var DET = ['Detalle', 'Descripción', 'Descripcion', 'Glosa', 'Movimiento', 'Concepto'];
+  var hi = tabHead(rows, DET);
+  if (hi === -1) throw new Error('la hoja Extracto no tiene columna "Detalle"');
+  var h = rows[hi].map(function(c){ return String(c || '').trim(); });
+  var cDet = colIdx(h, DET), cMonto = colIdx(h, ['Monto', 'Importe', 'Valor']),
+      cAb = colIdx(h, ['Abono', 'Crédito', 'Credito', 'Depósito', 'Deposito']),
+      cCa = colIdx(h, ['Cargo', 'Débito', 'Debito', 'Giro']),
+      cFe = colIdx(h, ['Fecha', 'Date']);
+  var out = [];
+  for (var i = hi + 1; i < rows.length; i++) {
+    var r = rows[i]; if (!r) continue;
+    var det = String(r[cDet] || '').trim(); if (!det) continue;
+    var m = (cMonto !== -1 && r[cMonto] !== '' && r[cMonto] != null) ? parseMontoCL(r[cMonto])
+          : ((cAb !== -1 ? parseMontoCL(r[cAb]) : 0) - (cCa !== -1 ? parseMontoCL(r[cCa]) : 0));
+    if (!m) continue;
+    out.push({ detalle: det, norm: normDetalle(det), monto: m, fecha: cFe !== -1 ? r[cFe] : '' });
+  }
+  return out;
+}
+function parseTabMayor(rows) {
+  if (!rows) return [];
+  var hi = tabHead(rows, ['Nota', 'Nombre', 'Memo', 'Glosa']);
+  if (hi === -1) throw new Error('la hoja Mayor no tiene columna "Nota"');
+  var h = rows[hi].map(function(c){ return String(c || '').trim(); });
+  var cNota = colIdx(h, ['Nota', 'Memo', 'Memo/Nota', 'Glosa']), cNom = colIdx(h, ['Nombre', 'Name', 'Razón social', 'Beneficiario']),
+      cMonto = colIdx(h, ['Monto', 'Importe', 'Valor']), cDeb = colIdx(h, ['Débito', 'Debito', 'Debit']),
+      cCre = colIdx(h, ['Crédito', 'Credito', 'Credit']), cFe = colIdx(h, ['Fecha', 'Date']), cCta = colIdx(h, ['Cuenta', 'Account']);
+  var out = [];
+  for (var i = hi + 1; i < rows.length; i++) {
+    var r = rows[i]; if (!r) continue;
+    var nota = String((cNota !== -1 ? r[cNota] : '') || '').trim();
+    var nom = String((cNom !== -1 ? r[cNom] : '') || '').trim();
+    var m = (cMonto !== -1 && r[cMonto] !== '' && r[cMonto] != null) ? parseMontoCL(r[cMonto])
+          : ((cDeb !== -1 ? parseMontoCL(r[cDeb]) : 0) - (cCre !== -1 ? parseMontoCL(r[cCre]) : 0));
+    if (!m && !nota && !nom) continue;
+    if (!m) continue;
+    out.push({ nombre: nom, nota: nota, cuenta: cCta !== -1 ? String(r[cCta] || '').trim() : '', monto: m, fecha: cFe !== -1 ? r[cFe] : '' });
+  }
+  return out;
 }
 
 // ── PROVISIONES ──
