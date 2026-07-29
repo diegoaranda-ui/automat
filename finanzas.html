@@ -1847,7 +1847,7 @@ function analyzeAgrupador() {
     html += '<tr' + (g.n >= 2 ? ' class="row-amber"' : '') + '>';
     html += '<td style="font-weight:600;max-width:340px">' + esc(g.detalle) + '</td>';
     html += '<td style="text-align:right;font-weight:700">' + g.n + '</td>';
-    html += '<td style="text-align:right;font-family:var(--mono);font-weight:700">' + fmtMoney(g.total) + '</td>';
+    html += '<td style="text-align:right;font-family:var(--mono);font-weight:700;white-space:nowrap">' + fmtMoney(g.total) + ' <button class="copy-btn" style="font-size:12px" onclick="copyText(\'' + esc(String(g.total)) + '\')" title="Copiar monto">📋</button></td>';
     html += '<td>' + badge + '</td>';
     html += '<td style="font-family:var(--mono)">' + esc(g.cuenta || '—') + '</td>';
     html += '<td style="font-size:11px">' + esc((g.nombre || g.nota || '—')) + (g.candidatos > 1 ? ' <span style="color:var(--n400)">(' + g.candidatos + ' posibles)</span>' : '') + '</td>';
