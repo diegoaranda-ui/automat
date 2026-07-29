@@ -269,7 +269,8 @@ function writeAgrupadorSheet(payload) {
   var headRow = rows.length;
   (p.grupos || []).forEach(function(g) {
     var base = g.base === 'nota' ? 'nota' : (g.base === 'fecha_monto' ? 'fecha+monto' : 'sin match');
-    push([g.detalle || '', g.fecha || '', g.n || 0, Math.round(g.total || 0), g.origen || '—', base, (g.dif == null ? '' : Math.round(g.dif))], 'row-det');
+    var origen = g.origen || (g.pista ? 'posible por monto: ' + g.pista : '—');
+    push([g.detalle || '', g.fecha || '', g.n || 0, Math.round(g.total || 0), origen, base, (g.dif == null ? '' : Math.round(g.dif))], 'row-det');
   });
   var lastRow = rows.length;
 
