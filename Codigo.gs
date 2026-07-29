@@ -331,8 +331,10 @@ function marcarReferenciaBancoIntl(payload) {
 
 function writeAgrupadorSheet(payload) {
   var p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
-  var ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
-  var ss = SpreadsheetApp.openById(ssId);
+  // La hoja "Match" se escribe en el MISMO archivo del conciliador Banco
+  // Internacional (donde están Extracto/Mayor y la referencia K), para que
+  // todo quede en un solo lugar (Conciliador_Unico_CL).
+  var ss = SpreadsheetApp.openById(bancoIntlId_());
   var sh = ss.getSheetByName('Match');
   if (!sh) sh = ss.insertSheet('Match');
   else {
