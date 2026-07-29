@@ -1899,8 +1899,7 @@ function analyzeAgrupador() {
   var nDif0 = d.grupos.filter(function(g){ return g.estado === 'match' && g.dif === 0; }).length;
   html += '<div style="display:flex;justify-content:flex-end;gap:8px;padding:0 14px 6px;flex-wrap:wrap">';
   html += '<button class="btn-secondary" id="btn-agrup-ia" onclick="mejorarCruceIA()">🤖 Mejorar cruce con IA</button>';
-  html += '<button class="btn-secondary" onclick="saveAgrupadorToSheet()">📊 Guardar en hoja Match</button>';
-  html += '<button class="btn-primary" id="btn-agrup-ref" onclick="marcarReferencia()"' + (nDif0 ? '' : ' disabled') + '>✍️ Rellenar referencia "diego" (' + nDif0 + ' con dif 0)</button></div>';
+  html += '<button class="btn-secondary" onclick="saveAgrupadorToSheet()">📊 Guardar en hoja Match</button></div>';
 
   html += '<div class="tbl-wrap"><table>';
   html += '<tr><th>Detalle (extracto)</th><th>Fecha</th><th style="text-align:right">N° transf.</th><th style="text-align:right">Total sumado</th><th>Origen (Nota Mayor)</th><th>Match por</th><th style="text-align:right">Dif. vs Mayor</th></tr>';
@@ -1922,8 +1921,21 @@ function analyzeAgrupador() {
     html += '</tr>';
   });
   html += '</table></div>';
-  html += '<div style="padding:8px 14px;font-size:10px;color:var(--n400)">Agrupado por Detalle + Fecha. "Match por Nota" = el Detalle ≈ Nota del Mayor (o RUT). "Match por Fecha+Monto" = misma fecha y el total del grupo coincide exacto con un movimiento del Mayor. Filas ámbar = pagos partidos en 2+ transferencias.</div>';
+  html += '<div style="padding:8px 14px;font-size:10px;color:var(--n400)">Agrupado por Detalle + Fecha. "Match por Nota" = el Detalle ≈ Nota del Mayor (o RUT). El resto lo empareja la IA por nombre. Filas ámbar = pagos partidos en 2+ transferencias.</div>';
   html += '</div>';
+
+  // ── Sección: rellenar referencia "diego" en el papel de trabajo FINAL ──
+  html += '<div class="card result-section" style="border:2px solid var(--red-b)">';
+  html += '<div class="card-header" style="background:linear-gradient(90deg,var(--red-l),transparent)"><div class="card-icon" style="background:var(--red)">✍️</div>';
+  html += '<div><div class="card-title" style="font-size:14px">Rellenar referencia en el papel de trabajo final</div>';
+  html += '<div style="font-size:10px;color:var(--n500)">El agente escribe <strong>"diego"</strong> en la columna K de las hojas Extracto y Mayor, SOLO en los ' + nDif0 + ' cruces con diferencia $0, respetando la fecha y sin pisar referencias existentes</div></div></div>';
+  html += '<div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px">';
+  html += '<label style="font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">Hoja de trabajo final (URL o ID)</label>';
+  html += '<input type="text" id="agrup-papel-url" value="https://docs.google.com/spreadsheets/d/1Y9YwGl14yDaNBINNwsCaJtmPKVCn5qjjHl9odqZV_OQ/edit" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:var(--mono);font-size:11px">';
+  html += '<div style="display:flex;justify-content:flex-end">';
+  html += '<button class="btn-primary" id="btn-agrup-ref" onclick="marcarReferencia()"' + (nDif0 ? '' : ' disabled') + '>✍️ Rellenar referencia "diego" (' + nDif0 + ' con dif $0)</button></div>';
+  html += '</div></div>';
+
   r.innerHTML = html;
   r.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
@@ -2057,9 +2069,12 @@ function marcarReferencia() {
   if (!(window.google && google.script && google.script.run)) { showToast('Solo disponible en el Web App de Apps Script', 'error'); return; }
   var dif0 = f.agrup.grupos.filter(function(g){ return g.estado === 'match' && g.dif === 0; });
   if (!dif0.length) { showToast('No hay grupos con diferencia 0', 'info'); return; }
-  if (!confirm('Se escribirá "diego" en la columna Referencia (K) de las hojas Extracto y Mayor del papel de trabajo, solo en las ' + dif0.length + ' partidas con diferencia 0 y con la referencia vacía. ¿Continuar?')) return;
+  var urlEl = document.getElementById('agrup-papel-url');
+  var sheetUrl = urlEl ? urlEl.value.trim() : '';
+  if (!sheetUrl) { showToast('Pega la URL o ID de la hoja de trabajo final', 'error'); return; }
+  if (!confirm('Se escribirá "diego" en la columna Referencia (K) de las hojas Extracto y Mayor del PAPEL DE TRABAJO FINAL, solo en las ' + dif0.length + ' partidas con diferencia 0 y con la referencia vacía. ¿Continuar?')) return;
 
-  var payload = { grupos: dif0.map(function(g){
+  var payload = { sheetId: sheetUrl, grupos: dif0.map(function(g){
     return { norm: g.norm, fkey: g.fkey, total: g.total, origenNorm: normDetalle(g.origen || '') };
   }) };
   var btn = document.getElementById('btn-agrup-ref');

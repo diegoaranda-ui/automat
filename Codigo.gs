@@ -56,10 +56,10 @@ function callClaude(payload) {
 // Planilla de papel de trabajo de conciliaciones
 var CONCIL_SHEET_ID = '1p3TYuzbwMw1Iijd07lTpsJMM_e73VUmnIlBkeM57Txc';
 
-// Papel de trabajo del conciliador Banco Internacional: hojas "Extracto" y
-// "Mayor" (donde el analista pega los movimientos sin referencia) y la columna
-// K "Referencia". El agrupador lee de aquí y escribe la referencia "diego".
-var BANCO_INTL_SHEET_ID = '1Lq8K3d_fOEz7dalVqRz5PWxmj4W5VnaPXmtaqJiXIhs';
+// Papel de trabajo FINAL del Banco Internacional (1101-05): archivo aparte con
+// hojas "Extracto" y "Mayor" y la columna K "Referencia" donde el agente
+// escribe "diego" para los cruces con diferencia $0. Override: PAPEL_FINAL_SHEET_ID.
+var PAPEL_FINAL_SHEET_ID = '1Y9YwGl14yDaNBINNwsCaJtmPKVCn5qjjHl9odqZV_OQ';
 
 // Planilla de Control de Provisiones (facturas de proveedores vs provisiones)
 var PROVISIONES_SHEET_ID = '1oOWGLYN7X28lennVGvp58n1LXmjU8-MoltVj7GeSIaU';
@@ -225,11 +225,20 @@ function writeIcarSheet(payload) {
  * devuelve como arrays 2D (con la fila de encabezados). El cruce lo calcula
  * el cliente (finanzas.html) y luego escribe la hoja "Match".
  */
-function bancoIntlId_() {
-  return PropertiesService.getScriptProperties().getProperty('BANCO_INTL_SHEET_ID') || BANCO_INTL_SHEET_ID;
+function concilId_() {
+  return PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
+}
+function papelFinalId_() {
+  return PropertiesService.getScriptProperties().getProperty('PAPEL_FINAL_SHEET_ID') || PAPEL_FINAL_SHEET_ID;
+}
+// Extrae el ID de una URL de Google Sheets (o devuelve el texto si ya es un ID)
+function sheetIdFrom_(s) {
+  s = String(s || '').trim();
+  var m = s.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+  return m ? m[1] : s;
 }
 function leerConciliadorBanco() {
-  var ss = SpreadsheetApp.openById(bancoIntlId_());
+  var ss = SpreadsheetApp.openById(concilId_());
   function rowsOf(name) {
     var sh = ss.getSheetByName(name);
     if (!sh || sh.getLastRow() < 1) return null;
@@ -266,7 +275,9 @@ function marcarReferenciaBancoIntl(payload) {
   var p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
   var grupos = p.grupos || [];
   if (!grupos.length) return JSON.stringify({ extracto: 0, mayor: 0, msg: 'No hay grupos con diferencia 0.' });
-  var ss = SpreadsheetApp.openById(bancoIntlId_());
+  // Papel de trabajo final: el que venga en el payload (URL/ID pegada por el
+  // analista) o el default PAPEL_FINAL_SHEET_ID.
+  var ss = SpreadsheetApp.openById(p.sheetId ? sheetIdFrom_(p.sheetId) : papelFinalId_());
   var REF = 'diego';
 
   // Índices para búsqueda rápida
@@ -331,10 +342,9 @@ function marcarReferenciaBancoIntl(payload) {
 
 function writeAgrupadorSheet(payload) {
   var p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
-  // La hoja "Match" se escribe en el MISMO archivo del conciliador Banco
-  // Internacional (donde están Extracto/Mayor y la referencia K), para que
-  // todo quede en un solo lugar (Conciliador_Unico_CL).
-  var ss = SpreadsheetApp.openById(bancoIntlId_());
+  // La hoja "Match" se escribe en Conciliador_Unico_CL (CONCIL_SHEET_ID),
+  // junto a las hojas Extracto/Mayor donde el analista pega los movimientos.
+  var ss = SpreadsheetApp.openById(concilId_());
   var sh = ss.getSheetByName('Match');
   if (!sh) sh = ss.insertSheet('Match');
   else {
