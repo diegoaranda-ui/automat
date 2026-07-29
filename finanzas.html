@@ -1861,17 +1861,22 @@ function computeAgrupador(extracto, mayor) {
   });
   grupos.sort(function(a, b) { return (b.n - a.n) || (Math.abs(b.total) - Math.abs(a.total)); });
 
-  var matched = grupos.filter(function(g){ return g.estado === 'match'; });
+  notas.sort(function(a, b){ return Math.abs(b.total) - Math.abs(a.total); });
   return {
     grupos: grupos,
-    resumen: {
-      nGrupos: grupos.length,
-      nMulti: grupos.filter(function(g){ return g.n >= 2; }).length,
-      nNota: grupos.filter(function(g){ return g.base === 'nota'; }).length,
-      nFechaMonto: grupos.filter(function(g){ return g.base === 'fecha_monto'; }).length,
-      nSin: grupos.filter(function(g){ return g.estado === 'sin_match'; }).length,
-      totalExtracto: grupos.reduce(function(a, g){ return a + g.total; }, 0)
-    }
+    mayorNotas: notas.map(function(o){ return { nota: o.nota, total: o.total }; }),
+    resumen: resumenAgrup(grupos)
+  };
+}
+function resumenAgrup(grupos) {
+  return {
+    nGrupos: grupos.length,
+    nMulti: grupos.filter(function(g){ return g.n >= 2; }).length,
+    nNota: grupos.filter(function(g){ return g.base === 'nota'; }).length,
+    nFechaMonto: grupos.filter(function(g){ return g.base === 'fecha_monto'; }).length,
+    nIA: grupos.filter(function(g){ return g.base === 'ia'; }).length,
+    nSin: grupos.filter(function(g){ return g.estado === 'sin_match'; }).length,
+    totalExtracto: grupos.reduce(function(a, g){ return a + g.total; }, 0)
   };
 }
 
@@ -1892,10 +1897,12 @@ function analyzeAgrupador() {
   html += '<div class="summary-item amber"><div class="si-val">' + R.nMulti + '</div><div class="si-lbl">Con 2+ transferencias</div></div>';
   html += '<div class="summary-item green"><div class="si-val">' + R.nNota + '</div><div class="si-lbl">Match por Nota</div></div>';
   html += '<div class="summary-item"><div class="si-val">' + R.nFechaMonto + '</div><div class="si-lbl">Match por Fecha+Monto</div></div>';
+  if (R.nIA) html += '<div class="summary-item" style="background:var(--red-l)"><div class="si-val">' + R.nIA + '</div><div class="si-lbl">🤖 Sugerido por IA</div></div>';
   html += '<div class="summary-item ' + (R.nSin > 0 ? 'red' : '') + '"><div class="si-val">' + R.nSin + '</div><div class="si-lbl">Sin match (revisar)</div></div>';
   html += '</div>';
 
-  html += '<div style="display:flex;justify-content:flex-end;padding:0 14px 6px">';
+  html += '<div style="display:flex;justify-content:flex-end;gap:8px;padding:0 14px 6px">';
+  html += '<button class="btn-secondary" id="btn-agrup-ia" onclick="mejorarCruceIA()">🤖 Mejorar cruce con IA</button>';
   html += '<button class="btn-secondary" onclick="saveAgrupadorToSheet()">📊 Guardar en hoja Match</button></div>';
 
   html += '<div class="tbl-wrap"><table>';
@@ -1903,6 +1910,7 @@ function analyzeAgrupador() {
   d.grupos.forEach(function(g) {
     var base = g.base === 'nota' ? '<span class="badge b-green">nota</span>'
              : g.base === 'fecha_monto' ? '<span class="badge b-amber">fecha+monto</span>'
+             : g.base === 'ia' ? '<span class="badge b-red">🤖 IA' + (g.confianza ? ' ' + esc(g.confianza) : '') + '</span>'
              : '<span class="badge b-red">sin match</span>';
     html += '<tr' + (g.n >= 2 ? ' class="row-amber"' : '') + '>';
     html += '<td style="font-weight:600;max-width:300px">' + esc(g.detalle) + '</td>';
@@ -1937,7 +1945,7 @@ function saveAgrupadorToSheet() {
     extName: d.extName, mayName: d.mayName, nExtracto: d.nExtracto, nMayor: d.nMayor,
     resumen: d.resumen,
     grupos: d.grupos.slice(0, 500).map(function(g){
-      return { detalle: g.detalle, fecha: g.fecha, n: g.n, total: g.total, origen: g.origen, base: g.base, dif: g.dif, pista: g.pista };
+      return { detalle: g.detalle, fecha: g.fecha, n: g.n, total: g.total, origen: g.origen, base: g.base, dif: g.dif, pista: g.pista, confianza: g.confianza || '' };
     })
   };
   showToast('Escribiendo en la planilla de conciliaciones…', 'info');
@@ -1981,6 +1989,59 @@ function cruzarDesdePlanilla() {
     .withFailureHandler(function(e) { showToast('No pude leer la planilla: ' + e.message, 'error'); })
     .leerConciliadorBanco();
 }
+// Usa la IA para emparejar los grupos SIN match con la Nota del Mayor que
+// corresponde al mismo tercero (nombres escritos distinto/abreviados). La IA
+// solo sugiere la Nota; los montos y la agrupación siguen siendo del código.
+function mejorarCruceIA() {
+  var f = STATE.conciliacion.files.agrup;
+  if (!f || !f.agrup) { showToast('Primero haz el cruce', 'error'); return; }
+  var d = f.agrup;
+  var pendientes = d.grupos.filter(function(g){ return g.estado === 'sin_match'; });
+  if (!pendientes.length) { showToast('No hay grupos sin match para mejorar', 'success'); return; }
+  var notas = d.mayorNotas || [];
+  if (!notas.length) { showToast('No hay Notas del Mayor para comparar', 'error'); return; }
+
+  // Compactar: grupos sin match (índice global + detalle + total) y notas únicas.
+  var idx = [];
+  d.grupos.forEach(function(g, i){ if (g.estado === 'sin_match') idx.push(i); });
+  var gruposTxt = idx.map(function(i){ var g = d.grupos[i]; return i + '|' + g.detalle + '|' + g.total; }).join('\n');
+  var notasTxt = notas.slice(0, 600).map(function(o){ return o.nota + '|' + o.total; }).join('\n');
+
+  var btn = document.getElementById('btn-agrup-ia');
+  if (btn) { btn.disabled = true; btn.textContent = '🤖 Analizando…'; }
+  showToast('La IA está emparejando los movimientos sin origen…', 'info');
+
+  var prompt = IA_MARCO + '\n\n' +
+    'Eres apoyo de conciliación bancaria de Kavak. El sistema agrupó el EXTRACTO por Detalle+Fecha y ya cuadró lo que pudo; quedan grupos SIN ORIGEN. Tu tarea: para cada grupo sin origen, indicar la NOTA del MAYOR que corresponde al MISMO tercero/beneficiario, aunque el nombre esté escrito distinto, abreviado, en otro orden o con el RUT. NO inventes montos ni modifiques cifras. Empareja SOLO cuando sea claramente la misma entidad; si dudas, no lo incluyas.\n\n' +
+    'GRUPOS SIN ORIGEN (indice|detalle|total):\n' + gruposTxt + '\n\n' +
+    'NOTAS DEL MAYOR (nota|total):\n' + notasTxt + '\n\n' +
+    'Responde ÚNICAMENTE JSON válido: {"matches":[{"i":<indice del grupo>,"nota":"<texto EXACTO de una Nota de la lista>","confianza":"alta|media"}]}';
+
+  callClaudeServer({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }] })
+    .then(function(resp) {
+      var ia = extractJSON(resp);
+      var notaByText = {};
+      notas.forEach(function(o){ notaByText[normDetalle(o.nota)] = o; });
+      var aplicados = 0;
+      (ia.matches || []).forEach(function(mt) {
+        var g = d.grupos[mt.i];
+        if (!g || g.estado !== 'sin_match') return;
+        var o = notaByText[normDetalle(mt.nota)];
+        if (!o) return;
+        g.base = 'ia'; g.estado = 'match'; g.origen = o.nota; g.mayorTotal = o.total;
+        g.confianza = mt.confianza || ''; g.dif = Math.round(Math.abs(g.total) - Math.abs(o.total));
+        aplicados++;
+      });
+      d.resumen = resumenAgrup(d.grupos);
+      analyzeAgrupador();
+      showToast(aplicados ? ('IA emparejó ' + aplicados + ' movimiento(s) — revísalos') : 'La IA no encontró emparejamientos nuevos', aplicados ? 'success' : 'info');
+    })
+    .catch(function(err) {
+      showToast('IA no disponible: ' + ((err && err.message) || err), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '🤖 Mejorar cruce con IA'; }
+    });
+}
+
 // Detecta la fila de encabezados de una pestaña por columnas requeridas.
 function tabHead(rows, req) {
   for (var i = 0; i < Math.min(rows.length, 12); i++) {
