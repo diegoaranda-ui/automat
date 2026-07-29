@@ -291,7 +291,7 @@ function marcarReferenciaBancoIntl(payload) {
 
   function refColIdx(head) { var c = _col(head, ['Referencia', 'Referencia ']); return c !== -1 ? c : 10; } // K = índice 10 (0-based)
 
-  var out = { extracto: 0, mayor: 0 };
+  var out = { extracto: 0, mayor: 0, log: [] };
 
   // ── Extracto: marca filas cuyo Detalle+Fecha pertenece a un grupo dif-0 ──
   var she = ss.getSheetByName('Extracto');
@@ -305,7 +305,10 @@ function marcarReferenciaBancoIntl(payload) {
       var actual = ve[i][cRef];
       if (actual !== '' && actual != null) continue;                 // solo si K vacía
       var key = _norm(det) + '|' + _fkey(cFe !== -1 ? ve[i][cFe] : '');
-      if (byNormFecha[key]) { updates.push(i + 1); }
+      if (byNormFecha[key]) {
+        updates.push(i + 1);
+        if (out.log.length < 800) out.log.push({ hoja: 'Extracto', fila: i + 1, texto: String(det).slice(0, 60), fecha: cFe !== -1 ? String(ve[i][cFe]) : '' });
+      }
     }
     updates.forEach(function(r){ she.getRange(r, cRef + 1).setValue(REF); });
     out.extracto = updates.length;
@@ -332,7 +335,10 @@ function marcarReferenciaBancoIntl(payload) {
         if (c.origenNorm && nota && (nota === c.origenNorm || nota.indexOf(c.origenNorm) === 0 || c.origenNorm.indexOf(nota) === 0)) return true;
         return c.total && am === c.total;    // misma fecha + mismo monto
       });
-      if (hit) ups.push(j + 1);
+      if (hit) {
+        ups.push(j + 1);
+        if (out.log.length < 800) out.log.push({ hoja: 'Mayor', fila: j + 1, texto: String(cNota !== -1 ? vm[j][cNota] : '').slice(0, 60), fecha: cFm !== -1 ? String(vm[j][cFm]) : '', monto: Math.round(monto) });
+      }
     }
     ups.forEach(function(r){ shm.getRange(r, cRefM + 1).setValue(REF); });
     out.mayor = ups.length;
