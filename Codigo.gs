@@ -56,6 +56,11 @@ function callClaude(payload) {
 // Planilla de papel de trabajo de conciliaciones
 var CONCIL_SHEET_ID = '1p3TYuzbwMw1Iijd07lTpsJMM_e73VUmnIlBkeM57Txc';
 
+// Papel de trabajo del conciliador Banco Internacional: hojas "Extracto" y
+// "Mayor" (donde el analista pega los movimientos sin referencia) y la columna
+// K "Referencia". El agrupador lee de aquí y escribe la referencia "diego".
+var BANCO_INTL_SHEET_ID = '1Lq8K3d_fOEz7dalVqRz5PWxmj4W5VnaPXmtaqJiXIhs';
+
 // Planilla de Control de Provisiones (facturas de proveedores vs provisiones)
 var PROVISIONES_SHEET_ID = '1oOWGLYN7X28lennVGvp58n1LXmjU8-MoltVj7GeSIaU';
 
@@ -220,9 +225,11 @@ function writeIcarSheet(payload) {
  * devuelve como arrays 2D (con la fila de encabezados). El cruce lo calcula
  * el cliente (finanzas.html) y luego escribe la hoja "Match".
  */
+function bancoIntlId_() {
+  return PropertiesService.getScriptProperties().getProperty('BANCO_INTL_SHEET_ID') || BANCO_INTL_SHEET_ID;
+}
 function leerConciliadorBanco() {
-  var ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
-  var ss = SpreadsheetApp.openById(ssId);
+  var ss = SpreadsheetApp.openById(bancoIntlId_());
   function rowsOf(name) {
     var sh = ss.getSheetByName(name);
     if (!sh || sh.getLastRow() < 1) return null;
@@ -232,6 +239,94 @@ function leerConciliadorBanco() {
   if (!ex) throw new Error('No encontré la hoja "Extracto" en la planilla (o está vacía).');
   if (!ma) throw new Error('No encontré la hoja "Mayor" en la planilla (o está vacía).');
   return JSON.stringify({ extracto: ex, mayor: ma });
+}
+
+// ── Helpers de normalización (versión GAS, para ubicar filas al escribir) ──
+function _norm(s){ return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9ÑÁÉÍÓÚ ]+/g,' ').split(/\s+/).filter(String).join(' ').trim(); }
+function _fkey(v){
+  if (v == null || v === '') return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') return v.getFullYear()*10000+(v.getMonth()+1)*100+v.getDate();
+  var s = String(v).trim(), d = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (d) return (+d[1])*10000+(+d[2])*100+(+d[3]);
+  d = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/); if (d) return (+d[3])*10000+(+d[2])*100+(+d[1]);
+  var n = parseFloat(s.replace(/[^0-9.\-]/g,'')); if (isFinite(n) && n>25569 && n<80000){ var dt=new Date(Math.round((n-25569)*86400*1000)); return dt.getUTCFullYear()*10000+(dt.getUTCMonth()+1)*100+dt.getUTCDate(); }
+  return s.toUpperCase();
+}
+function _montoCL(v){ if (typeof v==='number') return v; var s=String(v==null?'':v).trim(); if(!s) return 0; var neg=/^\(.*\)$/.test(s)||/-/.test(s); s=s.replace(/[^0-9.,]/g,''); if(s.indexOf(',')!==-1) s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/\./g,''); var n=parseFloat(s)||0; return neg?-Math.abs(n):n; }
+function _col(head, names){ for (var i=0;i<names.length;i++){ var b=names[i].toLowerCase(); for(var j=0;j<head.length;j++){ if(String(head[j]||'').toLowerCase().trim()===b) return j; } } for (var k=0;k<names.length;k++){ var b2=names[k].toLowerCase(); for(var m=0;m<head.length;m++){ if(String(head[m]||'').toLowerCase().indexOf(b2)!==-1 && String(head[m]||'')!=='') return m; } } return -1; }
+
+/**
+ * "Agente" de referencia: rellena la columna Referencia (K) con "diego" en las
+ * hojas Extracto y Mayor del papel de trabajo, SOLO en las filas de los grupos
+ * con diferencia 0, respetando la fecha y solo si la celda está vacía.
+ * payload: { grupos: [{ norm, fkey, total, origenNorm }] }  (solo dif 0)
+ * Devuelve {extracto:<n marcadas>, mayor:<n marcadas>}.
+ */
+function marcarReferenciaBancoIntl(payload) {
+  var p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+  var grupos = p.grupos || [];
+  if (!grupos.length) return JSON.stringify({ extracto: 0, mayor: 0, msg: 'No hay grupos con diferencia 0.' });
+  var ss = SpreadsheetApp.openById(bancoIntlId_());
+  var REF = 'diego';
+
+  // Índices para búsqueda rápida
+  var byNormFecha = {};   // norm|fkey -> true  (extracto)
+  var byFecha = {};       // fkey -> [{origenNorm, total}]  (mayor)
+  grupos.forEach(function(g) {
+    byNormFecha[g.norm + '|' + g.fkey] = true;
+    if (!byFecha[g.fkey]) byFecha[g.fkey] = [];
+    byFecha[g.fkey].push({ origenNorm: g.origenNorm || '', total: Math.abs(Math.round(g.total)) });
+  });
+
+  function refColIdx(head) { var c = _col(head, ['Referencia', 'Referencia ']); return c !== -1 ? c : 10; } // K = índice 10 (0-based)
+
+  var out = { extracto: 0, mayor: 0 };
+
+  // ── Extracto: marca filas cuyo Detalle+Fecha pertenece a un grupo dif-0 ──
+  var she = ss.getSheetByName('Extracto');
+  if (she && she.getLastRow() > 1) {
+    var ve = she.getRange(1, 1, she.getLastRow(), Math.max(11, she.getLastColumn())).getValues();
+    var he = ve[0]; var cDet = _col(he, ['Detalle','Descripción','Descripcion','Glosa','Movimiento']); var cFe = _col(he, ['Fecha','Date']); var cRef = refColIdx(he);
+    var updates = [];
+    for (var i = 1; i < ve.length; i++) {
+      var det = cDet !== -1 ? ve[i][cDet] : '';
+      if (!String(det || '').trim()) continue;
+      var actual = ve[i][cRef];
+      if (actual !== '' && actual != null) continue;                 // solo si K vacía
+      var key = _norm(det) + '|' + _fkey(cFe !== -1 ? ve[i][cFe] : '');
+      if (byNormFecha[key]) { updates.push(i + 1); }
+    }
+    updates.forEach(function(r){ she.getRange(r, cRef + 1).setValue(REF); });
+    out.extracto = updates.length;
+  }
+
+  // ── Mayor: marca filas del mismo tercero/fecha (o monto+fecha) de un grupo ──
+  var shm = ss.getSheetByName('Mayor');
+  if (shm && shm.getLastRow() > 1) {
+    var vm = shm.getRange(1, 1, shm.getLastRow(), Math.max(11, shm.getLastColumn())).getValues();
+    var hm = vm[0]; var cNota = _col(hm, ['Nota','Memo','Memo/Nota','Glosa','Nombre']); var cFm = _col(hm, ['Fecha','Date']);
+    var cMon = _col(hm, ['Monto','Importe','Valor']); var cDeb = _col(hm, ['Débito','Debito','Debit']); var cCre = _col(hm, ['Crédito','Credito','Credit']);
+    var cRefM = refColIdx(hm);
+    var ups = [];
+    for (var j = 1; j < vm.length; j++) {
+      var actualM = vm[j][cRefM];
+      if (actualM !== '' && actualM != null) continue;
+      var fk = _fkey(cFm !== -1 ? vm[j][cFm] : '');
+      var cands = byFecha[fk]; if (!cands) continue;                 // la fecha DEBE coincidir
+      var nota = _norm(cNota !== -1 ? vm[j][cNota] : '');
+      var monto = (cMon !== -1 && vm[j][cMon] !== '' && vm[j][cMon] != null) ? _montoCL(vm[j][cMon])
+                : ((cDeb !== -1 ? _montoCL(vm[j][cDeb]) : 0) - (cCre !== -1 ? _montoCL(vm[j][cCre]) : 0));
+      var am = Math.abs(Math.round(monto));
+      var hit = cands.some(function(c){
+        if (c.origenNorm && nota && (nota === c.origenNorm || nota.indexOf(c.origenNorm) === 0 || c.origenNorm.indexOf(nota) === 0)) return true;
+        return c.total && am === c.total;    // misma fecha + mismo monto
+      });
+      if (hit) ups.push(j + 1);
+    }
+    ups.forEach(function(r){ shm.getRange(r, cRefM + 1).setValue(REF); });
+    out.mayor = ups.length;
+  }
+  return JSON.stringify(out);
 }
 
 function writeAgrupadorSheet(payload) {

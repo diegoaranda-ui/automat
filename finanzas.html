@@ -1828,7 +1828,7 @@ function computeAgrupador(extracto, mayor) {
     if (!x.norm) return;
     var fk = fechaKey(x.fecha);
     var key = x.norm + '||' + fk;
-    if (!groups[key]) groups[key] = { detalle: x.detalle, fkey: fk, core: coreName(x.detalle), rut: rutOf(x.detalle), total: 0, n: 0, movs: [] };
+    if (!groups[key]) groups[key] = { detalle: x.detalle, norm: x.norm, fkey: fk, core: coreName(x.detalle), rut: rutOf(x.detalle), total: 0, n: 0, movs: [] };
     var g = groups[key];
     g.total += x.monto; g.n++; g.movs.push({ fecha: x.fecha, monto: Math.round(x.monto) });
   });
@@ -1856,7 +1856,7 @@ function computeAgrupador(extracto, mayor) {
     // monto (aunque la fecha no coincida) — solo como ayuda de revisión.
     var pista = '';
     if (!base) { var pm = mayorByMonto[Math.abs(g.total)] || []; if (pm.length) pista = pm.slice(0, 3).join(' · ') + (pm.length > 3 ? ' …' : ''); }
-    return { detalle: g.detalle, fecha: fechaFmt(g.fkey), n: g.n, total: g.total, base: base, estado: estado,
+    return { detalle: g.detalle, norm: g.norm, fkey: g.fkey, fecha: fechaFmt(g.fkey), n: g.n, total: g.total, base: base, estado: estado,
              origen: origen, mayorTotal: mayorTotal, dif: dif, candidatos: candidatos, pista: pista, movs: g.movs };
   });
   grupos.sort(function(a, b) { return (b.n - a.n) || (Math.abs(b.total) - Math.abs(a.total)); });
@@ -1901,9 +1901,11 @@ function analyzeAgrupador() {
   html += '<div class="summary-item ' + (R.nSin > 0 ? 'red' : '') + '"><div class="si-val">' + R.nSin + '</div><div class="si-lbl">Sin match (revisar)</div></div>';
   html += '</div>';
 
-  html += '<div style="display:flex;justify-content:flex-end;gap:8px;padding:0 14px 6px">';
+  var nDif0 = d.grupos.filter(function(g){ return g.estado === 'match' && g.dif === 0; }).length;
+  html += '<div style="display:flex;justify-content:flex-end;gap:8px;padding:0 14px 6px;flex-wrap:wrap">';
   html += '<button class="btn-secondary" id="btn-agrup-ia" onclick="mejorarCruceIA()">🤖 Mejorar cruce con IA</button>';
-  html += '<button class="btn-secondary" onclick="saveAgrupadorToSheet()">📊 Guardar en hoja Match</button></div>';
+  html += '<button class="btn-secondary" onclick="saveAgrupadorToSheet()">📊 Guardar en hoja Match</button>';
+  html += '<button class="btn-primary" id="btn-agrup-ref" onclick="marcarReferencia()"' + (nDif0 ? '' : ' disabled') + '>✍️ Rellenar referencia "diego" (' + nDif0 + ' con dif 0)</button></div>';
 
   html += '<div class="tbl-wrap"><table>';
   html += '<tr><th>Detalle (extracto)</th><th>Fecha</th><th style="text-align:right">N° transf.</th><th style="text-align:right">Total sumado</th><th>Origen (Nota Mayor)</th><th>Match por</th><th style="text-align:right">Dif. vs Mayor</th></tr>';
@@ -2040,6 +2042,37 @@ function mejorarCruceIA() {
       showToast('IA no disponible: ' + ((err && err.message) || err), 'error');
       if (btn) { btn.disabled = false; btn.textContent = '🤖 Mejorar cruce con IA'; }
     });
+}
+
+// "Agente" de referencia: escribe "diego" en la columna Referencia (K) del
+// papel de trabajo, en las filas (Extracto y Mayor) de los grupos con
+// diferencia 0. Respeta la fecha y solo rellena celdas vacías (lo hace el
+// servidor). Es una escritura en la planilla en vivo → pide confirmación.
+function marcarReferencia() {
+  var f = STATE.conciliacion.files.agrup;
+  if (!f || !f.agrup) { showToast('Primero haz el cruce', 'error'); return; }
+  if (!(window.google && google.script && google.script.run)) { showToast('Solo disponible en el Web App de Apps Script', 'error'); return; }
+  var dif0 = f.agrup.grupos.filter(function(g){ return g.estado === 'match' && g.dif === 0; });
+  if (!dif0.length) { showToast('No hay grupos con diferencia 0', 'info'); return; }
+  if (!confirm('Se escribirá "diego" en la columna Referencia (K) de las hojas Extracto y Mayor del papel de trabajo, solo en las ' + dif0.length + ' partidas con diferencia 0 y con la referencia vacía. ¿Continuar?')) return;
+
+  var payload = { grupos: dif0.map(function(g){
+    return { norm: g.norm, fkey: g.fkey, total: g.total, origenNorm: normDetalle(g.origen || '') };
+  }) };
+  var btn = document.getElementById('btn-agrup-ref');
+  if (btn) { btn.disabled = true; btn.textContent = '✍️ Escribiendo…'; }
+  showToast('Escribiendo referencias en el papel de trabajo…', 'info');
+  google.script.run
+    .withSuccessHandler(function(json) {
+      var res = {}; try { res = JSON.parse(json); } catch(e) {}
+      showToast('Referencia "diego" escrita — Extracto: ' + (res.extracto || 0) + ' · Mayor: ' + (res.mayor || 0), 'success');
+      if (btn) { btn.disabled = false; btn.textContent = '✍️ Rellenar referencia "diego"'; }
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error al escribir referencias: ' + ((e && e.message) || e), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✍️ Rellenar referencia "diego"'; }
+    })
+    .marcarReferenciaBancoIntl(JSON.stringify(payload));
 }
 
 // Detecta la fila de encabezados de una pestaña por columnas requeridas.
