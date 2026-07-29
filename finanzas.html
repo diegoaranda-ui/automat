@@ -1838,18 +1838,14 @@ function computeAgrupador(extracto, mayor) {
     g.total = Math.round(g.total);
     var base = '', origen = '', mayorTotal = null, candidatos = 0;
 
-    // 1) Por Nota (Detalle ≈ Nota, o RUT igual)
+    // Match determinista SOLO por Nota (Detalle ≈ Nota, o RUT igual) — el más
+    // confiable. El resto lo empareja la IA por nombre/tercero (mejorarCruceIA).
+    // El match por Fecha+Monto se retiró: generaba falsos por coincidencia de
+    // monto en fechas/terceros distintos.
     var nm = null;
     if (g.rut) nm = notas.filter(function(o){ return o.rut && o.rut === g.rut; })[0] || null;
     if (!nm && g.core && g.core.length >= 4) nm = notas.filter(function(o){ return mismaEntidad(g.core, o.core); })[0] || null;
-    if (nm) {
-      base = 'nota'; origen = nm.nota; mayorTotal = nm.total;
-    } else {
-      // 2) Por Fecha + Monto: misma fecha Y monto total del grupo = monto del Mayor
-      var cand = mayorByFechaMonto[g.fkey + '|' + Math.abs(g.total)] || [];
-      candidatos = cand.length;
-      if (cand.length) { base = 'fecha_monto'; origen = cand[0].nota || '(sin nota)'; mayorTotal = cand[0].monto; }
-    }
+    if (nm) { base = 'nota'; origen = nm.nota; mayorTotal = nm.total; }
     var estado = base ? 'match' : 'sin_match';
     var dif = (mayorTotal != null) ? Math.round(Math.abs(g.total) - Math.abs(mayorTotal)) : null;
     // Pista para las que quedaron sin match: notas del Mayor con el mismo
@@ -1896,8 +1892,7 @@ function analyzeAgrupador() {
   html += '<div class="summary-item"><div class="si-val">' + R.nGrupos + '</div><div class="si-lbl">Grupos (Detalle+Fecha)</div></div>';
   html += '<div class="summary-item amber"><div class="si-val">' + R.nMulti + '</div><div class="si-lbl">Con 2+ transferencias</div></div>';
   html += '<div class="summary-item green"><div class="si-val">' + R.nNota + '</div><div class="si-lbl">Match por Nota</div></div>';
-  html += '<div class="summary-item"><div class="si-val">' + R.nFechaMonto + '</div><div class="si-lbl">Match por Fecha+Monto</div></div>';
-  if (R.nIA) html += '<div class="summary-item" style="background:var(--red-l)"><div class="si-val">' + R.nIA + '</div><div class="si-lbl">🤖 Sugerido por IA</div></div>';
+  html += '<div class="summary-item" style="background:var(--red-l)"><div class="si-val">' + (R.nIA || 0) + '</div><div class="si-lbl">🤖 Match por IA (nombre)</div></div>';
   html += '<div class="summary-item ' + (R.nSin > 0 ? 'red' : '') + '"><div class="si-val">' + R.nSin + '</div><div class="si-lbl">Sin match (revisar)</div></div>';
   html += '</div>';
 
@@ -1931,6 +1926,13 @@ function analyzeAgrupador() {
   html += '</div>';
   r.innerHTML = html;
   r.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // La IA empareja SIEMPRE los que quedaron sin match (por nombre), una sola
+  // vez por análisis. Si no hay servidor o no quedan pendientes, no hace nada.
+  if (!d._iaRun && (window.google && google.script && google.script.run) &&
+      d.grupos.some(function(g){ return g.estado === 'sin_match'; })) {
+    mejorarCruceIA();
+  }
 }
 
 // Guarda el resultado del agrupador en la planilla de conciliaciones (pestaña
@@ -1998,26 +2000,33 @@ function mejorarCruceIA() {
   var f = STATE.conciliacion.files.agrup;
   if (!f || !f.agrup) { showToast('Primero haz el cruce', 'error'); return; }
   var d = f.agrup;
+  d._iaRun = true;   // evita re-disparo automático en el re-render
   var pendientes = d.grupos.filter(function(g){ return g.estado === 'sin_match'; });
   if (!pendientes.length) { showToast('No hay grupos sin match para mejorar', 'success'); return; }
   var notas = d.mayorNotas || [];
   if (!notas.length) { showToast('No hay Notas del Mayor para comparar', 'error'); return; }
 
-  // Compactar: grupos sin match (índice global + detalle + total) y notas únicas.
+  // Compactar: SOLO índice + detalle (extracto) y SOLO el texto de la Nota.
+  // Nada de montos: el match debe ser por NOMBRE/tercero, no por cifra.
   var idx = [];
   d.grupos.forEach(function(g, i){ if (g.estado === 'sin_match') idx.push(i); });
-  var gruposTxt = idx.map(function(i){ var g = d.grupos[i]; return i + '|' + g.detalle + '|' + g.total; }).join('\n');
-  var notasTxt = notas.slice(0, 600).map(function(o){ return o.nota + '|' + o.total; }).join('\n');
+  var gruposTxt = idx.map(function(i){ return i + '|' + d.grupos[i].detalle; }).join('\n');
+  var notasTxt = notas.slice(0, 600).map(function(o){ return o.nota; }).filter(Boolean).join('\n');
 
   var btn = document.getElementById('btn-agrup-ia');
   if (btn) { btn.disabled = true; btn.textContent = '🤖 Analizando…'; }
-  showToast('La IA está emparejando los movimientos sin origen…', 'info');
+  showToast('La IA está emparejando los movimientos sin origen (por nombre)…', 'info');
 
   var prompt = IA_MARCO + '\n\n' +
-    'Eres apoyo de conciliación bancaria de Kavak. El sistema agrupó el EXTRACTO por Detalle+Fecha y ya cuadró lo que pudo; quedan grupos SIN ORIGEN. Tu tarea: para cada grupo sin origen, indicar la NOTA del MAYOR que corresponde al MISMO tercero/beneficiario, aunque el nombre esté escrito distinto, abreviado, en otro orden o con el RUT. NO inventes montos ni modifiques cifras. Empareja SOLO cuando sea claramente la misma entidad; si dudas, no lo incluyas.\n\n' +
-    'GRUPOS SIN ORIGEN (indice|detalle|total):\n' + gruposTxt + '\n\n' +
-    'NOTAS DEL MAYOR (nota|total):\n' + notasTxt + '\n\n' +
-    'Responde ÚNICAMENTE JSON válido: {"matches":[{"i":<indice del grupo>,"nota":"<texto EXACTO de una Nota de la lista>","confianza":"alta|media"}]}';
+    'Eres apoyo de conciliación bancaria de Kavak. Tienes movimientos del EXTRACTO (cada uno "TRANSF. PARA <persona/empresa>" o similar) y una lista de NOTAS del MAYOR (nombres de terceros, a veces con RUT). Empareja cada movimiento del extracto con la Nota que corresponde al MISMO tercero/beneficiario.\n' +
+    'REGLAS ESTRICTAS:\n' +
+    '- Empareja SOLO por el NOMBRE de la persona o empresa. IGNORA por completo los montos (no se te dan a propósito).\n' +
+    '- Acepta variantes del mismo nombre: abreviado, en otro orden (nombres/apellidos), con o sin RUT, mayúsculas/tildes distintas, con/sin "SPA/LTDA".\n' +
+    '- Si el nombre del extracto NO aparece claramente entre las Notas, NO lo emparejes (déjalo fuera). Nunca fuerces un match por parecido de monto o por rellenar.\n' +
+    '- confianza "alta" = mismo nombre claramente; "media" = muy probable (abreviatura/orden distinto). No uses "baja".\n\n' +
+    'MOVIMIENTOS EXTRACTO (indice|detalle):\n' + gruposTxt + '\n\n' +
+    'NOTAS DEL MAYOR (una por línea, texto exacto):\n' + notasTxt + '\n\n' +
+    'Responde ÚNICAMENTE JSON válido: {"matches":[{"i":<indice>,"nota":"<texto EXACTO de una Nota de la lista>","confianza":"alta|media"}]}';
 
   callClaudeServer({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }] })
     .then(function(resp) {
