@@ -208,6 +208,77 @@ function writeIcarSheet(payload) {
 }
 
 /**
+ * Agrupador de transferencias sueltas: escribe (sobreescribe) la pestaña
+ * "Agrupador" en la planilla de conciliaciones con el extracto sumado por
+ * Detalle y su origen en el Mayor. Visuales Kavak + filtro nativo.
+ * payload: { analista, fecha, hora, extName, mayName, nExtracto, nMayor,
+ *   resumen:{nGrupos,nMulti,nDetalle,nMonto,nSin,totalExtracto},
+ *   grupos:[{detalle,n,total,origen,base,dif}] }
+ */
+function writeAgrupadorSheet(payload) {
+  var p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+  var ssId = PropertiesService.getScriptProperties().getProperty('CONCIL_SHEET_ID') || CONCIL_SHEET_ID;
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName('Agrupador');
+  if (!sh) sh = ss.insertSheet('Agrupador');
+  else {
+    sh.clearContents(); sh.clearFormats();
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+    sh.setConditionalFormatRules([]);
+    sh.getBandings().forEach(function(b){ b.remove(); });
+    if (sh.getFilter()) sh.getFilter().remove();
+  }
+  var NCOLS = 6;
+  function fmtM(v){ return (parseFloat(v) || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
+  function pad(a){ while (a.length < NCOLS) a.push(''); return a; }
+  var rows = [], marks = [];
+  function push(a, k){ rows.push(pad(a)); if (k) marks.push({ r: rows.length, kind: k }); }
+  var R = p.resumen || {};
+
+  push(['AGRUPADOR DE TRANSFERENCIAS SUELTAS — Conciliación  ·  Kavak Finanzas Chile'], 'title');
+  push(['Analista: ' + (p.analista || 'Anónimo'), 'Fecha: ' + (p.fecha || '') + ' ' + (p.hora || ''),
+        'Extracto: ' + (p.extName || '') + ' (' + (p.nExtracto || 0) + ')', 'Mayor: ' + (p.mayName || '') + ' (' + (p.nMayor || 0) + ')',
+        'Total extracto: ' + fmtM(R.totalExtracto), ''], 'meta');
+  push([]);
+  push(['RESUMEN'], 'sec-dark');
+  push(['Grupos por Detalle', 'Con 2+ transf.', 'Origen por Nota/nombre', 'Origen por monto ($0)', 'Sin origen', ''], 'colhead');
+  push([R.nGrupos || 0, R.nMulti || 0, R.nDetalle || 0, R.nMonto || 0, R.nSin || 0, ''], 'row-kpi');
+  push([]);
+
+  push(['DETALLE AGRUPADO — usa el filtro de la fila de títulos'], 'sec-red');
+  push(['Detalle (extracto)', 'N° transf.', 'Total sumado', 'Origen (Nota Mayor)', 'Match por', 'Dif. vs Mayor'], 'colhead');
+  var headRow = rows.length;
+  (p.grupos || []).forEach(function(g) {
+    var base = g.base === 'detalle' ? 'nota/nombre' : (g.base === 'monto' ? 'monto ($0)' : 'sin origen');
+    push([g.detalle || '', g.n || 0, Math.round(g.total || 0), g.origen || '—', base, (g.dif == null ? '' : Math.round(g.dif))], 'row-det');
+  });
+  var lastRow = rows.length;
+
+  sh.getRange(1, 1, rows.length, NCOLS).setValues(rows);
+  marks.forEach(function(mk) {
+    var Rg = sh.getRange(mk.r, 1, 1, NCOLS);
+    switch (mk.kind) {
+      case 'title': Rg.merge().setBackground('#000000').setFontColor('#ffffff').setFontWeight('bold').setFontSize(13).setVerticalAlignment('middle'); sh.setRowHeight(mk.r, 38); break;
+      case 'meta': Rg.setBackground('#f4f4f5').setFontColor('#3f3f46').setFontSize(10); break;
+      case 'sec-dark': Rg.merge().setBackground('#18181b').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11); sh.setRowHeight(mk.r, 28); break;
+      case 'sec-red': Rg.merge().setBackground('#dc1a23').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11); sh.setRowHeight(mk.r, 28); break;
+      case 'colhead': Rg.setBackground('#27272a').setFontColor('#e4e4e7').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center'); break;
+      case 'row-kpi': Rg.setFontWeight('bold').setFontSize(11).setHorizontalAlignment('center').setBackground('#e4e4e7'); break;
+      case 'row-det':
+        Rg.setFontSize(10);
+        sh.getRange(mk.r, 3, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right').setFontWeight('bold');
+        sh.getRange(mk.r, 2, 1, 1).setHorizontalAlignment('right');
+        sh.getRange(mk.r, 6, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
+    }
+  });
+  sh.setColumnWidth(1, 320); sh.setColumnWidth(2, 90); sh.setColumnWidth(3, 130);
+  sh.setColumnWidth(4, 240); sh.setColumnWidth(5, 110); sh.setColumnWidth(6, 120);
+  sh.setFrozenRows(1);
+  if (lastRow > headRow) sh.getRange(headRow, 1, lastRow - headRow + 1, NCOLS).createFilter();
+  return ss.getUrl() + '#gid=' + sh.getSheetId();
+}
+
+/**
  * Escribe (sobreescribe) la hoja "Provisiones" de la planilla de Control de
  * Provisiones con el resultado del análisis del módulo Provisiones.
  * Llamado desde finanzas.html.
