@@ -453,6 +453,34 @@ tr.prov-detail>td{padding:0 8px 8px}
                 <div class="empty-sub">Sube la cartola bancaria y los registros contables, luego presiona Conciliar.</div>
               </div>
             </div>
+
+            <!-- ── Agrupador de transferencias sueltas (Excel 2 hojas) ── -->
+            <div class="section-header" style="margin-top:22px">
+              <span class="section-title">🔗 Agrupador de transferencias sueltas</span>
+              <div class="section-line"></div>
+            </div>
+            <div style="font-size:11px;color:var(--n500);margin-bottom:8px;max-width:820px">
+              Sube UN Excel con dos hojas: <strong>Extracto</strong> (movimientos sueltos con columna "Detalle" y monto) y <strong>Mayor</strong> (con "Nombre"/"Nota", cuenta y monto). Agrupa las transferencias con el mismo Detalle, suma el total y lo cuadra por <strong>monto exacto</strong> contra el pago del Mayor para decirte a qué cuenta pertenece — así concilias de una los pagos que en el banco vienen partidos en varias transferencias.
+            </div>
+            <div class="upload-zone" id="zone-agrup" ondragover="onDragOver(event,'zone-agrup')" ondragleave="onDragLeave('zone-agrup')" ondrop="onDrop(event,'agrup-file-input','agrup')">
+              <input type="file" id="agrup-file-input" accept=".xlsx,.xls,.csv" onchange="handleFile('agrup',this)">
+              <div class="upload-icon">🔗</div>
+              <div class="upload-title">Excel Extracto + Mayor</div>
+              <div class="upload-sub">Dos hojas en un mismo archivo<br>Arrastra o haz clic</div>
+              <div class="upload-kbd">XLSX · XLS · CSV</div>
+            </div>
+            <div class="file-preview" id="prev-agrup">
+              <span id="prev-agrup-icon">🔗</span>
+              <div style="flex:1;min-width:0">
+                <div class="file-name" id="prev-agrup-name">—</div>
+                <div class="file-size" id="prev-agrup-size">—</div>
+              </div>
+              <button class="file-remove" onclick="removeFile('agrup')">✕</button>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin:10px 0">
+              <button class="btn-primary" id="btn-agrup" onclick="analyzeAgrupador()" disabled>🔗 Agrupar y cuadrar</button>
+            </div>
+            <div id="results-agrup"></div>
           </div>
         </div>
         <div class="action-bar">
@@ -693,21 +721,23 @@ function handleFile(key, input) {
 
   const proc = (key === 'provisiones') ? processProvisionesGL(file)
              : (key === 'icar') ? processIcarGL(file)
+             : (key === 'agrup') ? processConciliacionAgrupador(file)
              : processFile(file);
   proc.then(function(fd) {
     const mod = getModuleForKey(key);
-    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [], icar: fd.icar || null, filas: fd.filas || null, tokenIdx: fd.tokenIdx || null, ymdMin: fd.ymdMin || null, ymdMax: fd.ymdMax || null };
+    STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [], icar: fd.icar || null, filas: fd.filas || null, tokenIdx: fd.tokenIdx || null, ymdMin: fd.ymdMin || null, ymdMax: fd.ymdMax || null, agrup: fd.agrup || null };
     showFilePreview(key, file);
     if (key === 'provisiones') initProvRango(STATE[mod].files[key]);
     if (key === 'icar') initIcarRango(fd.icar);
-    updateAnalyzeButton(mod);
+    if (key === 'agrup') { const b = document.getElementById('btn-agrup'); if (b) b.disabled = false; }
+    else updateAnalyzeButton(mod);
   }).catch(function(err) {
     showToast('Error procesando archivo: ' + err.message, 'error');
   });
 }
 
 function getModuleForKey(key) {
-  if (key === 'cartola' || key === 'libro') return 'conciliacion';
+  if (key === 'cartola' || key === 'libro' || key === 'agrup') return 'conciliacion';
   return key;
 }
 
@@ -1371,7 +1401,12 @@ function removeFile(key) {
   if (prev) prev.classList.remove('show');
   const zone = document.getElementById('zone-' + key);
   if (zone) zone.classList.remove('has-file');
-  updateAnalyzeButton(mod);
+  if (key === 'agrup') {
+    const b = document.getElementById('btn-agrup'); if (b) b.disabled = true;
+    const ra = document.getElementById('results-agrup'); if (ra) ra.innerHTML = '';
+  } else {
+    updateAnalyzeButton(mod);
+  }
 }
 
 function updateAnalyzeButton(mod) {
@@ -1389,12 +1424,14 @@ function updateAnalyzeButton(mod) {
 function resetModule(mod) {
   if (mod === 'conciliacion') {
     STATE[mod].files = {};
-    ['cartola','libro'].forEach(function(k) {
+    ['cartola','libro','agrup'].forEach(function(k) {
       const prev = document.getElementById('prev-' + k);
       if (prev) prev.classList.remove('show');
       const z = document.getElementById('zone-' + k);
       if (z) z.classList.remove('has-file');
     });
+    const b = document.getElementById('btn-agrup'); if (b) b.disabled = true;
+    const ra = document.getElementById('results-agrup'); if (ra) ra.innerHTML = '';
   } else {
     STATE[mod].files = {};
     const prev = document.getElementById('prev-' + mod);
@@ -1564,6 +1601,263 @@ Responde ÚNICAMENTE con JSON válido:
   }).then(function(resp) {
     return extractJSON(resp);
   });
+}
+
+// ── CONCILIACION · AGRUPADOR DE TRANSFERENCIAS SUELTAS ──
+// Un mismo pago del Mayor aparece en el extracto partido en varias
+// transferencias con el mismo "Detalle". Este agrupador (100% determinista):
+//  1) agrupa las transferencias del extracto por Detalle normalizado y suma,
+//  2) cuadra ese total por MONTO EXACTO contra un movimiento del Mayor,
+//  3) usa Nombre/Nota del Mayor para decir a qué cuenta pertenece.
+
+// Normaliza el Detalle: mayúsculas, sin tildes, sin símbolos, y quita los
+// tokens puramente numéricos (números de transferencia/folio) para que las
+// transferencias del mismo pago caigan en el mismo grupo.
+function normDetalle(s) {
+  return String(s || '')
+    .toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Z0-9ÑÁÉÍÓÚ ]+/g, ' ')
+    .split(/\s+/).filter(function(t){ return t && !/^\d+$/.test(t); }).join(' ')
+    .trim();
+}
+// Parseo de monto es-CL: "1.234.567" / "-1.234,50" / número directo.
+function parseMontoCL(v) {
+  if (typeof v === 'number') return v;
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return 0;
+  var neg = /^\(.*\)$/.test(s) || /-/.test(s);
+  s = s.replace(/[^0-9.,]/g, '');
+  if (s.indexOf(',') !== -1) { s = s.replace(/\./g, '').replace(',', '.'); }  // coma decimal
+  else { s = s.replace(/\./g, ''); }                                          // punto = miles
+  var n = parseFloat(s) || 0;
+  return neg ? -Math.abs(n) : n;
+}
+// Busca el índice de una columna por lista de nombres (exacto, luego contiene).
+function colIdx(head, names) {
+  for (var n = 0; n < names.length; n++) {
+    var b = names[n].toLowerCase();
+    var i = head.findIndex(function(h){ return String(h || '').toLowerCase().trim() === b; });
+    if (i !== -1) return i;
+  }
+  for (var n2 = 0; n2 < names.length; n2++) {
+    var b2 = names[n2].toLowerCase();
+    var j = head.findIndex(function(h){ return String(h || '').toLowerCase().indexOf(b2) !== -1 && String(h || '') !== ''; });
+    if (j !== -1) return j;
+  }
+  return -1;
+}
+
+function processConciliacionAgrupador(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var wb = XLSX.read(e.target.result, { type: 'binary' });
+        var names = wb.SheetNames;
+
+        // Localiza la fila de encabezados de una hoja: la primera (de las 25
+        // superiores) que contenga alguno de los nombres buscados.
+        function findHead(grid, req) {
+          for (var i = 0; i < Math.min(grid.length, 25); i++) {
+            var row = (grid[i] || []).map(function(c){ return String(c || '').trim(); });
+            if (colIdx(row, req) !== -1) return i;
+          }
+          return -1;
+        }
+        function grid(name) { return XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, raw: true }); }
+
+        var DET = ['Detalle', 'Descripción', 'Descripcion', 'Glosa', 'Movimiento', 'Concepto'];
+        var MONTO = ['Monto', 'Importe', 'Valor', 'Cargo', 'Abono', 'Débito', 'Debito', 'Crédito', 'Credito'];
+        var NOMBRE = ['Nombre', 'Name', 'Razón social', 'Razon social', 'Proveedor', 'Beneficiario'];
+        var NOTA = ['Nota', 'Memo', 'Memo/Nota', 'Glosa', 'Detalle', 'Descripción'];
+        var CUENTA = ['Cuenta', 'Account', 'Código', 'Codigo', 'N° cuenta', 'Nro cuenta'];
+
+        // Elige hoja Extracto (tiene Detalle) y Mayor (tiene Nombre o Nota),
+        // priorizando el nombre de la pestaña.
+        var extName = null, mayName = null;
+        names.forEach(function(nm) {
+          var low = nm.toLowerCase();
+          if (!extName && (low.indexOf('extracto') !== -1 || low.indexOf('cartola') !== -1 || low.indexOf('banco') !== -1)) extName = nm;
+          if (!mayName && (low.indexOf('mayor') !== -1 || low.indexOf('libro') !== -1)) mayName = nm;
+        });
+        // Fallback por contenido
+        names.forEach(function(nm) {
+          if (extName && mayName) return;
+          var g = grid(nm); var hi = findHead(g, DET.concat(NOMBRE));
+          if (hi === -1) return;
+          var h = g[hi].map(function(c){ return String(c || '').trim(); });
+          var tieneDet = colIdx(h, DET) !== -1;
+          var tieneNombre = colIdx(h, NOMBRE) !== -1 || colIdx(h, ['Nota']) !== -1;
+          if (!extName && tieneDet && !tieneNombre) extName = nm;
+          if (!mayName && tieneNombre) mayName = nm;
+        });
+        if (!extName || !mayName) {
+          throw new Error('No pude identificar las dos hojas. Necesito una hoja "Extracto" (con columna Detalle) y otra "Mayor" (con Nombre/Nota). Renombra las pestañas o revisa los encabezados.');
+        }
+
+        // ── Extracto ──
+        var ge = grid(extName); var hie = findHead(ge, DET);
+        if (hie === -1) throw new Error('La hoja de Extracto no tiene una columna "Detalle" reconocible.');
+        var he = ge[hie].map(function(c){ return String(c || '').trim(); });
+        var eDet = colIdx(he, DET);
+        var eMonto = colIdx(he, ['Monto', 'Importe', 'Valor']);
+        var eAbono = colIdx(he, ['Abono', 'Crédito', 'Credito', 'Depósito', 'Deposito']);
+        var eCargo = colIdx(he, ['Cargo', 'Débito', 'Debito', 'Giro']);
+        var eFecha = colIdx(he, ['Fecha', 'Date']);
+        function montoExtracto(row) {
+          if (eMonto !== -1 && row[eMonto] !== undefined && row[eMonto] !== '') return parseMontoCL(row[eMonto]);
+          var ab = eAbono !== -1 ? parseMontoCL(row[eAbono]) : 0;
+          var ca = eCargo !== -1 ? parseMontoCL(row[eCargo]) : 0;
+          return ab - ca;
+        }
+        var extracto = [];
+        for (var i = hie + 1; i < ge.length; i++) {
+          var r = ge[i] || [];
+          var det = String(r[eDet] || '').trim();
+          if (!det) continue;
+          var m = montoExtracto(r);
+          if (!m) continue;
+          extracto.push({ detalle: det, norm: normDetalle(det), monto: m, fecha: eFecha !== -1 ? String(r[eFecha] || '') : '' });
+        }
+
+        // ── Mayor ──
+        var gm = grid(mayName); var him = findHead(gm, NOMBRE.concat(['Nota']));
+        if (him === -1) throw new Error('La hoja de Mayor no tiene columnas "Nombre"/"Nota" reconocibles.');
+        var hm = gm[him].map(function(c){ return String(c || '').trim(); });
+        var mNombre = colIdx(hm, NOMBRE);
+        var mNota = colIdx(hm, ['Nota', 'Memo', 'Memo/Nota', 'Glosa']);
+        var mMonto = colIdx(hm, ['Monto', 'Importe', 'Valor', 'Débito', 'Debito', 'Crédito', 'Credito']);
+        var mDeb = colIdx(hm, ['Débito', 'Debito', 'Debit']);
+        var mCre = colIdx(hm, ['Crédito', 'Credito', 'Credit']);
+        var mCuenta = colIdx(hm, CUENTA);
+        function montoMayor(row) {
+          if (mMonto !== -1 && row[mMonto] !== undefined && row[mMonto] !== '') return parseMontoCL(row[mMonto]);
+          var d = mDeb !== -1 ? parseMontoCL(row[mDeb]) : 0;
+          var c = mCre !== -1 ? parseMontoCL(row[mCre]) : 0;
+          return d - c;
+        }
+        var mayor = [];
+        for (var j = him + 1; j < gm.length; j++) {
+          var rm = gm[j] || [];
+          var nom = String(rm[mNombre] !== undefined ? rm[mNombre] : '').trim();
+          var nota = String(rm[mNota] !== undefined ? rm[mNota] : '').trim();
+          var mm = montoMayor(rm);
+          if (!nom && !nota && !mm) continue;
+          if (!mm) continue;
+          mayor.push({ nombre: nom, nota: nota, cuenta: mCuenta !== -1 ? String(rm[mCuenta] || '').trim() : '', monto: mm });
+        }
+        if (!extracto.length) throw new Error('No se encontraron movimientos en la hoja de Extracto.');
+
+        var res = computeAgrupador(extracto, mayor);
+        res.extName = extName; res.mayName = mayName;
+        res.nExtracto = extracto.length; res.nMayor = mayor.length;
+        resolve({ agrup: res });
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
+// Agrupa el extracto por Detalle normalizado y cuadra por monto exacto vs Mayor.
+function computeAgrupador(extracto, mayor) {
+  // Índice del Mayor por monto absoluto (redondeado a peso) → candidatos
+  var mayorByAmt = {};
+  mayor.forEach(function(m) {
+    var k = String(Math.round(Math.abs(m.monto)));
+    if (!mayorByAmt[k]) mayorByAmt[k] = [];
+    mayorByAmt[k].push(m);
+  });
+  // Agrupar extracto por Detalle normalizado
+  var groups = {};
+  extracto.forEach(function(x) {
+    if (!x.norm) return;
+    if (!groups[x.norm]) groups[x.norm] = { norm: x.norm, detalle: x.detalle, total: 0, n: 0, movs: [] };
+    var g = groups[x.norm];
+    g.total += x.monto; g.n++; g.movs.push({ fecha: x.fecha, monto: Math.round(x.monto) });
+  });
+
+  function overlap(a, b) {
+    var A = a.split(' '), setB = ' ' + b + ' ', c = 0;
+    A.forEach(function(t){ if (t.length >= 3 && setB.indexOf(' ' + t + ' ') !== -1) c++; });
+    return c;
+  }
+
+  var grupos = Object.keys(groups).map(function(k) {
+    var g = groups[k];
+    g.total = Math.round(g.total);
+    var cand = mayorByAmt[String(Math.abs(g.total))] || [];
+    var estado, cuenta = '', nombre = '', nota = '';
+    if (cand.length === 0) {
+      estado = 'sin_match';
+    } else {
+      // Desempate por parecido de texto Detalle ≈ Nombre/Nota
+      var best = cand[0], bestScore = -1;
+      cand.forEach(function(m) {
+        var sc = overlap(g.norm, normDetalle(m.nombre + ' ' + m.nota));
+        if (sc > bestScore) { bestScore = sc; best = m; }
+      });
+      estado = (cand.length === 1) ? 'match' : (bestScore > 0 ? 'match' : 'multiple');
+      cuenta = best.cuenta; nombre = best.nombre; nota = best.nota;
+    }
+    return { detalle: g.detalle, n: g.n, total: g.total, estado: estado,
+             cuenta: cuenta, nombre: nombre, nota: nota, candidatos: cand.length, movs: g.movs };
+  });
+  // Orden: primero los de varias transferencias, luego por monto
+  grupos.sort(function(a, b) { return (b.n - a.n) || (Math.abs(b.total) - Math.abs(a.total)); });
+
+  var multi = grupos.filter(function(g){ return g.n >= 2; });
+  var matched = grupos.filter(function(g){ return g.estado === 'match'; });
+  var sinMatch = grupos.filter(function(g){ return g.estado === 'sin_match'; });
+  return {
+    grupos: grupos,
+    resumen: {
+      nGrupos: grupos.length, nMulti: multi.length,
+      nMatch: matched.length, nSin: sinMatch.length,
+      montoMatch: matched.reduce(function(a, g){ return a + Math.abs(g.total); }, 0)
+    }
+  };
+}
+
+function analyzeAgrupador() {
+  var f = STATE.conciliacion.files.agrup;
+  if (!f || !f.agrup) { showToast('Primero sube el Excel (Extracto + Mayor)', 'error'); return; }
+  var d = f.agrup;
+  var r = document.getElementById('results-agrup');
+  var R = d.resumen;
+
+  var html = '<div class="card result-section" style="margin-top:10px">';
+  html += '<div class="card-header"><div class="card-icon" style="background:var(--green-l)">🔗</div>';
+  html += '<div><div class="card-title">Transferencias agrupadas por Detalle</div>';
+  html += '<div style="font-size:10px;color:var(--n500)">Hoja extracto: ' + esc(d.extName) + ' · Hoja mayor: ' + esc(d.mayName) + ' · ' + d.nExtracto + ' movimientos, ' + d.nMayor + ' del mayor</div></div></div>';
+
+  html += '<div class="summary-row" style="padding:10px 14px">';
+  html += '<div class="summary-item"><div class="si-val">' + R.nGrupos + '</div><div class="si-lbl">Grupos por Detalle</div></div>';
+  html += '<div class="summary-item amber"><div class="si-val">' + R.nMulti + '</div><div class="si-lbl">Con 2+ transferencias</div></div>';
+  html += '<div class="summary-item green"><div class="si-val">' + R.nMatch + '</div><div class="si-lbl">Cuadran con el Mayor</div></div>';
+  html += '<div class="summary-item ' + (R.nSin > 0 ? 'red' : '') + '"><div class="si-val">' + R.nSin + '</div><div class="si-lbl">Sin match (revisar)</div></div>';
+  html += '</div>';
+
+  html += '<div class="tbl-wrap"><table>';
+  html += '<tr><th>Detalle</th><th style="text-align:right">N° transf.</th><th style="text-align:right">Total</th><th>Estado</th><th>Cuenta</th><th>Nombre / Nota (Mayor)</th></tr>';
+  d.grupos.forEach(function(g) {
+    var badge = g.estado === 'match' ? '<span class="badge b-green">cuadra</span>'
+              : g.estado === 'multiple' ? '<span class="badge b-amber">varios candidatos</span>'
+              : '<span class="badge b-red">sin match</span>';
+    html += '<tr' + (g.n >= 2 ? ' class="row-amber"' : '') + '>';
+    html += '<td style="font-weight:600;max-width:340px">' + esc(g.detalle) + '</td>';
+    html += '<td style="text-align:right;font-weight:700">' + g.n + '</td>';
+    html += '<td style="text-align:right;font-family:var(--mono);font-weight:700">' + fmtMoney(g.total) + '</td>';
+    html += '<td>' + badge + '</td>';
+    html += '<td style="font-family:var(--mono)">' + esc(g.cuenta || '—') + '</td>';
+    html += '<td style="font-size:11px">' + esc((g.nombre || g.nota || '—')) + (g.candidatos > 1 ? ' <span style="color:var(--n400)">(' + g.candidatos + ' posibles)</span>' : '') + '</td>';
+    html += '</tr>';
+  });
+  html += '</table></div>';
+  html += '<div style="padding:8px 14px;font-size:10px;color:var(--n400)">Filas ámbar = pagos partidos en 2+ transferencias. "Cuadra" = la suma del grupo coincide exacta con un movimiento del Mayor. "Sin match" = revisa manualmente (monto no encontrado en el Mayor o pagos distintos agrupados).</div>';
+  html += '</div>';
+  r.innerHTML = html;
+  r.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // ── PROVISIONES ──
