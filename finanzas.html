@@ -2006,27 +2006,21 @@ function mejorarCruceIA() {
   var notas = d.mayorNotas || [];
   if (!notas.length) { showToast('No hay Notas del Mayor para comparar', 'error'); return; }
 
-  // Compactar: SOLO índice + detalle (extracto) y SOLO el texto de la Nota.
-  // Nada de montos: el match debe ser por NOMBRE/tercero, no por cifra.
+  // Compactar: grupos sin match (índice global + detalle + total) y notas únicas.
   var idx = [];
   d.grupos.forEach(function(g, i){ if (g.estado === 'sin_match') idx.push(i); });
-  var gruposTxt = idx.map(function(i){ return i + '|' + d.grupos[i].detalle; }).join('\n');
-  var notasTxt = notas.slice(0, 600).map(function(o){ return o.nota; }).filter(Boolean).join('\n');
+  var gruposTxt = idx.map(function(i){ var g = d.grupos[i]; return i + '|' + g.detalle + '|' + g.total; }).join('\n');
+  var notasTxt = notas.slice(0, 600).map(function(o){ return o.nota + '|' + o.total; }).join('\n');
 
   var btn = document.getElementById('btn-agrup-ia');
   if (btn) { btn.disabled = true; btn.textContent = '🤖 Analizando…'; }
-  showToast('La IA está emparejando los movimientos sin origen (por nombre)…', 'info');
+  showToast('La IA está emparejando los movimientos sin origen…', 'info');
 
   var prompt = IA_MARCO + '\n\n' +
-    'Eres apoyo de conciliación bancaria de Kavak. Tienes movimientos del EXTRACTO (cada uno "TRANSF. PARA <persona/empresa>" o similar) y una lista de NOTAS del MAYOR (nombres de terceros, a veces con RUT). Empareja cada movimiento del extracto con la Nota que corresponde al MISMO tercero/beneficiario.\n' +
-    'REGLAS ESTRICTAS:\n' +
-    '- Empareja SOLO por el NOMBRE de la persona o empresa. IGNORA por completo los montos (no se te dan a propósito).\n' +
-    '- Acepta variantes del mismo nombre: abreviado, en otro orden (nombres/apellidos), con o sin RUT, mayúsculas/tildes distintas, con/sin "SPA/LTDA".\n' +
-    '- Si el nombre del extracto NO aparece claramente entre las Notas, NO lo emparejes (déjalo fuera). Nunca fuerces un match por parecido de monto o por rellenar.\n' +
-    '- confianza "alta" = mismo nombre claramente; "media" = muy probable (abreviatura/orden distinto). No uses "baja".\n\n' +
-    'MOVIMIENTOS EXTRACTO (indice|detalle):\n' + gruposTxt + '\n\n' +
-    'NOTAS DEL MAYOR (una por línea, texto exacto):\n' + notasTxt + '\n\n' +
-    'Responde ÚNICAMENTE JSON válido: {"matches":[{"i":<indice>,"nota":"<texto EXACTO de una Nota de la lista>","confianza":"alta|media"}]}';
+    'Eres apoyo de conciliación bancaria de Kavak. El sistema agrupó el EXTRACTO por Detalle+Fecha y ya cuadró lo que pudo; quedan grupos SIN ORIGEN. Tu tarea: para cada grupo sin origen, indicar la NOTA del MAYOR que corresponde al MISMO tercero/beneficiario, aunque el nombre esté escrito distinto, abreviado, en otro orden o con el RUT. NO inventes montos ni modifiques cifras. Empareja SOLO cuando sea claramente la misma entidad; si dudas, no lo incluyas.\n\n' +
+    'GRUPOS SIN ORIGEN (indice|detalle|total):\n' + gruposTxt + '\n\n' +
+    'NOTAS DEL MAYOR (nota|total):\n' + notasTxt + '\n\n' +
+    'Responde ÚNICAMENTE JSON válido: {"matches":[{"i":<indice del grupo>,"nota":"<texto EXACTO de una Nota de la lista>","confianza":"alta|media"}]}';
 
   callClaudeServer({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }] })
     .then(function(resp) {
