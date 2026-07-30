@@ -466,7 +466,20 @@ tr.prov-detail>td{padding:0 8px 8px}
                 </div>
               </div>
             </div>
-            <div style="display:flex;justify-content:flex-end;margin:12px 0">
+            <div class="no-print" style="display:flex;gap:12px;margin:10px 0 4px;flex-wrap:wrap;align-items:flex-end">
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Desde (fecha)
+                <input type="date" id="ref-desde" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px">
+                Hasta (fecha)
+                <input type="date" id="ref-hasta" style="padding:8px 10px;border:1px solid var(--n200);border-radius:8px;font-family:inherit;font-size:12px;background:#fff">
+              </label>
+              <div style="flex:1;min-width:220px;font-size:11px;color:var(--n400);padding-bottom:6px">
+                Solo se rellenan los cruces (dif $0) cuya fecha caiga en el rango — conciliación a semana vencida. Déjalo vacío para todos.
+              </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin:8px 0 12px">
               <button class="btn-primary" id="btn-ref-fill" onclick="marcarReferencia()" disabled>✍️ Rellenar referencia "diego" en el papel de trabajo</button>
             </div>
             <div id="results-ref"></div>
@@ -1424,6 +1437,7 @@ function resetModule(mod) {
     const bf = document.getElementById('btn-ref-fill'); if (bf) bf.disabled = true;
     const rr = document.getElementById('results-ref'); if (rr) rr.innerHTML = '';
     const up = document.getElementById('ref-papel-url'); if (up) up.value = '';
+    ['ref-desde','ref-hasta'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
     return showEmptyState(mod);
   } else {
     STATE[mod].files = {};
@@ -2006,9 +2020,23 @@ function marcarReferencia() {
   var urlEl = document.getElementById('ref-papel-url');
   var sheetUrl = urlEl ? urlEl.value.trim() : '';
   if (!sheetUrl) { showToast('Pega la URL o ID de la hoja de trabajo (parte 1)', 'error'); return; }
-  if (!confirm('Se escribirá "diego" en la columna Referencia (K) de las hojas Extracto y Mayor de la HOJA DE TRABAJO, solo en las ' + REF_DIF0.length + ' partidas con diferencia $0 y con la referencia vacía. ¿Continuar?')) return;
 
-  var payload = { sheetId: sheetUrl, grupos: REF_DIF0.map(function(g){
+  // Filtro por rango de fecha (semana vencida). Vacío = todos.
+  var yd = inputToYmd((document.getElementById('ref-desde') || {}).value);
+  var yh = inputToYmd((document.getElementById('ref-hasta') || {}).value);
+  if (yd && yh && yd > yh) { var t = yd; yd = yh; yh = t; }
+  var seleccion = REF_DIF0.filter(function(g){
+    var k = fechaKey(g.fecha);
+    if (typeof k !== 'number') return (!yd && !yh);   // sin fecha legible: solo si no hay rango
+    if (yd && k < yd) return false;
+    if (yh && k > yh) return false;
+    return true;
+  });
+  if (!seleccion.length) { showToast('Ningún cruce dif $0 cae en ese rango de fechas', 'info'); return; }
+  var rangoTxt = (yd || yh) ? (' (rango ' + (document.getElementById('ref-desde').value || '…') + ' → ' + (document.getElementById('ref-hasta').value || '…') + ')') : '';
+  if (!confirm('Se escribirá "diego" en la columna Referencia (K) de las hojas Extracto y Mayor de la HOJA DE TRABAJO, solo en las ' + seleccion.length + ' partidas con diferencia $0' + rangoTxt + ' y con la referencia vacía. ¿Continuar?')) return;
+
+  var payload = { sheetId: sheetUrl, grupos: seleccion.map(function(g){
     return { norm: normDetalle(g.detalle), fkey: fechaKey(g.fecha), total: g.total, origenNorm: normDetalle(g.origen || '') };
   }) };
   var btn = document.getElementById('btn-ref-fill');
