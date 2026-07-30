@@ -278,7 +278,7 @@ function marcarReferenciaBancoIntl(payload) {
   // Papel de trabajo final: el que venga en el payload (URL/ID pegada por el
   // analista) o el default PAPEL_FINAL_SHEET_ID.
   var ss = SpreadsheetApp.openById(p.sheetId ? sheetIdFrom_(p.sheetId) : papelFinalId_());
-  var REF = 'diego';
+  var REF = (p.referencia && String(p.referencia).trim()) || 'diego';
 
   // Índices para búsqueda rápida
   var byNormFecha = {};   // norm|fkey -> true  (extracto)
