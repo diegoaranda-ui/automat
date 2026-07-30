@@ -49,11 +49,12 @@ No build step. Deploy manually:
 
 | Constant in `Codigo.gs` | Spreadsheet | Written by |
 |---|---|---|
-| `CONCIL_SHEET_ID` (override: `CONCIL_SHEET_ID` property) | Papel de trabajo de conciliaciones — `Desglose` tab | `writeConciliacionDesglose(payload)` after each conciliación analysis (overwrite) |
-| `PROVISIONES_SHEET_ID` (override: `PROVISIONES_SHEET_ID` property) | Control Provisiones — `Provisiones` + `Dashboard` tabs | `writeProvisionesSheet(payload)` / `writeProvisionesDashboard_(payload)` after each provisiones analysis (overwrite) |
-| `ICAR_SHEET_ID` (override: `ICAR_SHEET_ID` property) | Team's own "2801-01 Impuesto transferencia" workbook — `Análisis ICAR` tab | `writeIcarSheet(payload)` after each ICAR analysis (overwrite; no other tab is touched) |
+| `CONCIL_SHEET_ID` = "Conciliador_Unico_CL" (override property) | Conciliador Banco Internacional — hojas `Extracto`/`Mayor` (pegadas por el analista) + `Match` (salida del agrupador) | `leerConciliadorBanco()` lee Extracto/Mayor; `writeAgrupadorSheet(payload)` escribe `Match` |
+| `PAPEL_FINAL_SHEET_ID` (override property) | Papel de trabajo final 1101-05 — hojas `Extracto`/`Mayor`, columna K `Referencia` | `marcarReferenciaBancoIntl(payload)` escribe "diego" en K de los cruces con diferencia $0 (respeta fecha, no pisa; devuelve log) |
+| `PROVISIONES_SHEET_ID` (override property) | Control Provisiones — `Provisiones` + `Dashboard` tabs | `writeProvisionesSheet` / `writeProvisionesDashboard_` |
+| `ICAR_SHEET_ID` (override property) | Team's own "2801-01 Impuesto transferencia" workbook — `Análisis ICAR` tab | `writeIcarSheet(payload)` (overwrite; no other tab touched) |
 
-`setupDesgloseTemplate()` is a one-time formatter run from the editor. Sheet writers rebuild content from scratch each run (see next section).
+Sheet writers rebuild content from scratch each run (see next section). **Conciliación Bancaria = solo el Agrupador** (se retiró el flujo cartola+libro por visión IA en jul 2026).
 
 Sheet writers rebuild content with `clearContents()+clearFormats()` then `setValues` on a uniform-width rows array (`pad()` to `REAL_COLS`) followed by explicit format ranges — when editing, recompute the row-offset arithmetic (title/metadata/section headers) by hand and keep every pushed row the same width.
 
