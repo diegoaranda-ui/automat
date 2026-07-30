@@ -1817,32 +1817,18 @@ function analyzeAgrupador() {
   html += '<div class="summary-item ' + (R.nSin > 0 ? 'red' : '') + '"><div class="si-val">' + R.nSin + '</div><div class="si-lbl">Sin match (revisar)</div></div>';
   html += '</div>';
 
-  html += '<div style="display:flex;justify-content:flex-end;gap:8px;padding:0 14px 6px;flex-wrap:wrap">';
+  // Estado / progreso (spinner durante el cruce IA, link a la sheet al terminar)
+  html += '<div id="agrup-status" style="padding:14px;display:flex;align-items:center;gap:12px;justify-content:center;min-height:60px"></div>';
+
+  html += '<div style="display:flex;justify-content:flex-end;gap:8px;padding:0 14px 10px;flex-wrap:wrap">';
   html += '<button class="btn-secondary" id="btn-agrup-ia" onclick="cruzarConIA()">🤖 Reprocesar cruce con IA</button>';
   html += '<button class="btn-secondary" onclick="saveAgrupadorToSheet()">📊 Guardar en hoja Match</button></div>';
-
-  html += '<div class="tbl-wrap"><table>';
-  html += '<tr><th>Detalle (extracto)</th><th>Fecha</th><th style="text-align:right">N° transf.</th><th style="text-align:right">Total sumado</th><th>Origen (Nota Mayor)</th><th>Match por</th><th style="text-align:right">Dif. vs Mayor</th></tr>';
-  d.grupos.forEach(function(g) {
-    var base = g.base === 'ia' ? '<span class="badge b-green">🤖 IA' + (g.confianza ? ' ' + esc(g.confianza) : '') + '</span>'
-             : '<span class="badge b-red">sin match</span>';
-    html += '<tr' + (g.n >= 2 ? ' class="row-amber"' : '') + '>';
-    html += '<td style="font-weight:600;max-width:300px">' + esc(g.detalle) + '</td>';
-    html += '<td style="font-family:var(--mono);font-size:11px">' + esc(g.fecha || '—') + '</td>';
-    html += '<td style="text-align:right;font-weight:700">' + g.n + '</td>';
-    html += '<td style="text-align:right;font-family:var(--mono);font-weight:700;white-space:nowrap">' + fmtMoney(g.total) + ' <button class="copy-btn" style="font-size:12px" onclick="copyText(\'' + esc(String(g.total)) + '\')" title="Copiar monto">📋</button></td>';
-    var origenCell = g.origen ? (esc(g.origen) + (g.candidatos > 1 ? ' <span style="color:var(--n400)">(' + g.candidatos + ' posibles)</span>' : ''))
-                   : (g.pista ? '<span style="color:var(--n400)">posible por monto: ' + esc(g.pista) + '</span>' : '—');
-    html += '<td style="font-size:11px">' + origenCell + '</td>';
-    html += '<td>' + base + '</td>';
-    html += '<td style="text-align:right;font-family:var(--mono);font-size:11px' + (g.dif !== null && g.dif !== 0 ? ';color:var(--amber)' : '') + '">' + (g.dif === null ? '—' : fmtMoney(g.dif)) + '</td>';
-    html += '</tr>';
-  });
-  html += '</table></div>';
-  html += '<div style="padding:8px 14px;font-size:10px;color:var(--n400)">Agrupado por Detalle + Fecha; el cruce contra el Mayor lo hace la IA por nombre/tercero (por lotes). Filas ámbar = pagos partidos en 2+ transferencias. El rellenado de referencias se hace en el apartado de abajo.</div>';
   html += '</div>';
 
   r.innerHTML = html;
+  // El detalle NO se muestra en el front (mucho volumen): el resultado queda
+  // en la hoja "Match". Aquí solo KPIs + estado.
+  setAgrupStatus(d._iaRun ? (d._matchUrl ? 'saved' : 'idle') : 'pending');
   r.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   // Cruce completo por IA (por lotes), automático al cargar — una sola vez.
@@ -1852,9 +1838,27 @@ function analyzeAgrupador() {
   }
 }
 
+// Pinta el estado del apartado de cruce (sin tabla de movimientos).
+function setAgrupStatus(kind, extra) {
+  var el = document.getElementById('agrup-status'); if (!el) return;
+  var d = (STATE.conciliacion.files.agrup || {}).agrup || {};
+  if (kind === 'running') {
+    el.innerHTML = '<div class="spinner"></div><div style="font-size:13px;font-weight:600;color:var(--n600)">🤖 Cruzando con IA por lotes… ' + esc(extra || '') + '</div>';
+  } else if (kind === 'saving') {
+    el.innerHTML = '<div class="spinner"></div><div style="font-size:13px;font-weight:600;color:var(--n600)">Guardando el resultado en la hoja Match…</div>';
+  } else if (kind === 'saved') {
+    el.innerHTML = '<div style="font-size:22px">✅</div><div style="font-size:13px;font-weight:700;color:var(--green-d)">Cruce listo — resultado en la hoja "Match"</div>' +
+      (d._matchUrl ? '<a href="' + d._matchUrl + '" target="_blank" style="font-size:12px;font-weight:700;color:#007a4a;text-decoration:none;padding:6px 12px;background:#fff;border:1px solid #b3e8d3;border-radius:8px">Abrir Sheets →</a>' : '');
+  } else if (kind === 'pending') {
+    el.innerHTML = '<div class="spinner"></div><div style="font-size:13px;color:var(--n500)">Preparando cruce con IA…</div>';
+  } else {
+    el.innerHTML = '<div style="font-size:12px;color:var(--n400)">El detalle no se muestra aquí; usa "Guardar en hoja Match" para ver el resultado en la planilla.</div>';
+  }
+}
+
 // Guarda el resultado del agrupador en la planilla de conciliaciones (pestaña
 // "Agrupador"), con los visuales Kavak, vía el writer del servidor.
-function saveAgrupadorToSheet() {
+function saveAgrupadorToSheet(silent) {
   var f = STATE.conciliacion.files.agrup;
   if (!f || !f.agrup) { showToast('Primero agrupa un Excel', 'error'); return; }
   if (!(window.google && google.script && google.script.run)) { showToast('Solo disponible en el Web App de Apps Script', 'error'); return; }
@@ -1865,13 +1869,15 @@ function saveAgrupadorToSheet() {
     hora: now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
     extName: d.extName, mayName: d.mayName, nExtracto: d.nExtracto, nMayor: d.nMayor,
     resumen: d.resumen,
-    grupos: d.grupos.slice(0, 500).map(function(g){
+    grupos: d.grupos.slice(0, 5000).map(function(g){
       return { detalle: g.detalle, fecha: g.fecha, n: g.n, total: g.total, origen: g.origen, base: g.base, dif: g.dif, pista: g.pista, confianza: g.confianza || '' };
     })
   };
-  showToast('Escribiendo en la planilla de conciliaciones…', 'info');
+  if (silent) setAgrupStatus('saving'); else showToast('Escribiendo en la hoja Match…', 'info');
   google.script.run
     .withSuccessHandler(function(url) {
+      d._matchUrl = url;
+      if (silent) { setAgrupStatus('saved'); showToast('Resultado guardado en la hoja Match ✓', 'success'); return; }
       var r = document.getElementById('results-agrup');
       if (r) {
         var old = r.querySelector('.desglose-link-bar'); if (old) old.remove();
@@ -1884,7 +1890,7 @@ function saveAgrupadorToSheet() {
       }
       showToast('Agrupador guardado en Sheets ✓', 'success');
     })
-    .withFailureHandler(function(e) { showToast('Error al escribir en Sheets: ' + e.message, 'error'); })
+    .withFailureHandler(function(e) { if (silent) setAgrupStatus('saved'); showToast('Error al escribir en Sheets: ' + e.message, 'error'); })
     .writeAgrupadorSheet(JSON.stringify(payload));
 }
 
@@ -1929,10 +1935,10 @@ function cruzarConIA() {
 
   var notaByText = {};
   notas.forEach(function(o){ notaByText[normDetalle(o.nota)] = o; });
-  var notasTxt = notas.slice(0, 800).map(function(o){ return o.nota; }).join('\n');   // sin montos
+  var notasTxt = notas.slice(0, 800).map(function(o){ return o.nota + '|' + o.total; }).join('\n');
 
   var btn = document.getElementById('btn-agrup-ia');
-  if (btn) { btn.disabled = true; }
+  if (btn) btn.disabled = true;
 
   // Partir en lotes de AGRUP_BATCH grupos y llamar a la IA secuencialmente.
   var lotes = [];
@@ -1943,16 +1949,18 @@ function cruzarConIA() {
     if (li >= lotes.length) {
       d.resumen = resumenAgrup(d.grupos);
       analyzeAgrupador();
-      showToast(aplicados + ' cruzados por IA' + (errores ? ' · ' + errores + ' lote(s) fallaron, reintenta' : '') + ' — revísalos', aplicados ? 'success' : 'info');
+      if (btn) btn.disabled = false;
+      showToast(aplicados + ' cruzados por IA' + (errores ? ' · ' + errores + ' lote(s) fallaron' : ''), aplicados ? 'success' : 'info');
+      saveAgrupadorToSheet(true);   // el resultado se ve en la hoja Match
       return;
     }
-    if (btn) btn.textContent = '🤖 Cruzando ' + (li + 1) + '/' + lotes.length + '…';
+    setAgrupStatus('running', 'lote ' + (li + 1) + '/' + lotes.length + ' · ' + aplicados + ' cruzados');
     var idx = lotes[li];
-    var gruposTxt = idx.map(function(i){ return i + '|' + d.grupos[i].detalle; }).join('\n');
+    var gruposTxt = idx.map(function(i){ var g = d.grupos[i]; return i + '|' + g.detalle + '|' + g.total; }).join('\n');
     var prompt = IA_MARCO + '\n\n' +
-      'Eres apoyo de conciliación bancaria de Kavak. Empareja cada MOVIMIENTO del EXTRACTO (una transferencia "TRANSF. PARA <tercero>" o similar) con la NOTA del MAYOR que corresponde al MISMO tercero/beneficiario, aunque el nombre esté escrito distinto, abreviado, en otro orden o con el RUT. Empareja SOLO cuando sea claramente la misma entidad; si el tercero del extracto no aparece entre las Notas, NO lo incluyas. No inventes ni alteres cifras.\n\n' +
-      'MOVIMIENTOS EXTRACTO (indice|detalle):\n' + gruposTxt + '\n\n' +
-      'NOTAS DEL MAYOR (una por línea, texto exacto):\n' + notasTxt + '\n\n' +
+      'Eres apoyo de conciliación bancaria de Kavak. Empareja cada MOVIMIENTO del EXTRACTO con la NOTA del MAYOR que corresponde al MISMO tercero/beneficiario. Usa el NOMBRE como criterio principal (acepta variantes: abreviado, en otro orden nombres/apellidos, con o sin RUT, mayúsculas/tildes, con/sin SPA/LTDA). El MONTO ayuda a confirmar: si el total del grupo coincide o se acerca al total de una Nota del mismo tercero, es buena señal. Empareja SIEMPRE que sea razonablemente el mismo tercero — el objetivo es conciliar la mayor cantidad posible; solo descarta cuando claramente no hay ninguna Nota que corresponda. No inventes ni alteres cifras.\n\n' +
+      'MOVIMIENTOS EXTRACTO (indice|detalle|total):\n' + gruposTxt + '\n\n' +
+      'NOTAS DEL MAYOR (nota|total):\n' + notasTxt + '\n\n' +
       'Responde ÚNICAMENTE JSON válido: {"matches":[{"i":<indice>,"nota":"<texto EXACTO de una Nota>","confianza":"alta|media"}]}';
     callClaudeServer({ model: 'claude-sonnet-4-6', max_tokens: 4096, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }] })
       .then(function(resp) {
@@ -1972,7 +1980,7 @@ function cruzarConIA() {
       })
       .catch(function() { errores++; corre(li + 1); });   // un lote que falla no corta el resto
   }
-  showToast('La IA está cruzando por lotes (' + lotes.length + ')…', 'info');
+  setAgrupStatus('running', '0/' + lotes.length);
   corre(0);
 }
 
