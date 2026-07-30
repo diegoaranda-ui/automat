@@ -398,64 +398,8 @@ tr.prov-detail>td{padding:0 8px 8px}
       <div class="view active" id="view-conciliacion">
         <div class="content">
           <div class="content-inner">
-            <div class="upload-grid two-col">
-              <!-- Cartola -->
-              <div>
-                <div class="section-header">
-                  <span class="section-title">📋 Cartola Bancaria</span>
-                  <div class="section-line"></div>
-                </div>
-                <div class="upload-zone" id="zone-cartola" ondragover="onDragOver(event,'zone-cartola')" ondragleave="onDragLeave('zone-cartola')" ondrop="onDrop(event,'cartola-file-input','cartola')">
-                  <input type="file" id="cartola-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('cartola',this)">
-                  <div class="upload-icon">📋</div>
-                  <div class="upload-title">Cartola Bancaria</div>
-                  <div class="upload-sub">Arrastra o haz clic<br>PDF o imagen</div>
-                  <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
-                </div>
-                <div class="file-preview" id="prev-cartola">
-                  <span id="prev-cartola-icon">📄</span>
-                  <div style="flex:1;min-width:0">
-                    <div class="file-name" id="prev-cartola-name">—</div>
-                    <div class="file-size" id="prev-cartola-size">—</div>
-                  </div>
-                  <button class="file-remove" onclick="removeFile('cartola')">✕</button>
-                </div>
-              </div>
-              <!-- Libro -->
-              <div>
-                <div class="section-header">
-                  <span class="section-title">📚 Registros Contables</span>
-                  <div class="section-line"></div>
-                </div>
-                <div class="upload-zone" id="zone-libro" ondragover="onDragOver(event,'zone-libro')" ondragleave="onDragLeave('zone-libro')" ondrop="onDrop(event,'libro-file-input','libro')">
-                  <input type="file" id="libro-file-input" accept="image/*,.pdf,.xlsx,.xls,.csv" onchange="handleFile('libro',this)">
-                  <div class="upload-icon">📚</div>
-                  <div class="upload-title">Registros Contables</div>
-                  <div class="upload-sub">Arrastra o haz clic<br>PDF o imagen</div>
-                  <div class="upload-kbd">PDF · XLS · CSV · JPG · PNG</div>
-                </div>
-                <div class="file-preview" id="prev-libro">
-                  <span id="prev-libro-icon">📄</span>
-                  <div style="flex:1;min-width:0">
-                    <div class="file-name" id="prev-libro-name">—</div>
-                    <div class="file-size" id="prev-libro-size">—</div>
-                  </div>
-                  <button class="file-remove" onclick="removeFile('libro')">✕</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Results -->
-            <div id="results-conciliacion">
-              <div class="empty-state">
-                <div class="empty-icon">⚖️</div>
-                <div class="empty-title">Conciliación lista</div>
-                <div class="empty-sub">Sube la cartola bancaria y los registros contables, luego presiona Conciliar.</div>
-              </div>
-            </div>
-
-            <!-- ── Agrupador de transferencias sueltas (Excel 2 hojas) ── -->
-            <div class="section-header" style="margin-top:22px">
+            <!-- ── Agrupador de transferencias sueltas (conciliador Banco Internacional) ── -->
+            <div class="section-header">
               <span class="section-title">🔗 Agrupador de transferencias sueltas</span>
               <div class="section-line"></div>
             </div>
@@ -488,9 +432,8 @@ tr.prov-detail>td{padding:0 8px 8px}
           </div>
         </div>
         <div class="action-bar">
-          <span class="action-hint">Sube ambos documentos para iniciar la conciliación</span>
+          <span class="action-hint">Conciliador Banco Internacional · agrupa transferencias sueltas y cruza con el Mayor</span>
           <button class="btn-secondary" onclick="resetModule('conciliacion')">Limpiar</button>
-          <button class="btn-primary" id="btn-conciliacion" onclick="analyzeModule('conciliacion')" disabled>⚡ Conciliar</button>
         </div>
       </div>
 
@@ -1504,7 +1447,6 @@ function analyzeModule(mod) {
   captureAnalysisMeta(mod);
 
   const handlers = {
-    conciliacion:   analyzeConciliacion,
     provisiones:    analyzeProvisiones,
     icar:           analyzeIcar
   };
@@ -1514,9 +1456,6 @@ function analyzeModule(mod) {
     stopSpinMsg(mod);
     renderResult(mod, result);
     saveHistory(mod, result);
-    if (mod === 'conciliacion') {
-      saveDesgloseConciliacion(result);
-    }
     if (mod === 'provisiones') {
       saveProvisionesToSheet(result);
     }
@@ -1568,44 +1507,6 @@ function captureAnalysisMeta(mod) {
 // que se agreguen con el tiempo también: se antepone con ${IA_MARCO}.
 const IA_MARCO = `MARCO DE REDACCIÓN — Finance Suite Kavak (aplica a todos los módulos):
 Eres apoyo de un papel de trabajo contable. Tu redacción se centra en la CUADRATURA y en que el registro/ajuste quede BIEN CONTABILIZADO: cifras exactas, trazables y verificables contra la fuente. No propongas recomendaciones comerciales, de pricing ni de negocio; no califiques como "hallazgo" o "anomalía" un resultado que el módulo declare esperado o estructural. Los números los calcula el sistema o vienen del documento — NUNCA los alteres ni los recalcules. Tu salida es una propuesta de apoyo a la decisión de un analista humano, no un registro contable oficial.`;
-
-// ── CONCILIACION ──
-function analyzeConciliacion() {
-  const f = STATE.conciliacion.files;
-  const prompt = `${IA_MARCO}
-
-Eres experto en conciliación bancaria chilena. Analiza los documentos adjuntos:
-Documento 1: Cartola bancaria — extrae cada transacción con fecha (DD/MM/YYYY), descripción, monto (número), tipo ("abono"/"cargo")
-Documento 2: Registros contables — extrae cada asiento con fecha, glosa, monto, referencia
-
-Concilia las transacciones: cruza por monto y fecha cercana (±3 días).
-Responde ÚNICAMENTE con JSON válido:
-{
-  "cartola": [{"fecha":"DD/MM/YYYY","descripcion":"...","monto":0,"tipo":"abono|cargo"}],
-  "libro": [{"fecha":"DD/MM/YYYY","glosa":"...","monto":0,"referencia":"..."}],
-  "conciliados": [{"cartola_idx":0,"libro_idx":0,"confianza":"alta|media","diferencia":0}],
-  "solo_cartola": [0],
-  "solo_libro": [0],
-  "saldo_cartola": 0,
-  "saldo_libro": 0,
-  "diferencia_total": 0,
-  "resumen": "texto"
-}`;
-
-  const content = [
-    { type: 'text', text: prompt },
-    buildContentBlock(f.cartola),
-    buildContentBlock(f.libro)
-  ];
-
-  return callClaudeServer({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: content }]
-  }).then(function(resp) {
-    return extractJSON(resp);
-  });
-}
 
 // ── CONCILIACION · AGRUPADOR DE TRANSFERENCIAS SUELTAS ──
 // Un mismo pago del Mayor aparece en el extracto partido en varias
@@ -2535,7 +2436,6 @@ function renderResult(mod, data) {
   if (!r) return;
   LAST_RESULT[mod] = data;
   const renders = {
-    conciliacion:   renderConciliacion,
     provisiones:    renderProvisiones,
     icar:           renderIcar
   };
@@ -2574,104 +2474,6 @@ function renderError(mod, msg) {
   if (!r) return;
   r.innerHTML = '<div class="alert-item error result-section"><span class="alert-icon">❌</span>' +
     '<div><strong>Error al analizar:</strong> ' + esc(msg) + '</div></div>';
-}
-
-// ── RENDER CONCILIACION ──
-function renderConciliacion(d) {
-  const conciliados = (d.conciliados || []).length;
-  const soloCartola = (d.solo_cartola || []).length;
-  const soloLibro = (d.solo_libro || []).length;
-  const diferencia = d.diferencia_total || 0;
-
-  let html = '<div style="display:flex;flex-direction:column;gap:12px">';
-
-  // Summary row
-  html += '<div class="summary-row result-section">';
-  html += '<div class="summary-item green"><div class="si-val">' + conciliados + '</div><div class="si-lbl">✓ Conciliados</div></div>';
-  html += '<div class="summary-item amber"><div class="si-val">' + soloCartola + '</div><div class="si-lbl">⚠ Solo cartola</div></div>';
-  html += '<div class="summary-item blue"><div class="si-val">' + soloLibro + '</div><div class="si-lbl">⚠ Solo libro</div></div>';
-  html += '<div class="summary-item ' + (diferencia === 0 ? 'green' : 'red') + '">';
-  html += '<div class="si-val">' + fmtMoney(Math.abs(diferencia)) + '</div>';
-  html += '<div class="si-lbl">Diferencia total</div></div>';
-  html += '</div>';
-
-  // Build index maps
-  const cartola = d.cartola || [];
-  const libro = d.libro || [];
-  const conciliadosArr = d.conciliados || [];
-  const soloCartolaArr = d.solo_cartola || [];
-  const soloLibroArr = d.solo_libro || [];
-
-  const matchedCartola = new Set(conciliadosArr.map(function(c) { return c.cartola_idx; }));
-  const matchedLibro = new Set(conciliadosArr.map(function(c) { return c.libro_idx; }));
-
-  // Full table
-  html += '<div class="card result-section">';
-  html += '<div class="card-header"><div class="card-icon" style="background:var(--green-l)">⚖️</div><div class="card-title">Detalle de Conciliación</div></div>';
-  html += '<div class="tbl-wrap"><table>';
-  html += '<tr><th>Fecha</th><th>Descripción / Glosa</th><th style="text-align:right">Monto</th><th>Referencia</th><th>Estado</th><th>Confianza</th></tr>';
-
-  // Matched rows
-  conciliadosArr.forEach(function(c) {
-    const ct = cartola[c.cartola_idx] || {};
-    const lb = libro[c.libro_idx] || {};
-    html += '<tr class="row-green">';
-    html += '<td>' + esc(ct.fecha || lb.fecha || '—') + '</td>';
-    html += '<td>' + esc(ct.descripcion || lb.glosa || '—') + '</td>';
-    html += '<td class="num" style="text-align:right">' + fmtMoney(ct.monto || lb.monto || 0) + '</td>';
-    html += '<td>' + esc(lb.referencia || '—') + '</td>';
-    html += '<td><span class="badge b-green">✓ Conciliado</span></td>';
-    html += '<td><span class="conf-badge conf-' + confCls(c.confianza, 'alta') + '">' + confCls(c.confianza, 'alta') + '</span></td>';
-    html += '</tr>';
-  });
-
-  // Solo cartola
-  soloCartolaArr.forEach(function(idx) {
-    const ct = cartola[idx] || {};
-    html += '<tr class="row-amber">';
-    html += '<td>' + esc(ct.fecha || '—') + '</td>';
-    html += '<td>' + esc(ct.descripcion || '—') + '</td>';
-    html += '<td class="num" style="text-align:right">' + fmtMoney(ct.monto || 0) + '</td>';
-    html += '<td>—</td>';
-    html += '<td><span class="badge b-amber">⚠ Solo cartola</span></td>';
-    html += '<td>—</td>';
-    html += '</tr>';
-  });
-
-  // Solo libro
-  soloLibroArr.forEach(function(idx) {
-    const lb = libro[idx] || {};
-    html += '<tr class="row-blue">';
-    html += '<td>' + esc(lb.fecha || '—') + '</td>';
-    html += '<td>' + esc(lb.glosa || '—') + '</td>';
-    html += '<td class="num" style="text-align:right">' + fmtMoney(lb.monto || 0) + '</td>';
-    html += '<td>' + esc(lb.referencia || '—') + '</td>';
-    html += '<td><span class="badge b-blue">📚 Solo libro</span></td>';
-    html += '<td>—</td>';
-    html += '</tr>';
-  });
-
-  html += '</table></div></div>';
-
-  // Saldos
-  html += '<div class="card result-section">';
-  html += '<div class="card-header"><div class="card-icon" style="background:var(--blue-l)">💰</div><div class="card-title">Saldos</div></div>';
-  html += '<div class="card-body">';
-  html += '<div class="totals-row">';
-  html += '<div class="total-item"><div class="total-label">Saldo Cartola</div><div class="total-value">' + fmtMoney(d.saldo_cartola || 0) + '</div></div>';
-  html += '<div class="total-divider"></div>';
-  html += '<div class="total-item"><div class="total-label">Saldo Libro</div><div class="total-value">' + fmtMoney(d.saldo_libro || 0) + '</div></div>';
-  html += '<div class="total-divider"></div>';
-  html += '<div class="total-item grand"><div class="total-label">Diferencia</div><div class="total-value" style="color:' + (diferencia === 0 ? 'var(--green-d)' : 'var(--red-d)') + '">' + fmtMoney(Math.abs(diferencia)) + '</div></div>';
-  html += '</div></div></div>';
-
-  // Resumen
-  if (d.resumen) {
-    html += '<div class="exec-summary result-section"><p>' + esc(d.resumen) + '</p></div>';
-  }
-
-  html += '</div>';
-  return html;
 }
 
 // ── RENDER PROVISIONES ──
@@ -3248,45 +3050,11 @@ function saveProvisionesToSheet(d) {
     .writeProvisionesSheet(JSON.stringify(payload));
 }
 
-// ── CONCILIACION → SHEETS DESGLOSE ──
-function saveDesgloseConciliacion(d) {
-  if (!(window.google && google.script && google.script.run)) return;
-  const now  = new Date();
-  const analista = document.getElementById('userInput').value || 'Anónimo';
-  const payload  = Object.assign({}, d, {
-    analista: analista,
-    fecha: now.toLocaleDateString('es-CL'),
-    hora:  now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' })
-  });
-  showToast('Escribiendo en planilla Desglose…', 'info');
-  google.script.run
-    .withSuccessHandler(function(url) {
-      // Inyectar link en el panel de resultados
-      const r = document.getElementById('results-conciliacion');
-      if (r) {
-        const old = r.querySelector('.desglose-link-bar');
-        if (old) old.remove();
-        const bar = document.createElement('div');
-        bar.className = 'desglose-link-bar';
-        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:#e6f7f0;border:1px solid #b3e8d3;border-radius:10px;margin-bottom:8px;font-size:12px;color:#0b6b3a';
-        bar.innerHTML = '<span style="font-size:16px">✅</span><span style="font-weight:600">Desglose escrito en la planilla</span>' +
-          '<a href="' + url + '" target="_blank" style="margin-left:auto;font-size:11px;font-weight:700;color:#007a4a;text-decoration:none;padding:4px 10px;background:#fff;border:1px solid #b3e8d3;border-radius:6px">Abrir Sheets →</a>';
-        r.insertBefore(bar, r.firstChild);
-      }
-      showToast('Desglose guardado en Sheets ✓', 'success');
-    })
-    .withFailureHandler(function(e) {
-      showToast('Error al escribir Desglose: ' + e.message, 'error');
-    })
-    .writeConciliacionDesglose(JSON.stringify(payload));
-}
-
 // ── HISTORY ──
 function saveHistory(mod, data) {
   const hist = getHistory();
   const analista = document.getElementById('userInput').value || '';
   const resumenes = {
-    conciliacion:   (data.conciliados || []).length + ' conciliados · Dif: ' + fmtMoney(Math.abs(data.diferencia_total || 0)),
     provisiones:   (data.proveedores || []).length + ' proveedores · Sugerido: ' + fmtMoney(data.total_provision_sugerida || 0),
     icar:           (data.nStocks || 0) + ' vehículos · Neg. por registrar: ' + fmtMoney((data.negPorRegistrar || {}).monto || 0)
   };
