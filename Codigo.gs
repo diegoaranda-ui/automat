@@ -67,6 +67,165 @@ var PROVISIONES_SHEET_ID = '1oOWGLYN7X28lennVGvp58n1LXmjU8-MoltVj7GeSIaU';
 // Planilla del equipo "2801-01 Impuesto transferencia" — el análisis ICAR se
 // escribe ahí, en la pestaña "Análisis ICAR" (no se toca ninguna otra pestaña)
 var ICAR_SHEET_ID = '1D1SleLGZccIgXhVQ1TE99W1fllQsLgZkw8nGVO2ArEE';
+// Pestaña con el mayor crudo acumulado (lo que el analista pega desde NetSuite).
+// El módulo la mantiene con reemplazo POR PERÍODO (columna "Período") para no
+// duplicar ventas/cobros ya cargados, y el análisis corre sobre TODO su contenido.
+var MAYOR_ICAR_TAB = 'mayor 2801-01';
+
+function icarId_() {
+  return PropertiesService.getScriptProperties().getProperty('ICAR_SHEET_ID') || ICAR_SHEET_ID;
+}
+// Normaliza un encabezado para emparejar columnas por nombre (sin acentos/caso)
+function _nkey(s) {
+  return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+}
+// Serializa Fechas a ISO (YYYY-MM-DD) para que el parser del cliente las lea igual
+function _icarSerialize(grid) {
+  return (grid || []).map(function(row) {
+    return (row || []).map(function(v) {
+      if (Object.prototype.toString.call(v) === '[object Date]') {
+        return v.getFullYear() + '-' + ('0' + (v.getMonth() + 1)).slice(-2) + '-' + ('0' + v.getDate()).slice(-2);
+      }
+      return v;
+    });
+  });
+}
+
+/**
+ * Lee la pestaña "mayor 2801-01" (mayor crudo acumulado) y devuelve la grilla
+ * completa (encabezados + datos) para que el cliente la parsee y analice. No la
+ * modifica. Análogo a leerConciliadorBanco(); soporta "analizar acumulado".
+ */
+function leerMayorIcar() {
+  var ss = SpreadsheetApp.openById(icarId_());
+  var sh = ss.getSheetByName(MAYOR_ICAR_TAB);
+  if (!sh) throw new Error('No encontré la pestaña "' + MAYOR_ICAR_TAB + '" en la planilla ICAR.');
+  var lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) throw new Error('La pestaña "' + MAYOR_ICAR_TAB + '" está vacía.');
+  var grid = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  return JSON.stringify({ grid: _icarSerialize(grid), tab: MAYOR_ICAR_TAB });
+}
+
+/**
+ * Reemplazo POR PERÍODO en "mayor 2801-01": borra todas las filas cuyo "Período"
+ * (columna D) coincida con alguno de los períodos indicados y pega en su lugar
+ * las filas nuevas del mayor cargado. Así se actualizan ventas/cobros de un mes
+ * sin duplicar pagos ya cargados. Devuelve la grilla acumulada completa para que
+ * el cliente la analice de una sola pasada.
+ * payload: { periodos:[..], header:[..], rows:[[..],..] }  (header/rows = del archivo)
+ */
+function upsertMayorIcar(payload) {
+  var p = (typeof payload === 'string') ? JSON.parse(payload) : (payload || {});
+  var periodos = (p.periodos || []).map(_nkey).filter(String);
+  var fileHeader = p.header || [];
+  var fileRows = p.rows || [];
+  if (!periodos.length) throw new Error('No se indicó ningún período para actualizar.');
+  var periodSet = {}; periodos.forEach(function(x) { periodSet[x] = true; });
+
+  var ss = SpreadsheetApp.openById(icarId_());
+  var sh = ss.getSheetByName(MAYOR_ICAR_TAB);
+  var creada = false;
+  if (!sh) { sh = ss.insertSheet(MAYOR_ICAR_TAB); creada = true; }
+
+  var lastRow = sh.getLastRow();
+  var sheetCols = sh.getLastColumn();
+  var existing = (lastRow >= 1 && sheetCols >= 1) ? sh.getRange(1, 1, lastRow, sheetCols).getValues() : [];
+
+  // Localizar fila de encabezado (Tipo + Período) en las primeras 30 filas
+  function findHeaderRow(grid) {
+    for (var i = 0; i < Math.min(grid.length, 30); i++) {
+      var r = (grid[i] || []).map(_nkey);
+      var hasTipo = r.some(function(c) { return c === 'tipo' || c === 'type' || c.indexOf('tipo') === 0; });
+      var hasPer  = r.some(function(c) { return c === 'periodo' || c === 'period' || c.indexOf('periodo') !== -1; });
+      if (hasTipo && hasPer) return i;
+    }
+    return -1;
+  }
+  function periodCol(headerRowArr) {
+    var r = (headerRowArr || []).map(_nkey);
+    for (var j = 0; j < r.length; j++) { if (r[j] === 'periodo' || r[j] === 'period') return j; }
+    for (var k = 0; k < r.length; k++) { if (r[k].indexOf('periodo') !== -1) return k; }
+    return -1;
+  }
+
+  var sheetHeaderRow = findHeaderRow(existing);
+  var sheetHeader;
+  if (sheetHeaderRow === -1) {
+    // Hoja nueva o sin encabezado reconocible: adoptamos el encabezado del archivo
+    sheetHeader = fileHeader.slice();
+    sheetHeaderRow = 0;
+  } else {
+    sheetHeader = existing[sheetHeaderRow];
+  }
+  var ncol = Math.max(sheetHeader.length, fileHeader.length, sheetCols, 1);
+
+  // Mapa nombre→índice del archivo, para reordenar filas nuevas al layout de la hoja
+  var fileIdxByName = {};
+  fileHeader.forEach(function(h, j) { var k = _nkey(h); if (k && !(k in fileIdxByName)) fileIdxByName[k] = j; });
+  function mapRow(fileRow) {
+    var out = [];
+    for (var j = 0; j < ncol; j++) {
+      var name = _nkey(sheetHeader[j]);
+      if (name && (name in fileIdxByName)) out.push(fileRow[fileIdxByName[name]]);
+      else out.push(fileRow[j] !== undefined ? fileRow[j] : '');   // fallback posicional
+    }
+    return out;
+  }
+
+  var cPerSheet = periodCol(sheetHeader);
+  if (cPerSheet === -1) throw new Error('No encontré la columna "Período" en la pestaña "' + MAYOR_ICAR_TAB + '".');
+
+  // Filas de datos actuales (bajo el encabezado); conservamos las de OTROS períodos
+  var oldData = existing.slice(sheetHeaderRow + 1);
+  var kept = oldData.filter(function(row) {
+    var per = _nkey(row[cPerSheet]);
+    if (!per && row.every(function(c) { return String(c == null ? '' : c).trim() === ''; })) return false; // fila vacía
+    return !periodSet[per];
+  });
+  var borradas = oldData.length - kept.length;
+
+  // Filas nuevas (solo de los períodos seleccionados), reordenadas al layout
+  var nuevas = fileRows.map(mapRow);
+
+  var combined = kept.concat(nuevas);
+
+  // Asegurar que la grilla tenga columnas/filas suficientes antes de escribir
+  if (ncol > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), ncol - sh.getMaxColumns());
+  var needRows = (sheetHeaderRow + 1) + combined.length;   // encabezado + datos
+  if (needRows > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), needRows - sh.getMaxRows());
+
+  // Reescribir: se limpia desde la fila siguiente al encabezado y se escribe todo
+  var firstDataRow = sheetHeaderRow + 2;   // 1-based
+  var curMaxRows = sh.getMaxRows();
+  if (curMaxRows >= firstDataRow) {
+    sh.getRange(firstDataRow, 1, curMaxRows - firstDataRow + 1, sh.getMaxColumns()).clearContent();
+  }
+  // Asegurar el encabezado en su fila (por si la hoja era nueva)
+  sh.getRange(sheetHeaderRow + 1, 1, 1, ncol).setValues([padTo_(sheetHeader, ncol)]);
+  if (combined.length) {
+    var body = combined.map(function(r) { return padTo_(r, ncol); });
+    sh.getRange(firstDataRow, 1, body.length, ncol).setValues(body);
+    // Formato de fecha en columnas de fecha (por si el archivo las trae como
+    // serial de Excel): así se ven como fecha y no como un número crudo.
+    sheetHeader.forEach(function(h, j) {
+      var k = _nkey(h);
+      if ((k.indexOf('fecha') !== -1 || k.indexOf('date') !== -1) && (j + 1) <= ncol) {
+        sh.getRange(firstDataRow, j + 1, body.length, 1).setNumberFormat('dd-mm-yyyy');
+      }
+    });
+  }
+
+  // Releer para devolver exactamente lo almacenado (fechas ISO, números limpios)
+  var outLastRow = sh.getLastRow(), outLastCol = sh.getLastColumn();
+  var outGrid = sh.getRange(1, 1, outLastRow, outLastCol).getValues();
+
+  return JSON.stringify({
+    grid: _icarSerialize(outGrid), tab: MAYOR_ICAR_TAB,
+    periodos: periodos, borradas: borradas, agregadas: nuevas.length,
+    conservadas: kept.length, creada: creada
+  });
+}
+function padTo_(arr, n) { arr = (arr || []).slice(); while (arr.length < n) arr.push(''); return arr.slice(0, n); }
 
 /**
  * Escribe (sobreescribe) la pestaña "Análisis ICAR" de la planilla de
@@ -94,7 +253,7 @@ function writeIcarSheet(payload) {
     if (sh.getFilter()) sh.getFilter().remove();
   }
 
-  const NCOLS = 9;
+  const NCOLS = 10;
   function fmtM(v) { return (parseFloat(v) || 0).toLocaleString('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }); }
   function pad(arr) { while (arr.length < NCOLS) arr.push(''); return arr; }
   const rows = [], marks = [];
@@ -114,10 +273,10 @@ function writeIcarSheet(payload) {
   // Pivot por mes
   const pivot = p.pivot || {};
   push(['DESCUADRES POR MES DE VENTA'], 'sec-dark');
-  push(['Mes de venta', 'Facturado sin descontar', 'Veh.', 'Resultado negativo', 'Veh.', '', '', ''], 'colhead');
+  push(['Mes de venta', 'Facturado sin descontar', 'Veh.', 'Resultado negativo', 'Veh.', '', '', '', '', ''], 'colhead');
   Object.keys(pivot).sort().forEach(function(m) {
     const v = pivot[m];
-    push([m, v.pendiente || 0, v.pendienteN || 0, Math.abs(v.negativo || 0), v.negativoN || 0, '', '', ''], 'row-pivot');
+    push([m, v.pendiente || 0, v.pendienteN || 0, Math.abs(v.negativo || 0), v.negativoN || 0, '', '', '', '', ''], 'row-pivot');
   });
   push([]);
 
@@ -130,27 +289,21 @@ function writeIcarSheet(payload) {
   push([p.resumen || ''], 'row-resumen');
   push([]);
 
-  // ── DETALLE DE DESCUADRES POR VEHÍCULO (tabla filtrable, al final) ──
-  // Unifica 'por registrar' (saldo negativo: descontado de más) y 'sin
-  // descontar' (saldo positivo: facturado y ICAR aún no descuenta). Una sola
-  // tabla con columna Situación + filtro nativo: se puede analizar por
-  // Diferencia, por Descontado = 0 (no está el imp. de ICAR), por Situación, etc.
-  const neg  = p.negPorRegistrar || { n: 0, monto: 0, items: [] };
-  const pend = p.pendiente || { n: 0, monto: 0, items: [] };
-  const detalle = [];
-  (neg.items || []).forEach(function(o){ detalle.push({ o: o, sit: '🎯 Por registrar' }); });
-  (pend.items || []).forEach(function(o){ detalle.push({ o: o, sit: '⏳ Sin descontar' }); });
-  detalle.sort(function(a, b){ return Math.abs(b.o.saldo || 0) - Math.abs(a.o.saldo || 0); });
-
-  push(['DETALLE DE DESCUADRES POR VEHÍCULO — ' + detalle.length + ' vehículo(s) · usa el filtro de la fila de títulos'], 'sec-red');
-  push(['Fecha', 'Stock ID', 'Patente', 'Mes venta', 'Situación', 'Facturado', 'Descontado', 'Diferencia', 'Estado (Sí/No)'], 'colhead');
+  // ── MOVIMIENTOS POR STOCK ID (tabla completa y filtrable, al final) ──
+  // Un renglón por vehículo con el conteo de sus movimientos por tipo (facturas
+  // de venta, notas de crédito, diarios) y la Situación. Con el filtro nativo se
+  // analiza por Situación (🎯 Por registrar / ⏳ Sin descontar / ✓ …), por Saldo,
+  // por Descontado = 0 (no llegó el imp. de ICAR), o por N° de movimientos.
+  const stocks = (p.detalleStocks || []).slice().sort(function(a, b){ return Math.abs(b.saldo || 0) - Math.abs(a.saldo || 0); });
+  push(['MOVIMIENTOS POR STOCK ID — ' + stocks.length + ' vehículo(s) · usa el filtro de la fila de títulos (por Situación, Saldo, N° de movimientos…)'], 'sec-red');
+  push(['Situación', 'Stock ID', 'Patente', 'Mes venta', 'Facturas', 'Notas créd.', 'Diarios', 'Facturado', 'Descontado', 'Saldo'], 'colhead');
   const detHeaderRow = rows.length;          // fila del encabezado con filtro
-  detalle.forEach(function(d) {
-    const o = d.o;
-    push([o.fecha || '—', o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes', d.sit,
-      Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), Math.abs(o.saldo || 0), ''], 'row-det');
+  stocks.forEach(function(o) {
+    push([o.estado || '—', o.st, o.patente || '—', o.mesVenta || 'Revisar fin de mes',
+      o.nFact || 0, o.nNc || 0, o.nDesc || 0,
+      Math.abs((o.fact || 0) + (o.nc || 0)), Math.abs(o.desc || 0), o.saldo || 0], 'row-stock');
   });
-  if (!detalle.length) push(['✓ Sin descuadres: la cuenta está cruzada.'], 'row-ok');
+  if (!stocks.length) push(['✓ Sin movimientos por Stock ID en la ventana analizada.'], 'row-ok');
   const detLastRow = rows.length;
 
   sh.getRange(1, 1, rows.length, NCOLS).setValues(rows);
@@ -178,10 +331,11 @@ function writeIcarSheet(payload) {
       case 'row-money4':
         R.setFontSize(10).setFontWeight('bold');
         sh.getRange(mk.r, 1, 1, 4).setNumberFormat('$ #,##0').setHorizontalAlignment('right'); break;
-      case 'row-det':
+      case 'row-stock':
         R.setFontSize(10);
-        sh.getRange(mk.r, 6, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
-        sh.getRange(mk.r, 8, 1, 1).setFontWeight('bold').setFontColor('#b01019'); break;
+        sh.getRange(mk.r, 5, 1, 3).setHorizontalAlignment('center');                 // #Fact / #NC / #Diarios
+        sh.getRange(mk.r, 8, 1, 3).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
+        sh.getRange(mk.r, 10, 1, 1).setFontWeight('bold').setFontColor('#b01019'); break;
       case 'row-pivot':
         R.setFontSize(10);
         sh.getRange(mk.r, 2, 1, 1).setNumberFormat('$ #,##0').setHorizontalAlignment('right');
@@ -197,14 +351,15 @@ function writeIcarSheet(payload) {
     }
   });
 
-  sh.setColumnWidth(1, 110); sh.setColumnWidth(2, 95); sh.setColumnWidth(3, 90);
-  sh.setColumnWidth(4, 110); sh.setColumnWidth(5, 130); sh.setColumnWidth(6, 115);
-  sh.setColumnWidth(7, 115); sh.setColumnWidth(8, 115); sh.setColumnWidth(9, 120);
+  sh.setColumnWidth(1, 140); sh.setColumnWidth(2, 90); sh.setColumnWidth(3, 90);
+  sh.setColumnWidth(4, 110); sh.setColumnWidth(5, 70); sh.setColumnWidth(6, 80);
+  sh.setColumnWidth(7, 70); sh.setColumnWidth(8, 115); sh.setColumnWidth(9, 115);
+  sh.setColumnWidth(10, 120);
   sh.setFrozenRows(1);
 
-  // Filtro nativo sobre la tabla de detalle (encabezado + datos): permite
-  // ordenar/filtrar por Diferencia, por Descontado = 0 (no está el imp. ICAR),
-  // por Situación, etc. Solo se permite un filtro básico por pestaña.
+  // Filtro nativo sobre la tabla "Movimientos por Stock ID" (encabezado + datos):
+  // permite ordenar/filtrar por Situación, por Saldo, por Descontado = 0 (no está
+  // el imp. de ICAR), por N° de movimientos, etc. Solo un filtro básico por pestaña.
   if (detLastRow > detHeaderRow) {
     sh.getRange(detHeaderRow, 1, detLastRow - detHeaderRow + 1, NCOLS).createFilter();
   }

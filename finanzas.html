@@ -561,7 +561,7 @@ tr.prov-detail>td{padding:0 8px 8px}
               <input type="file" id="icar-file-input" accept=".xlsx,.xls,.csv" onchange="handleFile('icar',this)">
               <div class="upload-icon">🚗</div>
               <div class="upload-title">Importar mayor 2801-01 (NetSuite)</div>
-              <div class="upload-sub">El libro con la hoja del mayor de la cuenta (facturas de venta, notas de crédito y diarios ICAR)<br>Arrastra o haz clic para importarlo</div>
+              <div class="upload-sub">El libro con la hoja del mayor de la cuenta (facturas de venta, notas de crédito y diarios ICAR). Al analizar, se REEMPLAZAN por período las filas en la pestaña «mayor 2801-01» y el cruce corre sobre TODO lo acumulado.<br>Arrastra o haz clic para importarlo</div>
               <div class="upload-kbd">XLSX · XLS · CSV</div>
             </div>
             <div class="file-preview" id="prev-icar">
@@ -587,6 +587,19 @@ tr.prov-detail>td{padding:0 8px 8px}
               </div>
             </div>
 
+            <!-- Selector de períodos a REEMPLAZAR en la pestaña "mayor 2801-01" -->
+            <div class="no-print" id="icar-periodos-box" style="display:none;margin:4px 0 12px;padding:12px 14px;background:#fff;border:1px solid var(--n200);border-radius:10px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <span style="font-size:11px;font-weight:800;color:var(--n600);text-transform:uppercase;letter-spacing:.5px">Períodos a actualizar en el mayor acumulado</span>
+                <span style="font-size:10px;color:var(--n400)">Se BORRAN las filas de estos meses en la pestaña «mayor 2801-01» y se reemplazan por las del archivo (sin duplicar cargas previas)</span>
+                <span class="no-print" style="margin-left:auto;display:flex;gap:6px">
+                  <button class="btn-secondary" style="padding:3px 8px;font-size:10px" onclick="toggleIcarPeriodos(true)">Todos</button>
+                  <button class="btn-secondary" style="padding:3px 8px;font-size:10px" onclick="toggleIcarPeriodos(false)">Ninguno</button>
+                </span>
+              </div>
+              <div id="icar-periodos" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+            </div>
+
             <div id="results-icar">
               <div class="empty-state">
                 <div class="empty-icon">🚗</div>
@@ -599,7 +612,8 @@ tr.prov-detail>td{padding:0 8px 8px}
         <div class="action-bar">
           <span class="action-hint">Cruce por Stock ID · cuadratura de balance · análisis del ajuste</span>
           <button class="btn-secondary" onclick="resetModule('icar')">Limpiar</button>
-          <button class="btn-primary" id="btn-icar" onclick="analyzeModule('icar')" disabled>🚗 Analizar impuesto</button>
+          <button class="btn-secondary" id="btn-icar-planilla" onclick="analizarMayorAcumulado()" title="Corre el análisis leyendo la pestaña «mayor 2801-01» sin cargar archivo">📊 Analizar mayor acumulado</button>
+          <button class="btn-primary" id="btn-icar" onclick="analyzeModule('icar')" disabled>🚗 Actualizar mayor y analizar</button>
         </div>
       </div>
 
@@ -733,7 +747,7 @@ function handleFile(key, input) {
     STATE[mod].files[key] = { name: file.name, size: file.size, b64: fd.b64, isText: fd.isText, text: fd.text, type: file.type, cuenta: fd.cuenta || '', cuentas: fd.cuentas || [], anio: fd.anio || null, movs: fd.movs || null, otros: fd.otros || [], icar: fd.icar || null, filas: fd.filas || null, tokenIdx: fd.tokenIdx || null, ymdMin: fd.ymdMin || null, ymdMax: fd.ymdMax || null, agrup: fd.agrup || null };
     showFilePreview(key, file);
     if (key === 'provisiones') initProvRango(STATE[mod].files[key]);
-    if (key === 'icar') initIcarRango(fd.icar);
+    if (key === 'icar') { initIcarRango(fd.icar); initIcarPeriodos(fd.icar); }
     if (key === 'agrup') { const b = document.getElementById('btn-agrup'); if (b) b.disabled = false; }
     else updateAnalyzeButton(mod);
   }).catch(function(err) {
@@ -1126,7 +1140,7 @@ function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
     nMovs++;
     saldoControl += f.imp;   // el saldo de la cuenta es la suma simple de todo lo pegado
     if (!f.st) { sinStock++; return; }
-    if (!stocks[f.st]) stocks[f.st] = { st: f.st, fact: 0, nc: 0, desc: 0, n03: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '', ymdIni: null, ymdUlt: null };
+    if (!stocks[f.st]) stocks[f.st] = { st: f.st, fact: 0, nc: 0, desc: 0, n03: 0, nFact: 0, nNc: 0, nDesc: 0, patente: '', mesVenta: '', nMovs: 0, notaP: '', ymdIni: null, ymdUlt: null };
     const o = stocks[f.st];
     o.nMovs++;
     // Fecha exacta de los movimientos del vehículo (primera y última): sirve
@@ -1139,12 +1153,12 @@ function aggregateIcarFilas(filas, hasMesVCol, ymdD, ymdH) {
     if (!o.mesVenta && f.mesVentaCol && f.mesVentaCol.indexOf('N/A') === -1) o.mesVenta = f.mesVentaCol;
     if (!o.notaP && f.notaP && /diario/i.test(f.tipo)) o.notaP = f.notaP.slice(0, 40);
     if (/factura de venta|^invoice$/i.test(f.tipo)) {
-      o.fact += f.imp; sumFact += f.imp; nClasif++;
+      o.fact += f.imp; o.nFact++; sumFact += f.imp; nClasif++;
       if (!o.mesVenta && !hasMesVCol && f.perCol) o.mesVenta = f.perCol;
     } else if (/nota de cr|credit memo/i.test(f.tipo)) {
-      o.nc += f.imp; sumNC += f.imp; nClasif++;
+      o.nc += f.imp; o.nNc++; sumNC += f.imp; nClasif++;
     } else if (/diario|^journal$/i.test(f.tipo)) {
-      o.desc += f.imp; sumDesc += f.imp; nClasif++;
+      o.desc += f.imp; o.nDesc++; sumDesc += f.imp; nClasif++;
       const memoL = (f.memoL || '') + ' ' + f.nota;
       if ((f.tReg || '').indexOf('03') === 0 || /resultado negativo/i.test(memoL)) o.n03++;
     }
@@ -1186,7 +1200,27 @@ function processIcarGL(file) {
     reader.onload = function(e) {
       try {
         const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: false });
+        const sheets = wb.SheetNames.map(function(n) {
+          return XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false, raw: true });
+        });
+        resolve(parseIcarGrid(sheets));
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
 
+/**
+ * Núcleo del parseo del mayor 2801-01. Recibe una lista de grillas (una por
+ * hoja: array de filas), localiza la del mayor, guarda las filas crudas (con
+ * fecha contable ymd, header y columna Período para el reemplazo por período) y
+ * cruza POR STOCK ID. Normaliza el signo para que Facturas de venta queden
+ * POSITIVAS y Diarios NEGATIVOS sin importar la convención del origen (export
+ * NetSuite con Débito/Crédito, o pestaña "mayor 2801-01" con Importe crudo donde
+ * las facturas vienen negativas). Devuelve el mismo objeto que consume el módulo.
+ */
+function parseIcarGrid(sheets) {
         // Localizar la hoja del mayor. Acepta el libro trabajado del equipo
         // (headers "Tipo / Importe / Stock ID Línea") Y el export directo de
         // NetSuite (headers "Type/Tipo" + "Amount/Importe" o "Debit/Credit",
@@ -1202,15 +1236,15 @@ function processIcarGL(file) {
           }
           return -1;
         }
-        let ws = null, head = null, hIdx = -1;
-        for (let s = 0; s < wb.SheetNames.length; s++) {
-          const grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[s]], { header: 1, blankrows: false, raw: true });
+        let ws = null, head = null, headRaw = null, hIdx = -1;
+        for (let s = 0; s < sheets.length; s++) {
+          const grid = sheets[s] || [];
           for (let i = 0; i < Math.min(grid.length, 30); i++) {
             const row = (grid[i] || []).map(function(c) { return String(c || '').trim(); });
             const tieneTipo = findIdx(row, ['Tipo', 'Type']) !== -1;
             const tieneMonto = findIdx(row, ['Importe', 'Amount']) !== -1 ||
                                (findIdx(row, ['Debit', 'Débito', 'Debito']) !== -1 && findIdx(row, ['Credit', 'Crédito', 'Credito']) !== -1);
-            if (tieneTipo && tieneMonto) { ws = grid; head = row; hIdx = i; }
+            if (tieneTipo && tieneMonto) { ws = grid; head = row; headRaw = (grid[i] || []).slice(); hIdx = i; }
           }
           if (ws) break;
         }
@@ -1271,12 +1305,18 @@ function processIcarGL(file) {
         }
 
         // PASADA 1: filas crudas con fecha contable, para re-agregar por rango.
+        // Guardamos también las filas crudas ORIGINALES (dataRows) y los períodos
+        // presentes, para el reemplazo por período en la pestaña "mayor 2801-01".
         const hasMesVCol = cMesV !== -1;
         const filas = [];
+        const dataRows = [];
+        const periodosSet = {};
         for (let i = hIdx + 1; i < ws.length; i++) {
           const row = ws[i] || [];
           const tipo = String(row[cTipo] || '').trim();
           if (!tipo) continue;
+          dataRows.push(row.slice());
+          if (cPer !== -1) { const per = String(row[cPer] || '').trim(); if (per) periodosSet[per] = true; }
           // Monto de una cuenta de PASIVO (2801-01): el débito resta y el
           // crédito suma → Importe = Crédito − Débito. Así el saldo cierra
           // negativo, igual que en el balance. Si el libro no trae Débito/
@@ -1306,6 +1346,16 @@ function processIcarGL(file) {
           });
         }
 
+        // NORMALIZACIÓN DE SIGNO: el modelo del módulo asume Facturas de venta
+        // POSITIVAS y Diarios NEGATIVOS (Crédito − Débito). El export NetSuite con
+        // Débito/Crédito ya cumple; pero la pestaña "mayor 2801-01" trae "Importe"
+        // crudo con las facturas NEGATIVAS. Si detectamos que las facturas suman
+        // negativo, invertimos TODO el signo para dejar la convención canónica.
+        let sumFactImp = 0;
+        filas.forEach(function(f) { if (/factura de venta|^invoice$/i.test(f.tipo)) sumFactImp += f.imp; });
+        const signFlipped = sumFactImp < 0;
+        if (signFlipped) filas.forEach(function(f) { f.imp = -f.imp; });
+
         // Agregado inicial sin filtro (rango completo)
         const full = aggregateIcarFilas(filas, hasMesVCol, 0, 99999999);
         if (!full.stocks.length) throw new Error('No se encontraron movimientos con Stock ID en el mayor.');
@@ -1316,15 +1366,27 @@ function processIcarGL(file) {
         filas.forEach(function(f) { if (f.ymd != null) { if (f.ymd < ymdMin) ymdMin = f.ymd; if (f.ymd > ymdMax) ymdMax = f.ymd; } });
         if (ymdMax === 0) { ymdMin = 0; ymdMax = 99999999; }   // sin fechas legibles
 
-        resolve({
+        // Períodos presentes (orden cronológico si son "mes-AAAA")
+        const periodos = Object.keys(periodosSet).sort(function(a, b) { return icarPeriodoKey(a) - icarPeriodoKey(b); });
+
+        return {
           b64: null, isText: true, text: null,
-          icar: Object.assign({}, full, { filas: filas, hasMesV: hasMesVCol, ymdMin: ymdMin, ymdMax: ymdMax })
-        });
-      } catch (err) { reject(err); }
-    };
-    reader.onerror = reject;
-    reader.readAsBinaryString(file);
-  });
+          icar: Object.assign({}, full, {
+            filas: filas, hasMesV: hasMesVCol, ymdMin: ymdMin, ymdMax: ymdMax,
+            header: headRaw || head, dataRows: dataRows, cPer: cPer,
+            periodos: periodos, signFlipped: signFlipped
+          })
+        };
+}
+
+// Clave numérica AAAAMM de un período "mes-AAAA"/"AAAA-MM" para ordenar cronológico
+function icarPeriodoKey(per) {
+  const s = String(per || '').toLowerCase();
+  let m = s.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\w*[\s\-]+(\d{4})/);
+  if (m) return parseInt(m[2], 10) * 100 + (PROV_MES_ABBR[m[1]] || 0);
+  m = s.match(/(\d{4})[\-\/](\d{1,2})/);
+  if (m) return parseInt(m[1], 10) * 100 + parseInt(m[2], 10);
+  return 0;
 }
 
 // Tolerancia de cuadratura por vehículo (los redondeos de ICAR difieren en ±$1)
@@ -1344,16 +1406,20 @@ function computeIcarLocal(ic) {
   const cats = { ok: [], pendiente: [], negRegistrado: [], negPorRegistrar: [], sinFactura: [] };
   ic.stocks.forEach(function(o) {
     if (Math.abs(o.saldo) <= ICAR_TOL) {
-      (o.n03 > 0 ? cats.negRegistrado : cats.ok).push(o);
+      if (o.n03 > 0) { o.estado = '✓ Neg. registrado'; cats.negRegistrado.push(o); }
+      else           { o.estado = '✓ Cuadrado';        cats.ok.push(o); }
     } else if (o.saldo > 0) {
-      cats.pendiente.push(o);   // facturado (positivo) sin descontar aún
+      o.estado = '⏳ Sin descontar';                    // facturado (positivo) sin descontar aún
+      cats.pendiente.push(o);
     } else if (o.fact === 0 && o.nc === 0) {
       // Descuentos/pérdidas cuya factura NO está en el archivo cargado:
       // la venta es de un período anterior a la ventana del export.
       // NO van al ajuste — amplía el rango del export para cruzarlos.
+      o.estado = '📆 Fuera de ventana';
       cats.sinFactura.push(o);
     } else {
-      cats.negPorRegistrar.push(o);   // saldo negativo: se descontó de más
+      o.estado = '🎯 Por registrar';                    // saldo negativo: se descontó de más
+      cats.negPorRegistrar.push(o);
     }
   });
   function suma(arr) { return arr.reduce(function(a, o) { return a + o.saldo; }, 0); }
@@ -1381,6 +1447,13 @@ function computeIcarLocal(ic) {
     negPorRegistrar: { n: cats.negPorRegistrar.length, monto: suma(cats.negPorRegistrar), items: cats.negPorRegistrar },
     sinFactura: { n: cats.sinFactura.length, monto: suma(cats.sinFactura) },
     pivot: pivot,
+    // Desglose por Stock ID: un renglón por vehículo con el conteo de movimientos
+    // por tipo (facturas de venta, notas de crédito, diarios) + su Situación.
+    detalleStocks: ic.stocks.map(function(o) {
+      return { st: o.st, patente: o.patente, mesVenta: o.mesVenta, estado: o.estado,
+        nFact: o.nFact || 0, nNc: o.nNc || 0, nDesc: o.nDesc || 0, nMovs: o.nMovs || 0,
+        fact: o.fact, nc: o.nc, desc: o.desc, saldo: o.saldo, fecha: o.fecha };
+    }),
     resumen: '', notas_auditoria: []
   };
 }
@@ -1449,6 +1522,11 @@ function resetModule(mod) {
     const prev = document.getElementById('prev-' + mod);
     if (prev) prev.classList.remove('show');
     document.getElementById('zone-' + mod).classList.remove('has-file');
+    if (mod === 'icar') {
+      STATE.icar._mode = null;
+      const box = document.getElementById('icar-periodos-box'); if (box) box.style.display = 'none';
+      const cont = document.getElementById('icar-periodos'); if (cont) cont.innerHTML = '';
+    }
   }
   updateAnalyzeButton(mod);
   showEmptyState(mod);
@@ -2430,9 +2508,98 @@ function initIcarRango(ic) {
   hEl.value = max;
 }
 
-function analyzeIcar() {
-  const f = STATE.icar.files.icar;
+// Normaliza un período para emparejar (minúsculas, sin acentos, espacios simples)
+function normPer(s) {
+  return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+}
 
+// Pinta el selector de períodos (chips con checkbox) con los meses del archivo,
+// todos marcados por defecto. Son los períodos que se REEMPLAZAN en la planilla.
+function initIcarPeriodos(ic) {
+  const box = document.getElementById('icar-periodos-box');
+  const cont = document.getElementById('icar-periodos');
+  if (!box || !cont) return;
+  const periodos = (ic && ic.periodos) || [];
+  if (!periodos.length) { box.style.display = 'none'; cont.innerHTML = ''; return; }
+  cont.innerHTML = periodos.map(function(p) {
+    return '<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--n200);border-radius:20px;background:var(--n50);font-size:12px;font-weight:600;color:var(--n700);cursor:pointer">' +
+      '<input type="checkbox" class="icar-per-chk" value="' + esc(p) + '" checked style="cursor:pointer">' + esc(p) + '</label>';
+  }).join('');
+  box.style.display = '';
+}
+
+function toggleIcarPeriodos(all) {
+  document.querySelectorAll('#icar-periodos .icar-per-chk').forEach(function(c) { c.checked = !!all; });
+}
+
+function getSelectedIcarPeriodos() {
+  const out = [];
+  document.querySelectorAll('#icar-periodos .icar-per-chk').forEach(function(c) { if (c.checked) out.push(c.value); });
+  return out;
+}
+
+// Wrappers Promise de las llamadas al backend (mayor acumulado)
+function upsertMayorIcarServer(payload) {
+  return new Promise(function(resolve, reject) {
+    if (!(window.google && google.script && google.script.run)) { reject(new Error('Disponible solo dentro del Web App de Apps Script')); return; }
+    google.script.run
+      .withSuccessHandler(function(json) { try { resolve(JSON.parse(json)); } catch (e) { reject(e); } })
+      .withFailureHandler(reject)
+      .upsertMayorIcar(JSON.stringify(payload));
+  });
+}
+function leerMayorIcarServer() {
+  return new Promise(function(resolve, reject) {
+    if (!(window.google && google.script && google.script.run)) { reject(new Error('Disponible solo dentro del Web App de Apps Script')); return; }
+    google.script.run
+      .withSuccessHandler(function(json) { try { resolve(JSON.parse(json)); } catch (e) { reject(e); } })
+      .withFailureHandler(reject)
+      .leerMayorIcar();
+  });
+}
+
+// Botón secundario: analiza el mayor acumulado de la planilla SIN cargar archivo
+// ni modificar nada (útil para re-cortar por Desde/Hasta o revisar el acumulado).
+function analizarMayorAcumulado() {
+  STATE.icar._mode = 'sheet';
+  analyzeModule('icar');
+}
+
+function analyzeIcar() {
+  const mode = STATE.icar._mode || 'upsert';
+  STATE.icar._mode = null;
+
+  let gridPromise;
+  if (mode === 'sheet') {
+    gridPromise = leerMayorIcarServer();
+  } else {
+    const f = STATE.icar.files.icar;
+    if (!f || !f.icar) return Promise.reject(new Error('Primero carga el mayor 2801-01, o usa «Analizar mayor acumulado».'));
+    const ic = f.icar;
+    const sel = getSelectedIcarPeriodos();
+    if (!sel.length) return Promise.reject(new Error('Marca al menos un período a actualizar, o usa «Analizar mayor acumulado» para no modificar la planilla.'));
+    const cPer = (ic.cPer != null) ? ic.cPer : -1;
+    const selSet = {}; sel.forEach(function(s) { selSet[normPer(s)] = true; });
+    const rows = (ic.dataRows || []).filter(function(r) { return cPer !== -1 && selSet[normPer(r[cPer])]; });
+    gridPromise = upsertMayorIcarServer({ periodos: sel, header: ic.header || [], rows: rows })
+      .then(function(res) {
+        showToast('Mayor «' + res.tab + '» actualizado: −' + res.borradas + ' / +' + res.agregadas + ' filas · ' + sel.length + ' período(s)', 'success');
+        return res;
+      });
+  }
+
+  return gridPromise.then(function(res) {
+    const parsed = parseIcarGrid([res.grid]);   // grilla acumulada de la planilla
+    const ic0 = parsed.icar;
+    // El rango Desde/Hasta se re-inicializa a la ventana acumulada (upsert), o se
+    // rellena a lo acumulado si venía vacío (lectura pura). El usuario puede acotar.
+    if (mode === 'upsert') initIcarRango(ic0);
+    else if (!document.getElementById('icar-desde').value && !document.getElementById('icar-hasta').value) initIcarRango(ic0);
+    return runIcarAnalysisCore(ic0);
+  });
+}
+
+function runIcarAnalysisCore(ic0) {
   // Rango Desde/Hasta (fecha contable): re-agrega por Stock ID acotando la
   // ventana. Si el archivo trae filas crudas, se re-aplica; si no, rango completo.
   let ymdDesde = inputToYmd(document.getElementById('icar-desde').value);
@@ -2441,13 +2608,13 @@ function analyzeIcar() {
     const t = ymdDesde; ymdDesde = ymdHasta; ymdHasta = t;
     showToast('Corregí el rango: "Desde" era posterior a "Hasta"', 'info');
   }
-  if (ymdDesde == null) ymdDesde = (f.icar && f.icar.ymdMin) || 0;
-  if (ymdHasta == null) ymdHasta = (f.icar && f.icar.ymdMax) || 99999999;
+  if (ymdDesde == null) ymdDesde = (ic0 && ic0.ymdMin) || 0;
+  if (ymdHasta == null) ymdHasta = (ic0 && ic0.ymdMax) || 99999999;
 
-  let ic = f.icar;
-  if (ic && ic.filas && ic.filas.length) {
-    const re = aggregateIcarFilas(ic.filas, ic.hasMesV, ymdDesde, ymdHasta);
-    ic = Object.assign({}, ic, re);   // stocks/sumas filtrados; conserva filas/rango
+  let ic = ic0;
+  if (ic0 && ic0.filas && ic0.filas.length) {
+    const re = aggregateIcarFilas(ic0.filas, ic0.hasMesV, ymdDesde, ymdHasta);
+    ic = Object.assign({}, ic0, re);   // stocks/sumas filtrados; conserva filas/rango
   }
   const base = computeIcarLocal(ic);
   base.periodo = ymdToInput(ymdDesde) + ' → ' + ymdToInput(ymdHasta);
@@ -3013,6 +3180,37 @@ function renderIcar(d) {
     html += '</div>';
   }
 
+  // Movimientos por Stock ID (desglose completo: conteo por tipo + situación)
+  const stocksList = (d.detalleStocks || []).slice().sort(function(a, b) { return Math.abs(b.saldo || 0) - Math.abs(a.saldo || 0); });
+  if (stocksList.length) {
+    const CAP = 500;
+    const shown = stocksList.slice(0, CAP);
+    let tFact = 0, tNc = 0, tDesc = 0;
+    stocksList.forEach(function(o) { tFact += o.nFact || 0; tNc += o.nNc || 0; tDesc += o.nDesc || 0; });
+    html += '<div class="card result-section">';
+    html += '<div class="card-header"><div class="card-icon" style="background:var(--n100)">🚗</div><div class="card-title">Movimientos por Stock ID</div>';
+    html += '<span style="margin-left:auto;font-size:10px;color:var(--n400)">' + stocksList.length + ' vehículos · ' + tFact + ' facturas · ' + tNc + ' NC · ' + tDesc + ' diarios</span></div>';
+    html += '<div class="tbl-wrap" style="max-height:420px;overflow-y:auto"><table>';
+    html += '<tr><th>Situación</th><th>Stock ID</th><th>Patente</th><th>Mes venta</th>' +
+            '<th style="text-align:center">Fact.</th><th style="text-align:center">NC</th><th style="text-align:center">Diarios</th>' +
+            '<th style="text-align:right">Facturado</th><th style="text-align:right">Descontado</th><th style="text-align:right">Saldo</th></tr>';
+    shown.forEach(function(o) {
+      html += '<tr><td style="font-size:11px">' + esc(o.estado || '—') + '</td>';
+      html += '<td style="font-family:var(--mono)">' + esc(o.st) + '</td>';
+      html += '<td style="font-family:var(--mono);font-weight:600">' + esc(o.patente || '—') + '</td>';
+      html += '<td style="font-size:11px">' + esc(o.mesVenta || 'Revisar fin de mes') + '</td>';
+      html += '<td style="text-align:center;font-family:var(--mono)">' + (o.nFact || 0) + '</td>';
+      html += '<td style="text-align:center;font-family:var(--mono)">' + (o.nNc || 0) + '</td>';
+      html += '<td style="text-align:center;font-family:var(--mono)">' + (o.nDesc || 0) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(Math.abs((o.fact || 0) + (o.nc || 0))) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-size:10px">' + fmtMoney(Math.abs(o.desc || 0)) + '</td>';
+      html += '<td style="text-align:right;font-family:var(--mono);font-weight:700;color:' + ((o.saldo || 0) < -50 ? 'var(--red-d)' : ((o.saldo || 0) > 50 ? 'var(--amber-d,#b45309)' : 'var(--n500)')) + '">' + fmtMoney(o.saldo || 0) + '</td></tr>';
+    });
+    html += '</table></div>';
+    if (stocksList.length > CAP) html += '<div style="padding:8px 14px 12px;font-size:10px;color:var(--n400)">Mostrando ' + CAP + ' de ' + stocksList.length + ' vehículos (ordenados por |saldo|). El detalle completo está en la pestaña «Análisis ICAR» de la planilla.</div>';
+    html += '</div>';
+  }
+
   // Notas para auditoría (IA)
   const notas = d.notas_auditoria || [];
   if (notas.length) {
@@ -3047,7 +3245,9 @@ function saveIcarToSheet(d) {
     negPorRegistrar: { n: d.negPorRegistrar.n, monto: d.negPorRegistrar.monto,
       items: d.negPorRegistrar.items.slice().sort(function(a,b){ return a.saldo - b.saldo; }).slice(0, 300) },
     pendiente: { n: d.pendiente.n, monto: d.pendiente.monto,
-      items: d.pendiente.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 300) }
+      items: d.pendiente.items.slice().sort(function(a,b){ return b.saldo - a.saldo; }).slice(0, 300) },
+    // Tabla completa por Stock ID (conteo por tipo + situación); cap alto de seguridad
+    detalleStocks: (d.detalleStocks || []).slice().sort(function(a,b){ return Math.abs(b.saldo||0) - Math.abs(a.saldo||0); }).slice(0, 5000)
   });
   showToast('Escribiendo análisis ICAR en tu planilla…', 'info');
   google.script.run
